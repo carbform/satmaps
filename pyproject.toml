@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nisar-ls-viz"
+version = "0.1.0"
+description = "Noise-aware false-colour composites and figures from NISAR L-band and S-band GCOV products"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Sarat" }]
+dependencies = [
+    "h5py>=3.8",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pyproj>=3.5",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4", "pillow>=10"]
+
+[project.scripts]
+nisar-viz = "nisar_viz.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+src = ["src", "tests"]
+extend-exclude = ["archive"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# Figure modules carry long caption strings and layout coordinates; tests build wide fixtures.
+"src/nisar_viz/figures/*.py" = ["E501"]
+"tests/*.py" = ["E501"]

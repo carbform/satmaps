@@ -1,0 +1,125 @@
+"""L-band vs S-band social graphic (4:5): neo-retro chrome around a split-view hero and three zoom pairs."""
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from matplotlib.transforms import offset_copy
+
+from nisar_viz.chrome import block, chip, img_axes
+from nisar_viz.composite import fcc_rgba, shared_lims
+from nisar_viz.config import Scene
+from nisar_viz.geo import utm_extent
+from nisar_viz.processing import stats
+from nisar_viz.themes import NEO_RETRO
+
+NAME = "ls_social"
+FILENAME = "{scene}_LvsS_Social_NeoRetro.png"
+
+
+def render(scene: Scene, bands: dict, out_dir: Path, per_band: bool = True, title: str = "ONE RIVER, TWO RADARS") -> list[Path]:
+    """`per_band=True` stretches each band to its own percentiles (punchier S-band, colours not comparable);
+    `per_band=False` uses one stretch pooled over both bands, as in the publication figure."""
+    t = NEO_RETRO
+    S, L = bands["S"], bands["L"]
+    spec_s, spec_l = scene.bands["S"], scene.bands["L"]
+    sS, sL = stats(S), stats(L)
+    lims = None if per_band else shared_lims([S, L])
+    rS, rL = fcc_rgba(S, lims_in=lims)[0], fcc_rgba(L, lims_in=lims)[0]
+    ext = utm_extent(S)
+    H, W = rS.shape[:2]
+    split = W // 2
+    hero = rL.copy()
+    hero[:, split:] = rS[:, split:]
+    xsplit = ext[0] + (ext[1] - ext[0]) * split / W
+    lw_cm, sw_cm = f"{spec_l.wavelength_cm:g}", f"{spec_s.wavelength_cm:g}"
+
+    with plt.rc_context({"font.family": list(t.body_font), "font.weight": "normal"}):
+        fig = plt.figure(figsize=(12, 15), facecolor=t.paper)
+
+        # Header: one soft orange offset behind the title, details right-aligned
+        block(fig, t, 0.04, 0.885, 0.92, 0.09)
+        fig.text(0.06, 0.941, title, fontsize=40, color=t.orange, va="center", family=list(t.title_font), weight="bold",
+                 transform=offset_copy(fig.transFigure, fig=fig, x=2.2, y=-2.2, units="points"), zorder=3)
+        fig.text(0.06, 0.941, title, fontsize=40, color=t.ink, va="center", family=list(t.title_font), weight="bold", zorder=4)
+        fig.text(0.062, 0.903, f"THE {scene.name.upper()} IN NISAR'S L-BAND AND S-BAND, SAME PASS", fontsize=11.5,
+                 color=t.muted, va="center", zorder=4)
+        fig.text(0.94, 0.941, scene.date.upper(), fontsize=13, color=t.ink, va="center", ha="right", weight="semibold", zorder=4)
+        fig.text(0.94, 0.909, f"{scene.time_utc} UTC", fontsize=11.5, color=t.muted, va="center", ha="right", zorder=4)
+        fig.text(0.04, 0.858,
+                 f"NASA-ISRO NISAR   ·   L ≈{lw_cm} CM  ·  S ≈{sw_cm} CM   ·   HH/HV   ·   {scene.posting_m} M   ·   "
+                 f"TRACK {scene.track} · FRAME {scene.frame}", fontsize=10.5, color=t.muted, va="center")
+
+        # Hero: L-band left, S-band right, same pixels
+        hy, hw, hx = 0.255, 0.677, 0.04
+        hh = hw * 12 / 15 * (H / W)
+        ax = img_axes(fig, t, hx, hy, hw, hh)
+        ax.imshow(hero, extent=ext, origin="upper", aspect="auto", interpolation="antialiased")
+        ax.axvline(xsplit, color=t.card, lw=2.2, zorder=12)
+        ax.text(xsplit, ext[2] + 0.5 * (ext[3] - ext[2]), "◄ L   S ►", ha="center", va="center", fontsize=10.5, color=t.ink,
+                zorder=13, bbox=dict(boxstyle="square,pad=0.45", fc=t.card, ec=t.ink, lw=1.3))
+
+        def xx0(c):
+            return ext[0] + (ext[1] - ext[0]) * c / W
+
+        def yy0(r):
+            return ext[3] - (ext[3] - ext[2]) * r / H
+
+        for z in scene.zooms:
+            (r0, r1), (c0, c1) = z.rows, z.cols
+            ax.add_patch(Rectangle((xx0(c0), yy0(r1)), xx0(c1) - xx0(c0), yy0(r0) - yy0(r1), fc="none", ec=t.card, lw=1.4, zorder=11))
+            ax.text(xx0(c0), yy0(r0) + 0.006 * (ext[3] - ext[2]), z.key, ha="left", va="bottom", fontsize=10.5, color=t.ink, zorder=13,
+                    bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=1.0))
+        x0 = ext[0] + 0.05 * (ext[1] - ext[0])
+        y0 = ext[2] + 0.05 * (ext[3] - ext[2])
+        for i in range(5):
+            ax.add_patch(Rectangle((x0 + i * 1000, y0), 1000, 700, fc=t.ink if i % 2 == 0 else t.card, ec=t.ink, lw=1.0, zorder=14))
+        ax.text(x0 + 2500, y0 + 1100, "5 KM", ha="center", fontsize=11, color=t.ink, zorder=15,
+                bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=1.0))
+        chip(fig, t, hx + 0.012, hy + hh - 0.014, f"L-BAND  ≈{lw_cm} CM", t.mustard, va="top", ha="left")
+        chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, f"S-BAND  ≈{sw_cm} CM", t.teal, va="top", ha="right")
+
+        # Zoom cells: L above S for each window
+        px, pw = hx + hw + 0.02, 0.96 - (hx + hw + 0.02)
+        gap, lab = 0.009, 0.019
+        ch = (hh - 2 * gap) / 3
+        ih = (ch - lab) / 2
+        for i, z in enumerate(scene.zooms):
+            (r0, r1), (c0, c1) = z.rows, z.cols
+            top = hy + hh - i * (ch + gap)
+            fig.text(px + 0.002, top - lab / 2, f"{z.key}  {z.name}", fontsize=10.5, color=t.ink, weight="semibold", va="center", zorder=20)
+            for j, (rg, bandname, col) in enumerate(((rL, "L", t.mustard), (rS, "S", t.teal))):
+                py = top - lab - (j + 1) * ih
+                a = img_axes(fig, t, px, py, pw, ih - (0.003 if j == 0 else 0))
+                a.imshow(rg[r0:r1, c0:c1], aspect="auto", interpolation="antialiased")
+                chip(fig, t, px + 0.006, py + ih - 0.008, bandname, col, fs=10, va="top")
+
+        # How to read
+        block(fig, t, 0.04, 0.135, 0.92, 0.095)
+        fig.text(0.058, 0.213, "HOW TO READ", fontsize=11, color=t.ink, weight="bold", va="center")
+        fig.text(0.168, 0.213, "·  EACH BAND STRETCHED ON ITS OWN" if per_band else "·  SAME COLOURS AND STRETCH IN BOTH BANDS",
+                 fontsize=10.5, color=t.muted, va="center")
+        items = [("#d4574f", "RED = HH  (SURFACE)"), ("#5fb673", "GREEN = HV  (VOLUME)"), ("#6580d6", "BLUE = HH−HV  (RATIO)"),
+                 ("#a05cb5", "PURPLE = HV LOW, SURFACE-LIKE"), ("#a8c25c", "LIME = HV HIGH, VOLUME-LIKE"),
+                 (t.noise_grey, f"GREY = NOISE (HV: L {100 * sL['noisy_hv_frac_of_valid']:.0f}% · S {100 * sS['noisy_hv_frac_of_valid']:.0f}%)")]
+        for i, (col, text) in enumerate(items):
+            xx = 0.058 + (i % 3) * 0.300
+            yy = 0.188 - (i // 3) * 0.0265
+            fig.add_artist(Rectangle((xx, yy - 0.008), 0.016, 0.016, transform=fig.transFigure, fc=col, ec=t.ink, lw=1.1, zorder=6))
+            fig.text(xx + 0.024, yy, text, fontsize=9.6, color=t.ink, va="center", zorder=6)
+
+        # Honesty strip + credits
+        block(fig, t, 0.04, 0.072, 0.92, 0.047, t.note, shadow=False, lw=1.2)
+        fig.text(0.05, 0.1075, "S-BAND CALIBRATION METADATA NOT YET POPULATED: S-BAND dB VALUES ARE PROVISIONAL AND RELATIVE.",
+                 fontsize=9.3, color=t.ink, va="center")
+        second = ("COLOURS ARE NOT COMPARABLE BETWEEN BANDS (OWN STRETCH). NOISE-SCREENED (SNR < 3 dB GREY), NO SPECKLE FILTER."
+                  if per_band else "L-BAND SCALE FACTORS ARE PRESENT. BOTH BANDS: NOISE-SCREENED (SNR < 3 dB GREY), NO SPECKLE FILTER.")
+        fig.text(0.05, 0.0835, second, fontsize=9.3, color=t.ink, va="center")
+        fig.text(0.04, 0.052, f"DATA  NISAR L2 GCOV, L-SAR + S-SAR · γ⁰ · {scene.crs_label}", fontsize=9, color=t.muted, va="center")
+        fig.text(0.04, 0.032, f"VIZ   {scene.author.upper()}  ·  {scene.website}", fontsize=9, color=t.muted, va="center")
+
+        out = Path(out_dir) / FILENAME.format(scene=f"NISAR_{scene.name}")
+        fig.savefig(out, dpi=180, facecolor=t.paper)
+        plt.close(fig)
+    return [out]

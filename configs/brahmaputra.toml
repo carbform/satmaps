@@ -1,0 +1,66 @@
+# Brahmaputra scene: NISAR L-SAR and S-SAR GCOV, same pass (track 112, frame 16, ascending).
+# Rows/cols are the ROI in each file's own 10 m UTM 46N grid. The L-band grid is offset by
+# (+360 rows, +72 cols) from the S-band grid, so both ROIs cover the identical ground footprint
+# (checked: 0 m offset in x and y).
+
+[scene]
+name = "Brahmaputra"
+reach = "Braided Brahmaputra reach"
+locality = "Dibrugarh"
+region = "Dibrugarh, Assam"
+callout_caption = "with the Simen confluence and sand bars (crosses)"
+date = "25 Sep 2026"
+time_utc = "22:57"
+track = 112
+frame = 16
+posting_m = 10
+crs_label = "UTM 46N"
+s_mode = "37.5 MHz HH/HV mode, 10 m posting, 16 looks"
+author = "Sarat (NRSC/ISRO)"
+website = "www.carbform.github.io"
+
+[bands.S]
+file = "NISAR_S2_PR_GCOV_031_112_A_016_3700_DHNA_A_20260925T225740_20260925T225816_P00500_M_F_I_001.h5"
+group = "science/SSAR/GCOV"
+rows = [27800, 30880]
+cols = [11500, 14400]
+freq_ghz = 3.2
+wavelength_cm = 9
+crid = "P00500"
+
+[bands.L]
+file = "NISAR_L2_PR_GCOV_031_112_A_016_4005_DHDH_A_20260925T225740_20260925T225815_P05023_N_F_J_001.h5"
+group = "science/LSAR/GCOV"
+rows = [28160, 31240]
+cols = [11572, 14472]
+freq_ghz = 1.239
+wavelength_cm = 24
+crid = "P05023"
+
+# Zoom windows in ROI pixels (10 m): 300 x 780 px = 3.0 x 7.8 km each
+[[zooms]]
+key = "A"
+name = "HILL EDGE"
+rows = [520, 820]
+cols = [560, 1340]
+
+[[zooms]]
+key = "B"
+name = "SAND BARS"
+rows = [2500, 2800]
+cols = [1200, 1980]
+
+[[zooms]]
+key = "C"
+name = "SOUTH BANK"
+rows = [2600, 2900]
+cols = [2000, 2780]
+
+# Points of interest (WGS84); positions come from earlier work and were not re-verified against a map.
+[callouts.simen]
+lat = 27.591
+lon = 94.8725
+
+[callouts.bars]
+lat = 27.565
+lon = 94.905

@@ -1,0 +1,20 @@
+import pytest
+
+from nisar_viz.cli import FIGURES, build_parser, main
+
+
+def test_parser_accepts_all_and_named_figures():
+    p = build_parser()
+    assert p.parse_args(["render", "all"]).figures == ["all"]
+    assert p.parse_args(["render", "ls-clean", "ls-social", "--pooled-stretch"]).pooled_stretch
+    assert set(FIGURES) == {"ls-social", "ls-publication", "ls-clean", "sband-publication"}
+
+
+def test_unknown_figure_is_rejected():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["render", "nope"])
+
+
+def test_missing_data_gives_actionable_error(tmp_path):
+    with pytest.raises(FileNotFoundError, match="--data-dir"):
+        main(["render", "ls-clean", "--data-dir", str(tmp_path), "--out", str(tmp_path / "o"), "--no-cache"])
