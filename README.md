@@ -47,8 +47,8 @@ NISAR_S2_PR_GCOV_031_112_A_016_3700_DHNA_A_20260925T225740_20260925T225816_P0050
 NISAR_L2_PR_GCOV_031_112_A_016_4005_DHDH_A_20260925T225740_20260925T225815_P05023_N_F_J_001.h5   (L-SAR)
 ```
 
-Point the tool at the folder with `--data-dir /path/to/granules` or `export NISAR_DATA_DIR=/path/to/granules`
-(default: the current directory). Reading a slice from these multi-GB files can be slow, so ROIs are cached as `.npz`
+Put them in `data/` (ignored by git), or point the tool elsewhere with `--data-dir /path/to/granules` or
+`export NISAR_DATA_DIR=/path/to/granules`. Lookup order: `--data-dir`, `$NISAR_DATA_DIR`, `./data`, the current directory. Reading a slice from these multi-GB files can be slow, so ROIs are cached as `.npz`
 in `cache/` (invalidated automatically if the source file changes; `--no-cache` to disable).
 
 ## Usage
@@ -56,7 +56,7 @@ in `cache/` (invalidated automatically if the source file changes; `--no-cache` 
 Run from the repository root (the default `--config` is `configs/brahmaputra.toml`).
 
 ```bash
-nisar-viz render all --data-dir /path/to/granules          # writes to outputs/
+nisar-viz render all                                       # granules in ./data; writes to outputs/
 nisar-viz render ls-social ls-clean --out figs/
 nisar-viz render ls-social --pooled-stretch                # same colours in both bands (default: each band on its own)
 nisar-viz stats --data-dir /path/to/granules               # noise fractions, backscatter percentiles per band

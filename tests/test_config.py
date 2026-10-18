@@ -21,7 +21,10 @@ def test_data_dir_precedence(monkeypatch, tmp_path):
     assert load_scene(CONFIG).data_dir == tmp_path / "env"
     assert load_scene(CONFIG, tmp_path / "arg").data_dir == tmp_path / "arg"
     monkeypatch.delenv(DATA_DIR_ENV)
+    monkeypatch.chdir(tmp_path)
     assert load_scene(CONFIG).data_dir == Path.cwd()
+    (tmp_path / "data").mkdir()
+    assert load_scene(CONFIG).data_dir == Path("data")  # ./data is picked up when present
 
 
 def test_band_path_joins_data_dir(tmp_path):
