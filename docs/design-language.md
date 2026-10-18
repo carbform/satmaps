@@ -31,6 +31,11 @@ Fonts: Gillius ADF Bold for the title, IBM Plex Mono for labels. Both are option
 - Bento layout: header, one hero, supporting zoom panels, legend, notice, credits.
 - One soft offset behind the title, nothing else decorative.
 
+## Wording
+
+All text on the figures is in `layouts/*.toml`; facts (date, wavelengths, noise shares) are filled in from the data files.
+See the README section "Layout files".
+
 ## Do / don't
 
 - Do keep every claim on the graphic traceable (noise share, wavelengths from the file centre frequencies).

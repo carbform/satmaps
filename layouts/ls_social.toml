@@ -1,0 +1,48 @@
+# Wording for the L-vs-S social graphic (`nisar-viz render ls-social`).
+#
+# Edit any text below. Placeholders in {braces} are filled in from the data files, so date, pass, wavelengths,
+# posting, CRS, calibration state and noise percentages are never typed here. `{x_upper}` is the upper-case form of `{x}`.
+# List everything available with:  nisar-viz placeholders
+#
+# Dates and numbers come from the granule metadata (e.g. {date}, {time_utc}, {track}, {frame}, {L.wavelength_cm:.0f}).
+# Scene names come from configs/<scene>.toml ({name_upper}, {region}, {author}, {website}).
+
+[style]
+stretch = "per-band"   # "per-band": each band on its own percentiles (punchier S-band, colours not comparable)
+                       # "pooled": one stretch over both bands (comparable)
+
+[header]
+title = "ONE RIVER, TWO RADARS"
+subtitle = "THE {name_upper} IN NISAR'S L-BAND AND S-BAND, SAME PASS"
+date = "{date_upper}"
+time = "{time_utc} UTC"
+info_line = "NASA-ISRO NISAR   ·   L ≈{L.wavelength_cm:.0f} CM  ·  S ≈{S.wavelength_cm:.0f} CM   ·   {polarisations}   ·   {posting_m} M   ·   TRACK {track} · FRAME {frame}"
+
+[panels]   # chips on the hero map
+L = "L-BAND  ≈{L.wavelength_cm:.0f} CM"
+S = "S-BAND  ≈{S.wavelength_cm:.0f} CM"
+
+[how_to_read]
+title = "HOW TO READ"
+subtitle = "·  {stretch_note_upper}"
+# Up to 6 items (3 columns x 2 rows). color: a hex value, or "noise" for the noise-grey used in the data panels.
+items = [
+  { color = "#d4574f", text = "RED = HH  (SURFACE)" },
+  { color = "#5fb673", text = "GREEN = HV  (VOLUME)" },
+  { color = "#6580d6", text = "BLUE = HH−HV  (RATIO)" },
+  { color = "#a05cb5", text = "PURPLE = HV LOW, SURFACE-LIKE" },
+  { color = "#a8c25c", text = "LIME = HV HIGH, VOLUME-LIKE" },
+  { color = "noise",   text = "GREY = NOISE (HV: L {L.noisy_hv_pct:.0f}% · S {S.noisy_hv_pct:.0f}%)" },
+]
+
+[notes]   # bottom notice strip, at most 3 lines. A line with `if` is shown only when that placeholder is non-empty.
+lines = [
+  { if = "uncal_bands", text = "{uncal_bands_upper} CALIBRATION METADATA NOT YET POPULATED: {uncal_bands_upper} dB VALUES ARE PROVISIONAL AND RELATIVE." },
+  "{stretch_warning_upper} NOISE-SCREENED (SNR < 3 dB GREY), NO SPECKLE FILTER.",
+]
+
+[credits]   # below the notice strip, at most 3 lines
+lines = [
+  "DATA  NISAR L2 GCOV, L-SAR + S-SAR · γ⁰ · {crs}",
+  "VIZ   {author_upper}  ·  {website}",
+]

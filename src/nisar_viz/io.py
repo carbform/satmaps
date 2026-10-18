@@ -10,6 +10,7 @@ from pyproj import Transformer
 from scipy.interpolate import RegularGridInterpolator
 
 from nisar_viz.config import BandSpec, Scene
+from nisar_viz.metadata import read_band_metadata
 from nisar_viz.processing import derive
 
 log = logging.getLogger(__name__)
@@ -97,4 +98,6 @@ def load_roi(scene: Scene, band: str, cache_dir: str | Path | None = None) -> di
         if cf is not None:
             st = path.stat()
             np.savez(cf, _size=st.st_size, _mtime_ns=st.st_mtime_ns, **raw)
-    return assemble(raw, band)
+    d = assemble(raw, band)
+    d["meta"] = read_band_metadata(path, spec)  # acquisition facts come from the file, not from configuration
+    return d

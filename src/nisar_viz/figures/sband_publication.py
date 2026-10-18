@@ -12,6 +12,7 @@ from nisar_viz.chrome import scalebar
 from nisar_viz.composite import fcc_rgba
 from nisar_viz.config import Scene
 from nisar_viz.geo import to_xy, utm_extent
+from nisar_viz.layout import Layout, build_context
 from nisar_viz.processing import coarsen, db, stats
 
 NAME = "sband_publication"
@@ -21,11 +22,12 @@ FLAG = "#d9531e"
 RC = {"font.family": "serif", "font.serif": ["DejaVu Serif", "Liberation Serif"], "font.size": 7.5, "axes.linewidth": 0.6}
 
 
-def render(scene: Scene, bands: dict, out_dir: Path, k: int = 3) -> list[Path]:
-    """Four panels; k x k block means (default 30 m) so speckle does not alias at figure size."""
+def render(scene: Scene, bands: dict, out_dir: Path, layout: dict, k: int = 3) -> list[Path]:
+    """Four panels; k x k block means (default 30 m) so speckle does not alias at figure size.
+    The caption and credit come from `layout` (layouts/sband_publication.toml); facts come from the file metadata."""
     d = bands["S"]
-    spec = scene.bands["S"]
     s = stats(d)
+    lay = Layout(layout, build_context(scene, {"S": d}, {"S": s}, per_band=False, extra={"k": k, "block_m": k * d["meta"].posting_m}))
     c = coarsen(d, k)
     rgba, lims, _ = fcc_rgba(c)
     ext = utm_extent(c)
@@ -80,22 +82,14 @@ def render(scene: Scene, bands: dict, out_dir: Path, k: int = 3) -> list[Path]:
                 x, y = to_xy(d, lat, lon)
                 ax.plot(x, y, "+", color="#ffd400" if ax is axes[0, 1] or ax is axes[0, 0] else "k", ms=5, mew=0.9)
         for ax in axes[1]:
-            ax.set_xlabel(f"Easting, {scene.crs_label} (km)", fontsize=7)
+            ax.set_xlabel(f"Easting, {lay.ctx['crs']} (km)", fontsize=7)
         for ax in axes[:, 0]:
             ax.set_ylabel("Northing (km)", fontsize=7)
         scalebar(axes[0, 0], ext, 5, y_frac=0.12, x_frac=0.05, fs=6.5)
 
-        cap = (f"Figure. {scene.reach} {scene.callout_caption}, NISAR S-SAR L2 GCOV, "
-               f"{scene.date} {scene.time_utc} UTC, ascending, {scene.s_mode}; panels are {k}×{k} block means ({k * scene.posting_m} m) of linear power. "
-               f"Radiometric-terrain-corrected γ⁰ is shown; σ⁰ = η·γ⁰ with η = {s['eta_p1_p50_p99'][0]:.2f}–{s['eta_p1_p50_p99'][2]:.2f} (1st–99th percentile) here. "
-               f"The product's noise-equivalent backscatter (HV median {s['nebs_hv_db_median']:.1f} dB, consistent with the < −20 dB design goal; documented as σ⁰-referenced, so divided by η to give a γ⁰ floor) was subtracted "
-               f"where SNR ≥ 3 dB; {100 * s['noisy_hv_frac_of_valid']:.0f}% of {scene.posting_m} m HV pixels fall below that threshold ({100 * s['noisy_hv_frac_if_gamma_referenced']:.0f}% if the layer were γ⁰-referenced), mostly open water, and are not interpreted. "
-               f"The processor applied no ionospheric or wet-tropospheric geolocation correction (S-band is ~5× less ionosphere-sensitive than L-band) and no "
-               f"shadow/layover mask (terrain is flat here). Calibration scale factors in the product metadata are unpopulated, so absolute levels are provisional. "
-               f"Colour limits: 2nd–98.5th percentiles.")
+        cap = " ".join(lay.lines("figure.caption"))
         fig.text(0.085, 0.165, "\n".join(textwrap.wrap(cap, 112)), fontsize=6.2, va="top", ha="left", color=INK)
-        fig.text(0.085, 0.012, f"Data: NASA-ISRO NISAR, L2 GCOV (S-SAR), product spec 1.2.1, CRID {spec.crid}. Processing: {scene.author}.",
-                 fontsize=6, color=GRAY)
+        fig.text(0.085, 0.012, lay.text("figure.credit"), fontsize=6, color=GRAY)
         png = Path(out_dir) / FILENAME.format(scene=f"NISAR_{scene.name}")
         pdf = png.with_suffix(".pdf")
         fig.savefig(png, dpi=300, facecolor="white")

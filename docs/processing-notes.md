@@ -38,6 +38,7 @@ In local time the pass is 04:27 IST on 26 Sep.
 | Dry-troposphere geolocation correction | applied | applied |
 | Ionospheric geolocation correction (range, azimuth) | not applied | applied |
 | RFI mitigation | applied (FDNF; `rfiLikelihood` about 6.6 % HH, 10.5 % HV) | not applied |
+| Polarimetric symmetrization | applied | not applied |
 | Noise subtraction | not applied | not applied |
 | Valid-sample sub-swath masking, shadow masking, wet-troposphere correction, speckle filtering | not applied | not applied |
 | Calibration scale factors | **0.0 (unpopulated)** | populated (HH ≈ 27 030, HV ≈ 30 166) |

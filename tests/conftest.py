@@ -44,37 +44,64 @@ def ds(raw):
     return assemble(raw, "S")
 
 
-def write_granule(path: Path, group: str, raw: dict) -> None:
-    """Minimal HDF5 file with the GCOV layout that `nisar_viz.io.read_roi` reads."""
+def write_granule(path: Path, group: str, raw: dict, *, instrument: str = "SSAR", freq_hz: float = 3.2e9, calibrated: bool = False,
+                  rfi: str = "FDNF", start: str = "2026-09-25T22:57:40.10308051", crid: str = "P00500", track: int = 112) -> None:
+    """Minimal HDF5 file with the GCOV layout and the metadata that `nisar_viz.io` / `nisar_viz.metadata` read."""
+    root = group.rsplit("/", 1)[0]
     with h5py.File(path, "w") as f:
         g = f.create_group(f"{group}/grids/frequencyA")
         g["xCoordinates"], g["yCoordinates"] = raw["x"], raw["y"]
+        g["xCoordinateSpacing"] = 10.0
         g["projection"] = np.uint32(raw["epsg"])
+        g["listOfPolarizations"] = np.array([b"HH", b"HV"])
         g["HHHH"], g["HVHV"] = raw["hh"], raw["hv"]
         g["mask"], g["inputDataExceptionMask"] = raw["mask"], raw["exc"]
         g["rtcGammaToSigmaFactor"] = raw["eta"]
-        nb = f.create_group(f"{group}/metadata/calibrationInformation/frequencyA/noiseEquivalentBackscatter")
+        g["numberOfLooks"] = np.full(raw["hh"].shape, 16.0 if instrument == "SSAR" else np.nan, np.float32)
+        m = f.create_group(f"{group}/metadata")
+        sw = m.create_group("sourceData/swaths/frequencyA")
+        sw["centerFrequency"] = freq_hz
+        sw["rangeBandwidth"] = 37.5e6
+        par = m.create_group("processingInformation/parameters")
+        par["rfiMitigationApplied"] = rfi.encode()
+        for k, v in (("noiseCorrectionApplied", "False"), ("polarimetricSymmetrizationApplied", "False"),
+                     ("rangeIonosphericGeolocationCorrectionApplied", "False"), ("azimuthIonosphericGeolocationCorrectionApplied", "False")):
+            par[k] = v.encode()
+        for pol in ("HH", "HV"):
+            m[f"calibrationInformation/frequencyA/{pol}/scaleFactor"] = 27000.0 if calibrated else 0.0
+        nb = m.create_group("calibrationInformation/frequencyA/noiseEquivalentBackscatter")
         # coarse noise grid with descending y, as in the real products
         nx = np.linspace(raw["x"][0] - 100, raw["x"][-1] + 100, 5)
         ny = np.linspace(raw["y"][0] + 100, raw["y"][-1] - 100, 4)
         nb["xCoordinates"], nb["yCoordinates"] = nx, ny
         nb["HH"] = np.full((4, 5), 10 ** (NEBS_DB / 10))
         nb["HV"] = np.full((4, 5), 10 ** (NEBS_DB / 10))
+        ident = f.create_group(f"{root}/identification")
+        for k, v in (("instrumentName", instrument), ("radarBand", instrument[0]), ("granuleId", path.stem), ("compositeReleaseId", crid),
+                     ("productVersion", "1.0"), ("productSpecificationVersion", "1.2.1"), ("processingCenter", "TEST"),
+                     ("orbitPassDirection", "Ascending"), ("lookDirection", "Left"), ("zeroDopplerStartTime", start),
+                     ("zeroDopplerEndTime", start[:17] + "59.0")):
+            ident[k] = v.encode()
+        ident["trackNumber"], ident["frameNumber"], ident["hasInputDataException"] = track, 16, 0
 
 
 @pytest.fixture
 def scene(tmp_path) -> Scene:
     """Scene over two synthetic granules (L slightly brighter than S) with zoom windows that fit the tiny ROI."""
-    for key, group, shift in (("S", "science/SSAR/GCOV", 0.0), ("L", "science/LSAR/GCOV", 1.5)):
-        write_granule(tmp_path / f"{key}.h5", group, make_raw(seed=1 if key == "S" else 2, shift_db=shift))
+    write_granule(tmp_path / "S.h5", "science/SSAR/GCOV", make_raw(seed=1))
+    write_granule(tmp_path / "L.h5", "science/LSAR/GCOV", make_raw(seed=2, shift_db=1.5), instrument="LSAR", freq_hz=1.239e9,
+                  calibrated=True, rfi="False", start="2026-09-25T22:57:40.0", crid="P05023")
     bands = {
-        "S": BandSpec("S", "S.h5", "science/SSAR/GCOV", (0, H), (0, W), 3.2, 9, "P00500"),
-        "L": BandSpec("L", "L.h5", "science/LSAR/GCOV", (0, H), (0, W), 1.239, 24, "P05023"),
+        "S": BandSpec("S", "S.h5", "science/SSAR/GCOV", (0, H), (0, W)),
+        "L": BandSpec("L", "L.h5", "science/LSAR/GCOV", (0, H), (0, W)),
     }
     zooms = (Zoom("A", "ONE", (5, 35), (5, 60)), Zoom("B", "TWO", (40, 70), (10, 70)), Zoom("C", "THREE", (80, 110), (30, 90)))
     return Scene(
         name="Testland", reach="Test reach", locality="Nowhere", region="Nowhere, Testland", callout_caption="with callouts (crosses)",
-        date="1 Jan 2026", time_utc="00:00", track=1, frame=2, posting_m=10, crs_label="UTM 46N", s_mode="test mode",
-        author="Tester", website="example.org", bands=bands, zooms=zooms,
-        callouts={"p": (27.0, 94.0)}, data_dir=tmp_path,
+        author="Tester", website="example.org", bands=bands, zooms=zooms, callouts={"p": (27.0, 94.0)}, data_dir=tmp_path,
     )
+
+
+@pytest.fixture
+def layouts_dir() -> Path:
+    return Path(__file__).resolve().parents[1] / "layouts"

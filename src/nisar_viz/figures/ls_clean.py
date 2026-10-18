@@ -11,6 +11,7 @@ from nisar_viz.chrome import scalebar
 from nisar_viz.composite import fcc_rgba, shared_lims
 from nisar_viz.config import Scene
 from nisar_viz.geo import utm_extent
+from nisar_viz.layout import Layout, build_context
 from nisar_viz.processing import stats
 
 NAME = "ls_clean"
@@ -21,15 +22,16 @@ RC = {"font.family": ["IBM Plex Sans", "DejaVu Sans"], "font.size": 10, "text.co
       "axes.labelcolor": INK, "xtick.color": INK, "ytick.color": INK}
 
 
-def render(scene: Scene, bands: dict, out_dir: Path) -> list[Path]:
+def render(scene: Scene, bands: dict, out_dir: Path, layout: dict) -> list[Path]:
+    """Wording comes from `layout` (layouts/ls_clean.toml); facts come from the file metadata."""
     S, L = bands["S"], bands["L"]
     sS, sL = stats(S), stats(L)
+    lay = Layout(layout, build_context(scene, bands, {"S": sS, "L": sL}, per_band=False))
     lims = shared_lims([S, L])
     rS, rL = fcc_rgba(S, lims_in=lims)[0], fcc_rgba(L, lims_in=lims)[0]
     ext = utm_extent(S)
     xt = np.arange(np.ceil(ext[0] / 5000) * 5000, ext[1], 5000)
     yt = np.arange(np.ceil(ext[2] / 5000) * 5000, ext[3], 5000)
-    spec_s, spec_l = scene.bands["S"], scene.bands["L"]
 
     with plt.rc_context(RC):
         fig = plt.figure(figsize=(W, H), facecolor="white")
@@ -47,20 +49,18 @@ def render(scene: Scene, bands: dict, out_dir: Path) -> list[Path]:
             fig.add_artist(plt.Line2D([fx(x0), fx(x1)], [fy(y), fy(y)], transform=fig.transFigure, color=color, lw=lw))
 
         # Header
-        text(0.8, 9.2, f"NISAR L-band and S-band SAR over the {scene.name}", fontsize=21, weight="bold", va="center")
-        text(0.8, 8.84, f"False colour composite  ·  dual-pol HH/HV  ·  same ascending pass  ·  near {scene.region}",
-             fontsize=11.5, color=MUTED, va="center")
-        text(13.72, 9.2, f"{scene.date}  ·  {scene.time_utc} UTC", fontsize=12, weight="bold", ha="right", va="center")
-        text(13.72, 8.84, f"Track {scene.track}  ·  Frame {scene.frame}  ·  {scene.posting_m} m", fontsize=11.5, color=MUTED,
-             ha="right", va="center")
+        text(0.8, 9.2, lay.text("header.title"), fontsize=21, weight="bold", va="center")
+        text(0.8, 8.84, lay.text("header.subtitle"), fontsize=11.5, color=MUTED, va="center")
+        text(13.72, 9.2, lay.text("header.date"), fontsize=12, weight="bold", ha="right", va="center")
+        text(13.72, 8.84, lay.text("header.meta"), fontsize=11.5, color=MUTED, ha="right", va="center")
         hline(8.6, lw=1.4, color=INK)
 
         # Maps
         mw = (13.72 - 0.8 - 0.3) / 2
         mh = mw * (rS.shape[0] / rS.shape[1])
         my = 1.8
-        panels = ((0.8, rL, "L-BAND", f"{spec_l.freq_ghz:g} GHz · ≈{spec_l.wavelength_cm:g} cm"),
-                  (0.8 + mw + 0.3, rS, "S-BAND", f"{spec_s.freq_ghz:g} GHz · ≈{spec_s.wavelength_cm:g} cm"))
+        panels = ((0.8, rL, lay.text("panels.L_label"), lay.text("panels.L_sub")),
+                  (0.8 + mw + 0.3, rS, lay.text("panels.S_label"), lay.text("panels.S_sub")))
         for x0, img, band, sub in panels:
             ax = fig.add_axes([fx(x0), fy(my), fx(mw), fy(mh)])
             ax.imshow(img, extent=ext, origin="upper", interpolation="antialiased", aspect="auto")
@@ -70,7 +70,7 @@ def render(scene: Scene, bands: dict, out_dir: Path) -> list[Path]:
             ax.set_yticks(yt)
             ax.set_xticklabels([f"{v / 1000:.0f}" for v in xt])
             ax.set_yticklabels([f"{v / 1000:.0f}" for v in yt] if x0 < 5 else [], rotation=90, va="center")
-            ax.set_xlabel(f"Easting, {scene.crs_label} (km)", fontsize=10, weight="semibold", labelpad=4)
+            ax.set_xlabel(f"Easting, {lay.ctx['crs']} (km)", fontsize=10, weight="semibold", labelpad=4)
             if x0 < 5:
                 ax.set_ylabel("Northing (km)", fontsize=10, weight="semibold", labelpad=4)
             ax.tick_params(labelsize=9, length=3.5, width=0.8, pad=3)
@@ -85,22 +85,23 @@ def render(scene: Scene, bands: dict, out_dir: Path) -> list[Path]:
 
         # Footer, two columns
         hline(1.3)
-        text(0.8, 1.1, "RGB CHANNEL ASSIGNMENT  ·  SAME STRETCH IN BOTH BANDS", fontsize=10.5, weight="bold", va="center")
-        text(0.8 + mw + 0.3, 1.1, "ACQUISITION AND DATA QUALITY", fontsize=10.5, weight="bold", va="center")
-        chans = [("#d93636", "R", "HH γ⁰", lims["HH"]), ("#2f9e4f", "G", "HV γ⁰", lims["HV"]), ("#3b5bdb", "B", "HH−HV", lims["ratio"])]
-        for i, (col, ch, name, (lo, hi)) in enumerate(chans):
+        text(0.8, 1.1, lay.text("footer.channels_title"), fontsize=10.5, weight="bold", va="center")
+        text(0.8 + mw + 0.3, 1.1, lay.text("footer.quality_title"), fontsize=10.5, weight="bold", va="center")
+        labels = lay.raw("footer.channel_labels")
+        if len(labels) != 3:
+            raise ValueError(f"{lay.path} [footer.channel_labels]: need exactly 3 labels (R, G, B)")
+        chans = [("#d93636", labels[0], lims["HH"]), ("#2f9e4f", labels[1], lims["HV"]), ("#3b5bdb", labels[2], lims["ratio"])]
+        for i, (col, label, (lo, hi)) in enumerate(chans):
             x = 0.8 + i * 2.1
             fig.add_artist(Rectangle((fx(x), fy(0.76)), fx(0.18), fy(0.18), transform=fig.transFigure, fc=col, ec=INK, lw=0.7))
-            text(x + 0.26, 0.85, f"{ch}  {name}", fontsize=10, weight="semibold", va="center")
+            text(x + 0.26, 0.85, label, fontsize=10, weight="semibold", va="center")
             text(x + 0.26, 0.62, f"{lo:.0f} to {hi:.0f} dB", fontsize=9.3, color=MUTED, va="center")
-        text(0.8, 0.30, "Purple: HH high, HV low  ·  Lime: HV high  ·  Dark grey: HV below noise floor (SNR < 3 dB)",
-             fontsize=9.3, color=MUTED, va="center")
+        text(0.8, 0.30, lay.text("footer.legend_line"), fontsize=9.3, color=MUTED, va="center")
         x1 = 0.8 + mw + 0.3
-        text(x1, 0.85, f"HV pixels below noise floor:  L-band {100 * sL['noisy_hv_frac_of_valid']:.0f}%   ·   "
-             f"S-band {100 * sS['noisy_hv_frac_of_valid']:.0f}%", fontsize=10, weight="semibold", va="center")
-        text(x1, 0.62, "S-band calibration metadata not yet populated: S-band dB values are provisional.", fontsize=9.3, color=MUTED, va="center")
-        text(x1, 0.30, f"Data: NASA–ISRO NISAR, L2 GCOV  ·  Visualisation: {scene.author}  ·  {scene.website}",
-             fontsize=9.3, color=MUTED, va="center")
+        text(x1, 0.85, lay.text("footer.quality_line"), fontsize=10, weight="semibold", va="center")
+        for note in lay.lines("footer.note", limit=1):
+            text(x1, 0.62, note, fontsize=9.3, color=MUTED, va="center")
+        text(x1, 0.30, lay.text("footer.credit"), fontsize=9.3, color=MUTED, va="center")
 
         out = Path(out_dir) / FILENAME.format(scene=f"NISAR_{scene.name}")
         fig.savefig(out, dpi=250, facecolor="white")

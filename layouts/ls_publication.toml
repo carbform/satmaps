@@ -1,0 +1,16 @@
+# Caption and credit for the L-vs-S publication figure (`nisar-viz render ls-publication`).
+# Sentences are joined with a space. Extra placeholders here: {k}, {block_m}, {both_pct}.
+# Lines with `if` appear only when that placeholder is non-empty (e.g. {uncal_bands}).
+
+[figure]
+caption = [
+  "Figure. {reach} near {locality} seen by NISAR in L-band ({L.freq_ghz:g} GHz) and S-band ({S.freq_ghz:g} GHz) on the same pass (track {track}, frame {frame}, {pass_direction}, {date} {time_utc} UTC), L2 GCOV, {polarisations}, {posting_m} m posting on a common {crs} grid.",
+  "Panels (a, b) use one colour stretch pooled over both bands (2nd–98.5th percentiles) and {k}×{k} block means ({block_m} m) of linear power; HH and HV are noise-subtracted (noise-equivalent backscatter divided by η, as the layer is documented as σ⁰-referenced) where SNR ≥ 3 dB, and HV pixels below 3 dB are grey.",
+  "{L.noisy_hv_pct:.0f}% (L) and {S.noisy_hv_pct:.0f}% (S) of {posting_m} m HV pixels fall below that threshold ({L.noisy_hv_pct_gamma:.0f}% and {S.noisy_hv_pct_gamma:.0f}% if the layer were γ⁰-referenced), mostly open water.",
+  "(c) HH on pixels clearing 3 dB in both bands ({both_pct:.0f}% of the area).",
+  { if = "uncal_bands", text = "{uncal_bands} calibration scale factors are unpopulated in the product, so {uncal_bands} levels and the L−S offset are provisional; {cal_bands} scale factors are populated." },
+  "L-band RFI mitigation was {L.rfi} (S-band: {S.rfi_state}).",
+  "S-band pixels carry the SSAR sample-shift flag over {S.exc64_pct:.0f}% of the area; no L-band exception flags are set.",
+  "No ionospheric/tropospheric re-correction, shadow mask or speckle filter was applied here.",
+]
+credit = "Data: NASA-ISRO NISAR, L2 GCOV (L-SAR CRID {L.crid}, S-SAR CRID {S.crid}). Processing: {author}."

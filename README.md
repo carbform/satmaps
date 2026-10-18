@@ -63,10 +63,46 @@ nisar-viz stats --data-dir /path/to/granules               # noise fractions, ba
 python -m nisar_viz render ls-publication                  # same as the console script
 ```
 
+## Layout files: change the wording without touching code
+
+What is written on each figure lives in `layouts/<figure>.toml`: main title, subtitle, info line, the how-to-read
+legend, the bottom notes, the credits and the publication captions. Edit them freely.
+
+```toml
+# layouts/ls_social.toml
+[header]
+title = "ONE RIVER, TWO RADARS"
+subtitle = "THE {name_upper} IN NISAR'S L-BAND AND S-BAND, SAME PASS"
+date = "{date_upper}"                      # <- from the file, not typed
+info_line = "... TRACK {track} · FRAME {frame}"
+[notes]
+lines = [
+  { if = "uncal_bands", text = "{uncal_bands_upper} CALIBRATION METADATA NOT YET POPULATED ..." },
+  "NOISE-SCREENED (SNR < 3 dB GREY), NO SPECKLE FILTER.",
+]
+```
+
+Facts are **never typed in a layout**. Placeholders such as `{date}`, `{time_utc}`, `{track}`, `{frame}`,
+`{pass_direction}`, `{posting_m}`, `{crs}`, `{L.wavelength_cm:.0f}`, `{S.freq_ghz:g}`, `{S.crid}` and the noise
+percentages `{S.noisy_hv_pct:.0f}` are read from the granule metadata and the data (the identification group,
+swath, calibration and processing-parameter groups). `{x_upper}` is the upper-case form of `{x}`. List all of them
+with their values:
+
+```bash
+nisar-viz placeholders --data-dir /path/to/granules
+```
+
+Two safeguards: a line written as `{ if = "uncal_bands", text = "..." }` shows only while a band's calibration scale
+factors are zero in the file, so the provisional-calibration warning disappears by itself when ISRO populates them; and
+the tool refuses to build a figure from two granules that are not the same track, frame and pass direction. Unknown
+placeholders and over-long lists fail with the file name and the valid choices. `nisar-viz render --layouts-dir DIR`
+uses another set of layout files.
+
 ## Another scene
 
 A scene is one TOML file ([configs/brahmaputra.toml](configs/brahmaputra.toml)): granule filenames, the ROI (rows and
-columns) in each file's own grid, zoom windows, callouts and the labels used on the figures. Copy it, edit it and pass
+columns) in each file's own grid, zoom windows, callouts and the place names (`name`, `reach`, `region`, author,
+website). Date, pass and instrument facts are not in it; they come from the files. Copy it, edit it and pass
 `--config`. The L-band and S-band ROIs must cover the same ground; check that the `x`/`y` coordinates match before
 building a split view.
 
@@ -75,6 +111,8 @@ building a split view.
 ```
 src/nisar_viz/
   config.py       scene TOML -> dataclasses
+  metadata.py     acquisition facts read from the granule (date, pass, frequency, flags)
+  layout.py       layout TOML + placeholders filled from metadata and statistics
   io.py           HDF5 ROI reader, NEBS interpolation, cache
   processing.py   noise floor, SNR flags, block means, statistics
   composite.py    false-colour composite and pooled stretch
@@ -83,7 +121,8 @@ src/nisar_viz/
   themes.py       design tokens
   figures/        one module per figure
   cli.py          nisar-viz entry point
-configs/          scene definitions
+configs/          scene definitions (granules, ROI, zooms, place names)
+layouts/          figure wording: titles, how-to-read, notes, credits, captions
 docs/             processing notes, design language, first assessment (superseded), preview images
 tests/            synthetic-data tests (no granules needed)
 archive/          earlier scripts and design explorations, unmaintained

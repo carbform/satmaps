@@ -1,4 +1,7 @@
-"""Scene configuration: which granules to read, which region of each, and the labels used on figures."""
+"""Scene configuration: which granules to read, which region of each, and what the place is called.
+
+Acquisition facts (date, pass, frequency, posting, CRS, processing flags) are read from the files, see `metadata`.
+Figure wording lives in the layout files, see `layout`."""
 from __future__ import annotations
 
 import os
@@ -16,9 +19,6 @@ class BandSpec:
     group: str  # HDF5 group of the GCOV product, e.g. science/SSAR/GCOV
     rows: tuple[int, int]
     cols: tuple[int, int]
-    freq_ghz: float
-    wavelength_cm: float
-    crid: str = ""
 
 
 @dataclass(frozen=True)
@@ -36,13 +36,6 @@ class Scene:
     locality: str
     region: str
     callout_caption: str
-    date: str
-    time_utc: str
-    track: int
-    frame: int
-    posting_m: int
-    crs_label: str
-    s_mode: str
     author: str
     website: str
     bands: dict[str, BandSpec]
@@ -62,7 +55,6 @@ def load_scene(config: str | os.PathLike, data_dir: str | os.PathLike | None = N
     bands = {
         key: BandSpec(
             key=key, file=b["file"], group=b["group"], rows=tuple(b["rows"]), cols=tuple(b["cols"]),
-            freq_ghz=float(b["freq_ghz"]), wavelength_cm=float(b["wavelength_cm"]), crid=b.get("crid", ""),
         )
         for key, b in raw["bands"].items()
     }
@@ -71,7 +63,6 @@ def load_scene(config: str | os.PathLike, data_dir: str | os.PathLike | None = N
     root = data_dir or os.environ.get(DATA_DIR_ENV) or Path.cwd()
     return Scene(
         name=s["name"], reach=s["reach"], locality=s["locality"], region=s["region"], callout_caption=s["callout_caption"],
-        date=s["date"], time_utc=s["time_utc"], track=int(s["track"]), frame=int(s["frame"]), posting_m=int(s["posting_m"]),
-        crs_label=s["crs_label"], s_mode=s["s_mode"], author=s["author"], website=s["website"],
+        author=s["author"], website=s["website"],
         bands=bands, zooms=zooms, callouts=callouts, data_dir=Path(root).expanduser(),
     )

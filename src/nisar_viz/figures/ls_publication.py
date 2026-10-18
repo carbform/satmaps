@@ -13,6 +13,7 @@ from nisar_viz.chrome import scalebar
 from nisar_viz.composite import fcc_rgba, shared_lims
 from nisar_viz.config import Scene
 from nisar_viz.geo import utm_extent
+from nisar_viz.layout import Layout, build_context
 from nisar_viz.processing import coarsen, db, stats
 
 log = logging.getLogger(__name__)
@@ -23,10 +24,10 @@ CL, CS = "#c9791a", "#1f8a7e"  # L and S series colours
 RC = {"font.family": "serif", "font.serif": ["DejaVu Serif", "Liberation Serif"], "font.size": 7.5, "axes.linewidth": 0.6}
 
 
-def render(scene: Scene, bands: dict, out_dir: Path, k: int = 3) -> list[Path]:
-    """Panels use k x k block means of linear power; the colour stretch is pooled over both bands."""
+def render(scene: Scene, bands: dict, out_dir: Path, layout: dict, k: int = 3) -> list[Path]:
+    """Panels use k x k block means of linear power; the colour stretch is pooled over both bands.
+    The caption and credit come from `layout` (layouts/ls_publication.toml); facts come from the file metadata."""
     S, L = bands["S"], bands["L"]
-    spec_s, spec_l = scene.bands["S"], scene.bands["L"]
     sS, sL = stats(S), stats(L)
     cS, cL = coarsen(S, k), coarsen(L, k)
     lims = shared_lims([cS, cL])
@@ -41,7 +42,10 @@ def render(scene: Scene, bands: dict, out_dir: Path, k: int = 3) -> list[Path]:
     nboth = int(both.sum())
     nval = int((cS["valid"] & cL["valid"]).sum())
     log.info("HH L vs S: r=%.3f, median L-S=%.2f dB, both-valid=%.1f%%", r, dmed, 100 * nboth / nval)
-    crs = scene.crs_label
+    lay = Layout(layout, build_context(scene, bands, {"S": sS, "L": sL}, per_band=False,
+                                       extra={"k": k, "block_m": k * bands["S"]["meta"].posting_m, "both_pct": 100 * nboth / nval}))
+    crs = lay.ctx["crs"]
+    spec_l, spec_s = lay.ctx["L"], lay.ctx["S"]
 
     with plt.rc_context(RC):
         fig, axes = plt.subplots(2, 2, figsize=(7.2, 8.3), facecolor="white")
@@ -60,8 +64,8 @@ def render(scene: Scene, bands: dict, out_dir: Path, k: int = 3) -> list[Path]:
             ax.set_yticklabels([f"{v / 1000:.0f}" for v in yt], rotation=90, va="center")
             ax.tick_params(labelsize=6, length=2, width=0.5)
 
-        mapax(axes[0, 0], rL, f"(a) L-band ({spec_l.freq_ghz:g} GHz, ≈{spec_l.wavelength_cm:g} cm)")
-        mapax(axes[0, 1], rS, f"(b) S-band ({spec_s.freq_ghz:g} GHz, ≈{spec_s.wavelength_cm:g} cm)")
+        mapax(axes[0, 0], rL, f"(a) L-band ({spec_l.freq_ghz:g} GHz, ≈{spec_l.wavelength_cm:.0f} cm)")
+        mapax(axes[0, 1], rS, f"(b) S-band ({spec_s.freq_ghz:g} GHz, ≈{spec_s.wavelength_cm:.0f} cm)")
         axes[0, 0].text(0.02, 0.03, f"R  HH {lims['HH'][0]:.0f} to {lims['HH'][1]:.0f} dB\nG  HV {lims['HV'][0]:.0f} to {lims['HV'][1]:.0f} dB\n"
                         f"B  HH−HV {lims['ratio'][0]:.0f} to {lims['ratio'][1]:.0f} dB\ngrey: HV SNR < 3 dB", transform=axes[0, 0].transAxes,
                         fontsize=5.8, color="white", va="bottom", linespacing=1.3, bbox=dict(fc="black", ec="none", alpha=0.7, pad=2.5))
@@ -95,24 +99,15 @@ def render(scene: Scene, bands: dict, out_dir: Path, k: int = 3) -> list[Path]:
             ax.hist(np.clip(v, -10, 25), bins=bins, density=True, histtype="step", color=col, lw=1.1,
                     label=f"{name}-band ({100 * sd['noisy_hv_frac_of_valid']:.0f}% < 3 dB)")
         ax.axvline(3.0, color=INK, lw=0.6, ls=":")
-        ax.set_xlabel(f"HV SNR (dB), {scene.posting_m} m NEBS/η noise floor", fontsize=7)
+        ax.set_xlabel(f"HV SNR (dB), {lay.ctx['posting_m']} m NEBS/η noise floor", fontsize=7)
         ax.set_ylabel("Density", fontsize=7)
         ax.set_title("(d) HV signal-to-noise ratio", fontsize=8, loc="left", weight="bold")
         ax.legend(fontsize=6.3, frameon=False, loc="upper right")
         ax.tick_params(labelsize=6, length=2, width=0.5)
 
-        cap = (f"Figure. {scene.reach} near {scene.locality} seen by NISAR in L-band ({spec_l.freq_ghz:g} GHz) and S-band ({spec_s.freq_ghz:g} GHz) on the same pass "
-               f"(track {scene.track}, frame {scene.frame}, ascending, {scene.date} {scene.time_utc} UTC), L2 GCOV, HH/HV, {scene.posting_m} m posting on a common {crs} grid. "
-               f"Panels (a, b) use one colour stretch pooled over both bands (2nd–98.5th percentiles) and {k}×{k} block means ({k * scene.posting_m} m) of linear power; "
-               f"HH and HV are noise-subtracted (noise-equivalent backscatter divided by η, as the layer is documented as σ⁰-referenced) where SNR ≥ 3 dB, "
-               f"and HV pixels below 3 dB are grey. {100 * sL['noisy_hv_frac_of_valid']:.0f}% (L) and {100 * sS['noisy_hv_frac_of_valid']:.0f}% (S) of {scene.posting_m} m HV pixels fall below that threshold "
-               f"({100 * sL['noisy_hv_frac_if_gamma_referenced']:.0f}% and {100 * sS['noisy_hv_frac_if_gamma_referenced']:.0f}% if the layer were γ⁰-referenced), mostly open water. "
-               f"(c) HH on pixels clearing 3 dB in both bands ({100 * nboth / nval:.0f}% of the area). S-band calibration scale factors are unpopulated in the product, so S-band levels and the L−S offset are provisional; "
-               f"L-band scale factors are populated. L-band RFI mitigation was not applied (S-band: applied). S-band pixels carry the SSAR sample-shift flag over {100 * sS['exc64_frac_of_valid']:.0f}% of the area; "
-               f"no L-band exception flags are set. No ionospheric/tropospheric re-correction, shadow mask or speckle filter was applied here.")
+        cap = " ".join(lay.lines("figure.caption"))
         fig.text(0.085, 0.172, "\n".join(textwrap.wrap(cap, 128)), fontsize=6.0, va="top", ha="left", color=INK)
-        fig.text(0.085, 0.012, f"Data: NASA-ISRO NISAR, L2 GCOV (L-SAR CRID {spec_l.crid}, S-SAR CRID {spec_s.crid}). Processing: {scene.author}.",
-                 fontsize=6, color=GRAY)
+        fig.text(0.085, 0.012, lay.text("figure.credit"), fontsize=6, color=GRAY)
         png = Path(out_dir) / FILENAME.format(scene=f"NISAR_{scene.name}")
         pdf = png.with_suffix(".pdf")
         fig.savefig(png, dpi=300, facecolor="white")
