@@ -13,11 +13,12 @@ from nisar_viz.layout import load_layout  # noqa: E402
 
 @pytest.mark.parametrize("name", list(FIGURES))
 def test_figure_renders(name, scene, tmp_path, layouts_dir):
-    mod = importlib.import_module(FIGURES[name][0])
-    bands = {b: load_roi(scene, b) for b in FIGURES[name][1]}
+    fig = FIGURES[name]
+    mod = importlib.import_module(fig.module)
+    bands = {b: load_roi(scene, b) for b in fig.bands}
     out = tmp_path / "out"
     out.mkdir()
-    paths = mod.render(scene, bands, out, load_layout(layouts_dir, mod.NAME))
+    paths = mod.render(scene, bands, out, load_layout(layouts_dir, fig.layout), **fig.kwargs)
     assert paths and all(p.exists() and p.stat().st_size > 5000 for p in paths)
 
 

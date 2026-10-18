@@ -14,7 +14,6 @@ from nisar_viz.geo import utm_extent
 from nisar_viz.layout import Layout, build_context
 from nisar_viz.processing import stats
 
-NAME = "ls_clean"
 FILENAME = "{scene}_LvsS_Clean.png"
 INK, MUTED, RULE = "#14161a", "#5b616b", "#c9ccd2"
 W, H = 14.0, 9.5  # inches

@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import matplotlib.patheffects as pe
 from matplotlib.patches import Rectangle
+from matplotlib.transforms import offset_copy
 
+from nisar_viz.layout import Layout, LayoutError
 from nisar_viz.themes import NeoRetro
 
 
@@ -42,3 +44,44 @@ def chip(target, t: NeoRetro, x, y, text, fc, fs=11, **kw):
     """Small outlined label box. `target` is a Figure (figure coords) or Axes."""
     return target.text(x, y, text, fontsize=fs, color=t.ink, zorder=20, weight="medium",
                        bbox=dict(boxstyle="square,pad=0.35", fc=fc, ec=t.ink, lw=1.3), **kw)
+
+
+def social_header(fig, t: NeoRetro, lay: Layout) -> None:
+    """Title box with one soft offset behind the title, details right-aligned, and the info line under it."""
+    block(fig, t, 0.04, 0.885, 0.92, 0.09)
+    title = lay.text("header.title")
+    fig.text(0.06, 0.941, title, fontsize=40, color=t.orange, va="center", family=list(t.title_font), weight="bold",
+             transform=offset_copy(fig.transFigure, fig=fig, x=2.2, y=-2.2, units="points"), zorder=3)
+    fig.text(0.06, 0.941, title, fontsize=40, color=t.ink, va="center", family=list(t.title_font), weight="bold", zorder=4)
+    fig.text(0.062, 0.903, lay.text("header.subtitle"), fontsize=11.5, color=t.muted, va="center", zorder=4)
+    fig.text(0.94, 0.941, lay.text("header.date"), fontsize=13, color=t.ink, va="center", ha="right", weight="semibold", zorder=4)
+    fig.text(0.94, 0.909, lay.text("header.time"), fontsize=11.5, color=t.muted, va="center", ha="right", zorder=4)
+    fig.text(0.04, 0.858, lay.text("header.info_line"), fontsize=10.5, color=t.muted, va="center")
+
+
+def social_footer(fig, t: NeoRetro, lay: Layout) -> None:
+    """How-to-read block (up to 6 items), notice strip (up to 3 lines) and credits (up to 3 lines)."""
+    block(fig, t, 0.04, 0.135, 0.92, 0.095)
+    fig.text(0.058, 0.213, lay.text("how_to_read.title"), fontsize=11, color=t.ink, weight="bold", va="center")
+    fig.text(0.168, 0.213, lay.text("how_to_read.subtitle"), fontsize=10.5, color=t.muted, va="center")
+    items = lay.raw("how_to_read.items")
+    if len(items) > 6:
+        raise LayoutError(f"{lay.path} [how_to_read.items]: {len(items)} items, at most 6 fit")
+    for i, item in enumerate(items):
+        col = t.noise_grey if item["color"] == "noise" else item["color"]
+        xx = 0.058 + (i % 3) * 0.300
+        yy = 0.188 - (i // 3) * 0.0265
+        fig.add_artist(Rectangle((xx, yy - 0.008), 0.016, 0.016, transform=fig.transFigure, fc=col, ec=t.ink, lw=1.1, zorder=6))
+        fig.text(xx + 0.024, yy, lay.render(item["text"], f"how_to_read.items[{i}]").strip(), fontsize=9.6, color=t.ink,
+                 va="center", zorder=6)
+
+    # the notice strip and credits flow downwards from the how-to-read block
+    notes = lay.lines("notes.lines", limit=3)
+    credits = lay.lines("credits.lines", limit=3)
+    bottom = round(0.119 - 0.0235 * len(notes), 4)
+    if notes:
+        block(fig, t, 0.04, bottom, 0.92, round(0.0235 * len(notes), 4), t.note, shadow=False, lw=1.2)
+    for i, line in enumerate(notes):
+        fig.text(0.05, round(0.1075 - 0.024 * i, 4), line, fontsize=9.3, color=t.ink, va="center")
+    for i, line in enumerate(credits):
+        fig.text(0.04, round(bottom - 0.02 - 0.02 * i, 4), line, fontsize=9, color=t.muted, va="center")

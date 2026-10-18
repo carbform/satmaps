@@ -86,9 +86,10 @@ def test_shipped_layouts_render(scene, layouts_dir, tmp_path):
     from nisar_viz.cli import FIGURES
 
     bands = {b: load_roi(scene, b) for b in "LS"}
-    for name, (modname, _) in FIGURES.items():
-        mod = importlib.import_module(modname)
-        assert mod.render(scene, bands, tmp_path, load_layout(layouts_dir, mod.NAME)), name
+    for name, fig in FIGURES.items():
+        mod = importlib.import_module(fig.module)
+        have = {b: bands[b] for b in fig.bands}
+        assert mod.render(scene, have, tmp_path, load_layout(layouts_dir, fig.layout), **fig.kwargs), name
 
 
 def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):

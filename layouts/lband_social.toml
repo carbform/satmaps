@@ -1,0 +1,60 @@
+# Wording for the L-BAND-only social graphic (`nisar-viz render lband-social`).
+#
+# Same rules as ls_social.toml: {placeholders} are filled from the data file, so date, pass, wavelength, posting, CRS,
+# calibration state and noise percentages are never typed here. `{x_upper}` upper-cases `{x}`; `{x!u}` upper-cases any
+# value (e.g. `{L.rfi!u}`). Colour-stretch limits are available as {lim.HH_lo}, {lim.HH_hi}, {lim.HV_lo}, {lim.HV_hi},
+# {lim.ratio_lo}, {lim.ratio_hi}. List everything with:  nisar-viz placeholders
+
+[header]
+title = "River Brahmaputra"
+subtitle = "SEEN BY NISAR'S L-BAND RADAR"
+date = "{date_upper}"
+time = "{time_utc} UTC"
+info_line = "NASA-ISRO NISAR   ·   L ≈{L.wavelength_cm:.0f} CM  ·  {L.freq_ghz:g} GHZ   ·   {polarisations}   ·   {posting_m} M   ·   TRACK {track} · FRAME {frame}"
+
+[panels]   # chips on the hero map
+band = "L-BAND  ≈{L.wavelength_cm:.0f} CM"
+composite = "R+G+B  COMPOSITE"
+
+[channels]   # chips on the three band panels (the bands the composite is built from)
+labels = ["CH1  HH", "CH2  HV", "CH3  HH−HV"]
+
+[how_to_read]
+title = "HOW TO READ"
+subtitle = "·  {lim.HH_lo:.0f} TO {lim.HH_hi:.0f} dB HH  ·  {lim.HV_lo:.0f} TO {lim.HV_hi:.0f} dB HV  (2ND–98.5TH PERCENTILE)"
+# Up to 6 items (3 columns x 2 rows). color: a hex value, or "noise" for the noise-grey used in the data panels.
+items = [
+  { color = "#d4574f", text = "RED = HH  (SURFACE)" },
+  { color = "#5fb673", text = "GREEN = HV  (VOLUME)" },
+  { color = "#6580d6", text = "BLUE = HH−HV  (RATIO)" },
+  { color = "#a05cb5", text = "PURPLE = HV LOW, SURFACE-LIKE" },
+  { color = "#a8c25c", text = "LIME = HV HIGH, VOLUME-LIKE" },
+  { color = "noise",   text = "GREY = NOISE ({L.noisy_hv_pct:.0f}% OF PIXELS)" },
+]
+
+[notes]   # bottom notice strip, at most 3 lines. A line with `if` is shown only when that placeholder is non-empty.
+lines = [
+  { if = "uncal_bands", text = "{uncal_bands_upper} CALIBRATION METADATA NOT YET POPULATED: {uncal_bands_upper} dB VALUES ARE PROVISIONAL AND RELATIVE." },
+  "NOISE-SCREENED (SNR < 3 dB GREY), SPECKLE FILTER NOT APPLIED. RFI MITIGATION: {L.rfi!u}.",
+]
+
+[credits]   # below the notice strip, at most 3 lines
+lines = [
+  "DATA  NISAR L2 GCOV, L-SAR · CRID {L.crid} · γ⁰ · {crs}",
+  "VIZ   {author_upper}  ·  {website}",
+]
+
+# Optional labelled points on the hero map. `key` must be a callout defined in the scene file (configs/*.toml).
+# dx, dy: label offset in points. fill: "card" (default) or "band" (the band's chip colour).
+# [[callouts]]
+# key = "simen"
+# text = "SIMEN RIVER\njoins the\nBrahmaputra"
+# dx = -95
+# dy = 75
+#
+# [[callouts]]
+# key = "bars"
+# text = "SAND BARS"
+# dx = -40
+# dy = -60
+# fill = "band"

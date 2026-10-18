@@ -18,10 +18,11 @@ Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any num
 - Reads an ROI from a GCOV HDF5 file (HH and HV covariance terms, mask, RTC factor, noise-equivalent backscatter).
 - Refers the noise floor to γ⁰ (NEBS / η), flags pixels below SNR 3 dB and subtracts noise elsewhere.
 - Builds a false-colour composite: R = HH, G = HV (noise-subtracted), B = HH−HV ratio, with per-band or pooled stretch.
-- Renders four figures:
+- Renders six figures:
 
 | `nisar-viz render …` | Output | Style |
 |---|---|---|
+| `sband-social` / `lband-social` | One band: full-width composite and the three bands it is built from, 4:5 | neo-retro |
 | `ls-social` | L|S split view with three zoom pairs, 4:5 | neo-retro ([design notes](docs/design-language.md)) |
 | `ls-clean` | Two large maps, compact header and footer | clean white, [preview](docs/img/clean.jpg) |
 | `ls-publication` | Composites, HH L-vs-S density, HV SNR distributions; PNG + PDF | journal-style, one pooled stretch |
@@ -65,7 +66,8 @@ python -m nisar_viz render ls-publication                  # same as the console
 
 ## Layout files: change the wording without touching code
 
-What is written on each figure lives in `layouts/<figure>.toml`: main title, subtitle, info line, the how-to-read
+What is written on each figure lives in `layouts/<figure>.toml` (`sband_social.toml` and `lband_social.toml` for the
+single-band graphics, plus the four L-vs-S and publication files): main title, subtitle, info line, the how-to-read
 legend, the bottom notes, the credits and the publication captions. Edit them freely.
 
 ```toml
@@ -85,7 +87,8 @@ lines = [
 Facts are **never typed in a layout**. Placeholders such as `{date}`, `{time_utc}`, `{track}`, `{frame}`,
 `{pass_direction}`, `{posting_m}`, `{crs}`, `{L.wavelength_cm:.0f}`, `{S.freq_ghz:g}`, `{S.crid}` and the noise
 percentages `{S.noisy_hv_pct:.0f}` are read from the granule metadata and the data (the identification group,
-swath, calibration and processing-parameter groups). `{x_upper}` is the upper-case form of `{x}`. List all of them
+swath, calibration and processing-parameter groups). `{x_upper}` is the upper-case form of `{x}`, and `{x!u}` upper-cases any value (e.g. `{L.rfi!u}`). The colour-stretch
+limits of the single-band graphics are `{lim.HH_lo}`, `{lim.HH_hi}`, `{lim.HV_lo}` and so on. List all of them
 with their values:
 
 ```bash

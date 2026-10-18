@@ -53,3 +53,23 @@ def shared_lims(ds: list[dict], plo: float = 2.0, phi: float = 98.5) -> dict:
             vals.append(a[np.isfinite(a)])
         out[name] = tuple(float(v) for v in np.percentile(np.concatenate(vals), [plo, phi]))
     return out
+
+
+CHANNEL_COLORS = {"R": "#d4574f", "G": "#5fb673", "B": "#6580d6"}
+
+
+def channel_panels(d: dict, lims: dict) -> list[tuple[str, np.ndarray]]:
+    """The three composite inputs as separate images, each tinted in its channel colour.
+
+    Returns [("R", img), ("G", img), ("B", img)] of float RGB in 0..1; noise-dominated pixels stay dark in every panel.
+    """
+    hh_db, hv_db = db(d["hh"]), db(d["hv_ns"])
+    okc = d["valid"] & ~d["noisy_hv"] & np.isfinite(hv_db)
+    arrays = {"HH": hh_db, "HV": hv_db, "ratio": hh_db - hv_db}
+    out = []
+    for (name, gam), key in zip(GAMMAS, "RGB", strict=True):
+        lo, hi = lims[name]
+        v = np.where(okc, np.power(np.clip((arrays[name] - lo) / (hi - lo), 0, 1), gam), np.nan)
+        tint = np.array([int(CHANNEL_COLORS[key][k:k + 2], 16) for k in (1, 3, 5)]) / 255.0
+        out.append((key, np.where(np.isfinite(v)[..., None], v[..., None] * tint, 0.12)))
+    return out

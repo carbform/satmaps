@@ -2,7 +2,8 @@
 
 Placeholders use Python format syntax, e.g. ``{track}``, ``{L.wavelength_cm:.0f}`` or ``{S.noisy_hv_pct:.0f}``.
 Acquisition facts and noise statistics are filled in from the data files, never typed into a layout. For every
-top-level text value ``{x}`` there is also ``{x_upper}``. Run ``nisar-viz placeholders`` to list everything available.
+top-level text value ``{x}`` there is also ``{x_upper}``, and ``{x!u}`` upper-cases any value, including ``{L.rfi!u}``.
+Run ``nisar-viz placeholders`` to list everything available.
 """
 from __future__ import annotations
 
@@ -12,6 +13,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from nisar_viz.config import Scene
+
+
+class _Formatter(string.Formatter):
+    """str.format plus a `!u` conversion that upper-cases any value, e.g. ``{L.rfi!u}``."""
+
+    def convert_field(self, value, conversion):
+        if conversion == "u":
+            return str(value).upper()
+        return super().convert_field(value, conversion)
 
 
 class LayoutError(ValueError):
@@ -107,7 +117,7 @@ class Layout:
     def render(self, template: str, where: str = "", **extra) -> str:
         ctx = {**self.ctx, **extra}
         try:
-            return string.Formatter().vformat(template, (), ctx)
+            return _Formatter().vformat(template, (), ctx)
         except KeyError as e:
             names = ", ".join(sorted(ctx))
             raise LayoutError(f"{self.path} [{where}]: unknown placeholder {{{e.args[0]}}}. Available: {names}") from None

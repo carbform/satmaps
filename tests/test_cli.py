@@ -7,7 +7,7 @@ def test_parser_accepts_all_and_named_figures():
     p = build_parser()
     assert p.parse_args(["render", "all"]).figures == ["all"]
     assert p.parse_args(["render", "ls-clean", "ls-social", "--pooled-stretch"]).pooled_stretch
-    assert set(FIGURES) == {"ls-social", "ls-publication", "ls-clean", "sband-publication"}
+    assert set(FIGURES) == {"ls-social", "ls-publication", "ls-clean", "sband-publication", "sband-social", "lband-social"}
 
 
 def test_unknown_figure_is_rejected():

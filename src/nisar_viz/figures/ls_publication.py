@@ -17,7 +17,6 @@ from nisar_viz.layout import Layout, build_context
 from nisar_viz.processing import coarsen, db, stats
 
 log = logging.getLogger(__name__)
-NAME = "ls_publication"
 FILENAME = "{scene}_LvsS_Publication.png"
 INK, GRAY = "#1A1A1A", "#666666"
 CL, CS = "#c9791a", "#1f8a7e"  # L and S series colours

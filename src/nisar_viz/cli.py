@@ -5,13 +5,25 @@ import argparse
 import importlib
 import logging
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
+
+@dataclass(frozen=True)
+class Figure:
+    module: str
+    bands: tuple[str, ...]  # granules the figure needs
+    layout: str  # layouts/<layout>.toml
+    kwargs: dict = field(default_factory=dict)
+
+
 FIGURES = {
-    "ls-social": ("nisar_viz.figures.ls_social", ("L", "S")),
-    "ls-publication": ("nisar_viz.figures.ls_publication", ("L", "S")),
-    "ls-clean": ("nisar_viz.figures.ls_clean", ("L", "S")),
-    "sband-publication": ("nisar_viz.figures.sband_publication", ("S",)),
+    "ls-social": Figure("nisar_viz.figures.ls_social", ("L", "S"), "ls_social"),
+    "ls-publication": Figure("nisar_viz.figures.ls_publication", ("L", "S"), "ls_publication"),
+    "ls-clean": Figure("nisar_viz.figures.ls_clean", ("L", "S"), "ls_clean"),
+    "sband-publication": Figure("nisar_viz.figures.sband_publication", ("S",), "sband_publication"),
+    "sband-social": Figure("nisar_viz.figures.band_social", ("S",), "sband_social", {"band": "S"}),
+    "lband-social": Figure("nisar_viz.figures.band_social", ("L",), "lband_social", {"band": "L"}),
 }
 
 
@@ -85,14 +97,16 @@ def main(argv: list[str] | None = None) -> int:
     from nisar_viz.layout import load_layout
 
     names = list(FIGURES) if "all" in args.figures else args.figures
-    mods = {n: importlib.import_module(FIGURES[n][0]) for n in names}
-    need = sorted({b for n in names for b in FIGURES[n][1]})
+    mods = {n: importlib.import_module(FIGURES[n].module) for n in names}
+    need = sorted({b for n in names for b in FIGURES[n].bands})
     bands = {b: load_roi(scene, b, cache) for b in need}
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     for n in names:
-        kw = {"per_band": False} if (n == "ls-social" and args.pooled_stretch) else {}
-        layout = load_layout(args.layouts_dir, mods[n].NAME)
+        kw = dict(FIGURES[n].kwargs)
+        if n == "ls-social" and args.pooled_stretch:
+            kw["per_band"] = False
+        layout = load_layout(args.layouts_dir, FIGURES[n].layout)
         for path in mods[n].render(scene, bands, out, layout, **kw):
             print(path)
     return 0

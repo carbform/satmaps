@@ -15,7 +15,6 @@ from nisar_viz.geo import to_xy, utm_extent
 from nisar_viz.layout import Layout, build_context
 from nisar_viz.processing import coarsen, db, stats
 
-NAME = "sband_publication"
 FILENAME = "{scene}_Publication.png"
 INK, GRAY = "#1A1A1A", "#666666"
 FLAG = "#d9531e"
