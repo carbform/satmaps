@@ -12,8 +12,8 @@ stretch = "per-band"   # "per-band": each band on its own percentiles (punchier 
                        # "pooled": one stretch over both bands (comparable)
 
 [header]
-title = "ONE RIVER, TWO RADARS"
-subtitle = "THE {name_upper} IN NISAR'S L-BAND AND S-BAND, SAME PASS"
+title = "River Brahmaputra"
+subtitle = "THE {name_upper} AS SEEN BY NISAR"
 date = "{date_upper}"
 time = "{time_utc} UTC"
 info_line = "NASA-ISRO NISAR   ·   L ≈{L.wavelength_cm:.0f} CM  ·  S ≈{S.wavelength_cm:.0f} CM   ·   {polarisations}   ·   {posting_m} M   ·   TRACK {track} · FRAME {frame}"
@@ -38,7 +38,7 @@ items = [
 [notes]   # bottom notice strip, at most 3 lines. A line with `if` is shown only when that placeholder is non-empty.
 lines = [
   { if = "uncal_bands", text = "{uncal_bands_upper} CALIBRATION METADATA NOT YET POPULATED: {uncal_bands_upper} dB VALUES ARE PROVISIONAL AND RELATIVE." },
-  "{stretch_warning_upper} NOISE-SCREENED (SNR < 3 dB GREY), NO SPECKLE FILTER.",
+  "{stretch_warning_upper} NOISE-SCREENED (SNR < 3 dB GREY), SPECKLE FILTER NOT APPLIED",
 ]
 
 [credits]   # below the notice strip, at most 3 lines

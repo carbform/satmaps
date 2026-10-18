@@ -71,14 +71,14 @@ legend, the bottom notes, the credits and the publication captions. Edit them fr
 ```toml
 # layouts/ls_social.toml
 [header]
-title = "ONE RIVER, TWO RADARS"
-subtitle = "THE {name_upper} IN NISAR'S L-BAND AND S-BAND, SAME PASS"
+title = "River Brahmaputra"
+subtitle = "THE {name_upper} AS SEEN BY NISAR"
 date = "{date_upper}"                      # <- from the file, not typed
 info_line = "... TRACK {track} · FRAME {frame}"
 [notes]
 lines = [
   { if = "uncal_bands", text = "{uncal_bands_upper} CALIBRATION METADATA NOT YET POPULATED ..." },
-  "NOISE-SCREENED (SNR < 3 dB GREY), NO SPECKLE FILTER.",
+  "{stretch_warning_upper} NOISE-SCREENED (SNR < 3 dB GREY), SPECKLE FILTER NOT APPLIED",
 ]
 ```
 
