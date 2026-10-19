@@ -94,3 +94,96 @@ under extras `[optical]` / `[stac]`, so installing for NISAR-only use needs no G
 - Still NISAR-shaped, to be migrated when a second sensor needs them: `clean` and `publication` figures, `BandMeta`
   facts such as `{L.noisy_hv_pct}`, the "5 KM" scale bar, and lon/lat ROI (`rows`/`cols` only so far).
 - `compare` requires both inputs on one grid; `grid.py` resampling arrives in Phase 3.
+
+# Phase 3 design: one job file, an area that defines the canvas, any sensor pair
+
+Requirement: the user fills in a config file, runs one command, and gets figures. Optical (Sentinel-2, Landsat,
+ResourceSat, ...) and SAR (NISAR, Sentinel-1, ALOS PALSAR, ...) in any combination, for a place given as a bounding
+box, a point plus radius, or (later) a place name.
+
+## Principles
+
+1. **One schema, many presets.** Separate schemas per kind would need to be merged the moment a figure mixes SAR and
+   optical. Instead there is one "job" file, and `satviz init <preset>` writes a filled-in starter for each common case
+   (`optical`, `sar`, `sar-vs-optical`, `before-after`, `multi-sensor-grid`).
+2. **The area defines the canvas.** `[area]` fixes a CRS (the UTM zone of its centre), an extent and a pixel size.
+   Every sensor reader returns its data already on that grid. So any two inputs can be compared, because they share a
+   grid by construction, and the current hand-measured row/column offsets go away. Native ROI rows/cols stay as an
+   escape hatch for NISAR.
+3. **Recipes depend on a layer vocabulary, not on a sensor.** Readers normalise to a small shared vocabulary:
+   - SAR: `co`, `cross` (linear power, gamma0), `noise_floor`, `valid`. NISAR HH/HV and Sentinel-1 VV/VH both map here.
+   - Optical: `blue green red nir swir1 swir2` as surface reflectance 0..1, plus `cloud`/`valid`.
+
+   A recipe declares the vocabulary it needs (`sar_fcc` needs SAR, `true_colour` needs optical). This is what removes
+   the permutation problem: N sensors x M recipes x K templates x L themes is N+M+K+L pieces of code, not a product.
+4. **Unknown satellites need no code.** A `geotiff` sensor takes a band map in the config
+   (`bands = {red = 3, green = 2, blue = 1, nir = 4}`, `scale`, `offset`, `kind = "optical"`). ResourceSat LISS-III/IV,
+   PlanetScope or ALOS RTC GeoTIFFs work this way. A named plugin is only written when a product needs real logic
+   (metadata, quality masks, noise floors): `nisar_gcov`, `sentinel2_l2a`, `landsat_c2l2`, `sentinel1_rtc`.
+5. **Data sources are separate from sensors.** `source = { path = "..." }` (a file or glob) or
+   `source = { stac = "earth-search", collection = "sentinel-2-l2a", date = "2026-09-25", window_days = 5,
+   max_cloud = 20, pick = "closest" }`. NISAR is local files first (the archive needs an Earthdata login).
+   STAC picks are written to a `<job>.lock.json` next to the outputs (item ids, dates, cloud), so a figure can be
+   reproduced exactly and credits can be generated from what was actually used.
+6. **Honesty and credits are sensor-supplied.** Calibration state, noise screening, cloud fraction, L1C vs L2A, and
+   the required attributions (Copernicus, USGS, NISAR) come from the reader and recipe. The config can add to them,
+   not remove them.
+
+## Job file (target)
+
+```toml
+extends = "defaults.toml"           # optional: author, website, default theme shared by many jobs
+
+[scene]
+name = "Brahmaputra"
+region = "Dibrugarh, Assam"
+
+[area]                              # exactly one of:
+center = [27.57, 94.90]             #   point + radius (square of side 2 x radius)
+radius_km = 12
+# bbox = [94.7, 27.4, 95.1, 27.7]   #   west, south, east, north (WGS84)
+# place = "Dibrugarh"               #   geocoded (optional network call), with radius_km
+resolution_m = 10                   # canvas pixel size; default: the finest input
+
+[[inputs]]
+id = "sar"
+sensor = "nisar_gcov"
+source = { path = "data/NISAR_L2_*_GCOV_*.h5" }
+
+[[inputs]]
+id = "opt"
+sensor = "sentinel2_l2a"
+source = { stac = "earth-search", date = "2026-09-25", window_days = 5, max_cloud = 20 }
+
+[[figures]]
+template = "compare"               # single | compare | grid | publication | newspaper
+inputs = ["sar", "opt"]            # or inputs = ["a","b","c"], pairs = "all" for every unordered pair
+recipes = { sar = "sar_fcc", opt = "true_colour" }
+theme = ["neo_retro", "minimal"]
+text = { title = "River Brahmaputra", subtitle = "SAR and optical, same day" }   # overrides the template's wording
+```
+
+## CLI
+
+```
+satviz init sar-vs-optical -o job.toml     write a starter job file for a preset
+satviz search job.toml                     list matching scenes (id, date, cloud %) without downloading
+satviz run job.toml                        resolve inputs, read onto the canvas, render every [[figures]] entry
+satviz list                                sensors, recipes, themes, templates
+satviz render ...                          the current NISAR-only command, kept as is
+```
+
+## Phase 3 split
+
+| Step | Content | Done when |
+|---|---|---|
+| 3a | `[area]` (bbox, point+radius), canvas grid + resampling (`grid.py`), job file loader with `extends`, `satviz run` and `init`; NISAR read by bbox instead of rows/cols; recipes declare vocabularies; layouts ship inside the package | NISAR L-vs-S job file reproduces today's figures with bbox in place of row/col ROIs (equal within resampling tolerance, with a documented difference) |
+| 3b | `geotiff` sensor with band maps; `sentinel2_l2a` via Earth Search STAC; optical recipes (true colour, NIR false colour, NDVI, NDWI); lock file | real S2 scene over Dibrugarh renders on the same canvas as NISAR |
+| 3c | `landsat_c2l2`; `sentinel1_rtc` and ALOS via `geotiff` with `kind = "sar"`; `pairs = "all"`; `grid` template (N inputs) | SAR-vs-optical for several sensor pairs from one job file |
+| 4 | editorial theme and newspaper template | |
+
+## To verify against real services before coding each reader
+
+Earth Search collection names and asset keys (`sentinel-2-l2a`, `landsat-c2-l2`), Sentinel-2 processing-baseline
+reflectance offset, Landsat C2 scale/offset, whether a Sentinel-1 RTC source is freely readable without login, and ALOS
+PALSAR RTC product conventions (amplitude vs power).
