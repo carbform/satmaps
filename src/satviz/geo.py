@@ -12,3 +12,10 @@ def utm_extent(d: dict) -> list[float]:
 def to_xy(d: dict, lat: float, lon: float) -> tuple[float, float]:
     """Project a WGS84 point into the dataset's grid."""
     return d["to_utm"].transform(lon, lat)
+
+
+def project(epsg: int, lat: float, lon: float) -> tuple[float, float]:
+    """WGS84 point to the given projected CRS (works for any product, not just NISAR's working dataset)."""
+    from pyproj import Transformer
+
+    return Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True).transform(lon, lat)

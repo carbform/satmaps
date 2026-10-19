@@ -12,20 +12,32 @@ from pathlib import Path
 @dataclass(frozen=True)
 class Figure:
     module: str
-    bands: tuple[str, ...]  # granules the figure needs
+    inputs: tuple[str, ...]  # input ids (scene [[inputs]]) the figure needs
     layout: str  # layouts/<layout>.toml
     kwargs: dict = field(default_factory=dict)
     themed: bool = False  # accepts --theme; the clean and publication figures are plain on purpose
+    products: bool = False  # template modules take generic Products; the older figure modules take NISAR working datasets
 
 
 FIGURES = {
-    "ls-social": Figure("satviz.figures.ls_social", ("L", "S"), "ls_social", themed=True),
+    "ls-social": Figure("satviz.templates.compare", ("L", "S"), "ls_social", {"inputs": ("L", "S")}, themed=True, products=True),
     "ls-publication": Figure("satviz.figures.ls_publication", ("L", "S"), "ls_publication"),
     "ls-clean": Figure("satviz.figures.ls_clean", ("L", "S"), "ls_clean"),
     "sband-publication": Figure("satviz.figures.sband_publication", ("S",), "sband_publication"),
-    "sband-social": Figure("satviz.figures.band_social", ("S",), "sband_social", {"band": "S"}, themed=True),
-    "lband-social": Figure("satviz.figures.band_social", ("L",), "lband_social", {"band": "L"}, themed=True),
+    "sband-social": Figure("satviz.templates.single", ("S",), "sband_social", {"input": "S", "chip_slot": "b"},
+                         themed=True, products=True),
+    "lband-social": Figure("satviz.templates.single", ("L",), "lband_social", {"input": "L", "chip_slot": "a"},
+                         themed=True, products=True),
 }
+
+
+def load_products(scene, keys, cache) -> dict:
+    """Read each input with the reader of its sensor. Needed inputs are read once, whichever figures use them."""
+    from satviz.core import SENSORS
+    from satviz.registry import load_builtin
+
+    load_builtin()
+    return {k: SENSORS.get_or_raise(scene.inputs[k].sensor).load(scene, k, cache) for k in keys}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,14 +87,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     from satviz.config import load_scene
-    from satviz.sensors.nisar_gcov.io import load_roi
-
     scene = load_scene(args.config, args.data_dir)
     cache = None if args.no_cache else args.cache
 
     if args.cmd == "stats":
         import json
 
+        from satviz.sensors.nisar_gcov.io import load_roi
         from satviz.sensors.nisar_gcov.processing import stats
 
         for key in scene.bands:
@@ -92,12 +103,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "placeholders":
         from types import SimpleNamespace
 
-        from satviz.layout import build_context
-        from satviz.sensors.nisar_gcov.processing import stats
+        from satviz.layout import build_context_products
 
-        bands = {key: load_roi(scene, key, cache) for key in scene.bands}
         extra = {"k": 3, "block_m": 30, "both_pct": 0}  # figure-specific values, shown with example numbers
-        ctx = build_context(scene, bands, {k: stats(d) for k, d in bands.items()}, per_band=True, extra=extra)
+        ctx = build_context_products(scene, load_products(scene, list(scene.inputs), cache), per_band=True, extra=extra)
         for key, val in ctx.items():
             if isinstance(val, SimpleNamespace):
                 for attr, v in vars(val).items():
@@ -116,8 +125,8 @@ def main(argv: list[str] | None = None) -> int:
         THEMES.get_or_raise(th)
     names = list(FIGURES) if "all" in args.figures else args.figures
     mods = {n: importlib.import_module(FIGURES[n].module) for n in names}
-    need = sorted({b for n in names for b in FIGURES[n].bands})
-    bands = {b: load_roi(scene, b, cache) for b in need}
+    need = sorted({b for n in names for b in FIGURES[n].inputs})
+    products = load_products(scene, need, cache)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     for n in names:
@@ -128,7 +137,10 @@ def main(argv: list[str] | None = None) -> int:
         for theme in themes if FIGURES[n].themed else [None]:
             if theme:
                 kw["theme"] = theme
-            for path in mods[n].render(scene, bands, out, layout, **kw):
+            given = {k: products[k] for k in FIGURES[n].inputs}
+            if not FIGURES[n].products:  # older figure modules work on the NISAR working datasets
+                given = {k: p.native for k, p in given.items()}
+            for path in mods[n].render(scene, given, out, layout, **kw):
                 print(path)
     return 0
 

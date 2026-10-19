@@ -1,6 +1,7 @@
 # Brahmaputra scene: NISAR L-SAR and S-SAR GCOV from the same pass.
 # Date, time, track, frame, pass direction, frequency, posting, CRS and processing flags are read from the
 # files; figure wording (titles, notes, credits) is in layouts/*.toml.
+# `inputs` are listed in priority order: the first is the reference for shared facts (track, frame, CRS, posting).
 # Rows/cols are the ROI in each file's own 10 m UTM 46N grid. The L-band grid is offset by
 # (+360 rows, +72 cols) from the S-band grid, so both ROIs cover the identical ground footprint
 # (checked: 0 m offset in x and y).
@@ -14,13 +15,17 @@ callout_caption = "with the Simen confluence and sand bars (crosses)"
 author = "Sarat (NRSC/ISRO)"
 website = "www.carbform.github.io"
 
-[bands.S]
+[[inputs]]
+id = "S"
+sensor = "nisar_gcov"
 file = "NISAR_S2_PR_GCOV_031_112_A_016_3700_DHNA_A_20260925T225740_20260925T225816_P00500_M_F_I_001.h5"
 group = "science/SSAR/GCOV"
 rows = [27800, 30880]
 cols = [11500, 14400]
 
-[bands.L]
+[[inputs]]
+id = "L"
+sensor = "nisar_gcov"
 file = "NISAR_L2_PR_GCOV_031_112_A_016_4005_DHDH_A_20260925T225740_20260925T225815_P05023_N_F_J_001.h5"
 group = "science/LSAR/GCOV"
 rows = [28160, 31240]

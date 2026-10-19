@@ -12,7 +12,6 @@ import tomllib
 from pathlib import Path
 
 from satviz.config import Scene
-from satviz.sensors.nisar_gcov.facts import band_facts
 
 
 class _Formatter(string.Formatter):
@@ -43,30 +42,44 @@ def _date(dt) -> str:
 
 
 def build_context(scene: Scene, bands: dict, stats_by_band: dict, per_band: bool, extra: dict | None = None) -> dict:
-    """Placeholder values: scene names, file metadata (acquisition, pass, frequency, flags) and noise statistics."""
-    metas = {k: d["meta"] for k, d in bands.items()}
-    ref = metas.get("S") or next(iter(metas.values()))
-    for key, m in metas.items():
-        if (m.track, m.frame, m.pass_direction) != (ref.track, ref.frame, ref.pass_direction):
-            raise LayoutError(
-                f"bands are not from the same pass: {ref.key} is track {ref.track} frame {ref.frame} {ref.pass_direction}, "
-                f"{key} is track {m.track} frame {m.frame} {m.pass_direction}"
-            )
-    start = min(m.start for m in metas.values())
-    end = max(m.end for m in metas.values())
-    band_ns = {key: band_facts(m, stats_by_band[key]) for key, m in metas.items()}
-    uncal = [f"{k}-band" for k, m in metas.items() if not m.calibrated]
-    cal = [f"{k}-band" for k, m in metas.items() if m.calibrated]
+    """`build_context_products` for NISAR working datasets (the older figures pass these plus their own statistics)."""
+    from satviz.sensors.nisar_gcov import to_product
+
+    products = {k: to_product(d, stats_by_band[k]) for k, d in bands.items()}
+    return build_context_products(scene, products, per_band, extra)
+
+
+def build_context_products(scene: Scene, products: dict, per_band: bool = True, extra: dict | None = None,
+                           strict: bool = True) -> dict:
+    """Placeholder values: scene names, facts every product has (dates, resolution, CRS), what the sensors share
+    (e.g. NISAR track and frame) and each product's own namespace under its input id (``{L.wavelength_cm}``).
+
+    With ``strict`` the products must agree on everything the sensors call shared (same pass); a before/after template
+    passes ``strict=False`` and gets the reference input's values."""
+    metas = {k: p.meta for k, p in products.items()}
+    order = [k for k in scene.inputs if k in products] or list(products)
+    ref_key = order[0]
+    ref = products[ref_key]
+    if strict:
+        for key, p in products.items():
+            diff = {k: (ref.shared[k], v) for k, v in p.shared.items() if k in ref.shared and ref.shared[k] != v}
+            if diff:
+                what = ", ".join(f"{k} {a} vs {b}" for k, (a, b) in diff.items())
+                raise LayoutError(f"inputs are not from the same pass: {ref_key} and {key} differ in {what}")
+    start = min(m["start"] for m in metas.values())
+    end = max(m["end"] for m in metas.values())
+    res = ref.meta["resolution_m"]
+    uncal = [m["label"] for m in metas.values() if m.get("calibrated") is False]
+    cal = [m["label"] for m in metas.values() if m.get("calibrated") is True]
     ctx = {
         "name": scene.name, "reach": scene.reach, "locality": scene.locality, "region": scene.region,
         "callout_caption": scene.callout_caption, "author": scene.author, "website": scene.website,
         "date": _date(start), "time_utc": f"{start:%H:%M}", "start_utc": f"{start:%H:%M:%S}", "end_utc": f"{end:%H:%M:%S}",
-        "track": ref.track, "frame": ref.frame, "pass_direction": ref.pass_direction, "look_direction": ref.look_direction,
-        "posting_m": int(ref.posting_m) if float(ref.posting_m).is_integer() else ref.posting_m, "crs": ref.crs,
-        "polarisations": ref.polarisations,
+        "posting_m": int(res) if float(res).is_integer() else res, "crs": ref.meta["crs"],
+        **ref.shared,
         "stretch_note": "each band stretched on its own" if per_band else "same colours and stretch in both bands",
         "stretch_warning": "Colours are not comparable between bands (own stretch)." if per_band else "",
-        # bands whose scale factors are zero/unpopulated; empty when all are calibrated (lines using it can be conditional)
+        # inputs whose calibration is unpopulated; empty when all are calibrated (lines using it can be conditional)
         "uncal_bands": " and ".join(uncal),
         "cal_bands": " and ".join(cal),
     }
@@ -76,7 +89,7 @@ def build_context(scene: Scene, bands: dict, stats_by_band: dict, per_band: bool
     for k, v in list(ctx.items()):
         if isinstance(v, str):
             ctx[f"{k}_upper"] = v.upper()
-    ctx.update(band_ns)
+    ctx.update({k: p.facts for k, p in products.items()})
     return ctx
 
 

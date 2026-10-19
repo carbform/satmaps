@@ -42,3 +42,21 @@ def test_legacy_env_var_still_honoured(tmp_path, monkeypatch):
     monkeypatch.delenv("SATVIZ_DATA_DIR", raising=False)
     monkeypatch.setenv("NISAR_DATA_DIR", str(tmp_path / "legacy"))
     assert load_scene(CONFIG).data_dir == tmp_path / "legacy"
+
+
+def test_inputs_form_and_legacy_bands_form_agree(tmp_path):
+    new = load_scene(CONFIG, tmp_path)
+    assert list(new.inputs) == ["S", "L"] and new.inputs["S"].sensor == "nisar_gcov"
+    legacy = tmp_path / "legacy.toml"
+    text = CONFIG.read_text()
+    text = text.replace('[[inputs]]\nid = "S"\nsensor = "nisar_gcov"\n', "[bands.S]\n").replace('[[inputs]]\nid = "L"\nsensor = "nisar_gcov"\n', "[bands.L]\n")
+    legacy.write_text(text)
+    old = load_scene(legacy, tmp_path)
+    assert old.inputs == new.inputs and old.bands == new.bands
+
+
+def test_scene_needs_inputs(tmp_path):
+    cfg = tmp_path / "c.toml"
+    cfg.write_text('[scene]\nname="x"\nreach="x"\nlocality="x"\nregion="x"\ncallout_caption="x"\nauthor="x"\nwebsite="x"\n')
+    with pytest.raises(KeyError, match="inputs"):
+        load_scene(cfg)

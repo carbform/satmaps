@@ -60,6 +60,7 @@ class Product:
     meta: dict
     facts: SimpleNamespace = field(default_factory=SimpleNamespace)
     caveats: list[str] = field(default_factory=list)
+    shared: dict = field(default_factory=dict)  # top-level placeholders this sensor adds (track, frame, ...); inputs must agree
     native: dict | None = None  # the sensor's own working dataset, for recipes that need more than `layers`
 
 
@@ -70,6 +71,15 @@ class LegendItem:
 
 
 @dataclass
+class Component:
+    """One input of a recipe shown on its own (e.g. a colour channel), for templates that have room for them."""
+
+    key: str
+    img: np.ndarray  # float RGB 0..1
+    color: str  # hex, the chip colour
+
+
+@dataclass
 class Rendered:
     """A recipe's output: the picture plus what must be said about it."""
 
@@ -77,3 +87,15 @@ class Rendered:
     extent: list[float]  # [left, right, bottom, top] in the product CRS, metres
     legend: list[LegendItem] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)
+    components: list[Component] = field(default_factory=list)
+    components_extent: list[float] | None = None
+    lims: dict | None = None  # stretch limits used, as placeholders ({lim.HH_lo}); None if the recipe has none
+
+
+@dataclass
+class Recipe:
+    """``render(product, lims)`` gives a `Rendered`; ``shared_lims(products)`` (optional) gives stretch limits pooled over
+    several products so one colour means the same thing in all of them."""
+
+    render: Callable[..., Rendered]
+    shared_lims: Callable[[list[Product]], dict] | None = None

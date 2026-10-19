@@ -25,8 +25,8 @@ class Theme:
     card: str  # panels
     ink: str  # outlines and text
     muted: str  # secondary text
-    chip_l: str  # L-band chips
-    chip_s: str  # S-band chips
+    chip_a: str  # chips of the first input (L-band in the NISAR figures)
+    chip_b: str  # chips of the second input
     note: str  # notice strip
     accent: str | None = None  # offset behind the title; None = no offset
     header_fc: str | None = None  # title block fill; None = card
@@ -87,12 +87,15 @@ def social_header(fig, t: Theme, lay: Layout) -> None:
     fig.text(0.04, 0.858, lay.text("header.info_line"), fontsize=10.5, color=t.muted, va="center")
 
 
-def social_footer(fig, t: Theme, lay: Layout) -> None:
+def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None) -> None:
     """How-to-read block (up to 6 items), notice strip (up to 3 lines) and credits (up to 3 lines)."""
     block(fig, t, 0.04, 0.135, 0.92, 0.095)
     fig.text(0.058, 0.213, lay.text("how_to_read.title"), fontsize=11, color=t.ink, weight="bold", va="center")
     fig.text(0.168, 0.213, lay.text("how_to_read.subtitle"), fontsize=10.5, color=t.muted, va="center")
-    items = lay.raw("how_to_read.items")
+    # the layout may leave items/lines out; the recipe's legend and the products' caveats then fill in
+    items = lay.get("how_to_read.items")
+    if items is None:
+        items = [{"color": i.color, "text": i.text} for i in legend or []]
     if len(items) > 6:
         raise LayoutError(f"{lay.path} [how_to_read.items]: {len(items)} items, at most 6 fit")
     for i, item in enumerate(items):
@@ -104,7 +107,12 @@ def social_footer(fig, t: Theme, lay: Layout) -> None:
                  va="center", zorder=6)
 
     # the notice strip and credits flow downwards from the how-to-read block
-    notes = lay.lines("notes.lines", limit=3)
+    if lay.get("notes.lines") is not None:
+        notes = lay.lines("notes.lines", limit=3)
+    else:
+        notes = [c.upper() for c in caveats or []]
+        if len(notes) > 3:  # never drop a caveat silently
+            raise LayoutError(f"{lay.path}: {len(notes)} caveats, at most 3 fit; write [notes] lines to merge them")
     credits = lay.lines("credits.lines", limit=3)
     bottom = round(0.119 - 0.0235 * len(notes), 4)
     if notes:

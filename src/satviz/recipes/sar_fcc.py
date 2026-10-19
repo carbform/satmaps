@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from satviz.core import LegendItem, Product, Rendered, recipe
+from satviz.core import Component, LegendItem, Product, Recipe, Rendered, recipe
 from satviz.geo import utm_extent
-from satviz.sensors.nisar_gcov.processing import db
+from satviz.sensors.nisar_gcov.processing import coarsen, db
 
 NOISE_RGB = (58, 58, 64)  # HV below the noise floor: neutral dark grey, never drawn as signal
 OUTSIDE_RGB = (7, 9, 14)  # outside the valid-sample mask
@@ -86,8 +86,18 @@ def default_legend() -> list[LegendItem]:
     ]
 
 
-@recipe("sar_fcc")
 def render_product(product: Product, lims_in: dict | None = None) -> Rendered:
-    """Recipe entry: a NISAR product to a `Rendered` false-colour composite."""
-    rgba, _, _ = fcc_rgba(product.native, lims_in=lims_in)
-    return Rendered(rgba=rgba, extent=utm_extent(product.native), legend=default_legend(), caveats=list(product.caveats))
+    """A NISAR product to a `Rendered` false-colour composite, with the three channels as components."""
+    d = product.native
+    rgba, lims, _ = fcc_rgba(d, lims_in=lims_in)
+    c = coarsen(d, 4)
+    comps = [Component(key, img, CHANNEL_COLORS[key]) for key, img in channel_panels(c, lims)]
+    return Rendered(rgba=rgba, extent=utm_extent(d), legend=default_legend(), caveats=list(product.caveats),
+                    components=comps, components_extent=utm_extent(c), lims=lims)
+
+
+def pooled_lims(products: list[Product]) -> dict:
+    return shared_lims([p.native for p in products])
+
+
+SAR_FCC = recipe("sar_fcc")(Recipe(render=render_product, shared_lims=pooled_lims))

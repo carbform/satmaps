@@ -105,3 +105,11 @@ def scene(tmp_path) -> Scene:
 @pytest.fixture
 def layouts_dir() -> Path:
     return Path(__file__).resolve().parents[1] / "layouts"
+
+
+def inputs_for(scene: Scene, fig) -> dict:
+    """The inputs a figure needs, as the kind it takes: generic Products for templates, NISAR datasets for older figures."""
+    from satviz.cli import load_products
+
+    prods = load_products(scene, fig.inputs, None)
+    return prods if fig.products else {k: p.native for k, p in prods.items()}

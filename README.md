@@ -123,8 +123,9 @@ uses another set of layout files.
 
 ## Another scene
 
-A scene is one TOML file ([configs/brahmaputra.toml](configs/brahmaputra.toml)): granule filenames, the ROI (rows and
-columns) in each file's own grid, zoom windows, callouts and the place names (`name`, `reach`, `region`, author,
+A scene is one TOML file ([configs/brahmaputra.toml](configs/brahmaputra.toml)): a list of `[[inputs]]` (an `id`, the
+`sensor` reader that handles it, the file, and that reader's options; for NISAR the HDF5 group and the ROI rows and
+columns in each file's own grid; the first input is the reference for shared facts such as track and CRS), zoom windows, callouts and the place names (`name`, `reach`, `region`, author,
 website). Date, pass and instrument facts are not in it; they come from the files. Copy it, edit it and pass
 `--config`. The L-band and S-band ROIs must cover the same ground; check that the `x`/`y` coordinates match before
 building a split view.
@@ -141,7 +142,8 @@ src/satviz/
   config.py       scene TOML -> dataclasses
   layout.py       layout TOML + placeholders filled from metadata and statistics
   geo.py, drawing.py    extent/projection helpers; theme-independent scale bar
-  figures/        one module per figure (to become templates)
+  templates/      single (one product + its recipe inputs) and compare (split view of two products); take Products and any recipe
+  figures/        the clean and publication figures (still NISAR-specific, take working datasets)
   cli.py          satviz entry point (`nisar-viz` and `python -m nisar_viz` are aliases)
 configs/          scene definitions (granules, ROI, zooms, place names)
 layouts/          figure wording: titles, how-to-read, notes, credits, captions

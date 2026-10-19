@@ -44,4 +44,5 @@ ignore = ["E741"]
 # Figure modules carry long caption strings and layout coordinates; tests build wide fixtures.
 "src/satviz/figures/*.py" = ["E501"]
 "src/satviz/themes/*.py" = ["E501"]
+"src/satviz/templates/*.py" = ["E501"]
 "tests/*.py" = ["E501"]

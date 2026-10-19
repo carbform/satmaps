@@ -84,20 +84,21 @@ def test_shipped_layouts_render(scene, layouts_dir, tmp_path):
     import importlib
 
     from satviz.cli import FIGURES
+    from tests.conftest import inputs_for
 
-    bands = {b: load_roi(scene, b) for b in "LS"}
     for name, fig in FIGURES.items():
         mod = importlib.import_module(fig.module)
-        have = {b: bands[b] for b in fig.bands}
+        have = inputs_for(scene, fig)
         assert mod.render(scene, have, tmp_path, load_layout(layouts_dir, fig.layout), **fig.kwargs), name
 
 
 def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):
     import copy
 
-    from satviz.figures import ls_social
+    from satviz.sensors.nisar_gcov import load as load_product
+    from satviz.templates import compare as ls_social
 
-    bands = {b: load_roi(scene, b) for b in "LS"}
+    bands = {b: load_product(scene, b) for b in "LS"}
     lay = copy.deepcopy(load_layout(layouts_dir, "ls_social"))
     lay["header"]["title"] = "A CUSTOM TITLE"
     lay["notes"]["lines"] = ["ONE NOTE ONLY"]
@@ -107,3 +108,13 @@ def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):
     lay["how_to_read"]["items"] = lay["how_to_read"]["items"] * 2
     with pytest.raises(LayoutError, match="at most 6"):
         ls_social.render(scene, bands, tmp_path, lay)
+
+
+def test_products_with_differing_passes_are_allowed_when_not_strict(scene, tmp_path):
+    from satviz.layout import build_context_products
+    from satviz.sensors.nisar_gcov import load as load_product
+    from tests.conftest import make_raw, write_granule
+
+    write_granule(tmp_path / "L.h5", "science/LSAR/GCOV", make_raw(2), instrument="LSAR", freq_hz=1.239e9, track=113)
+    prods = {b: load_product(scene, b) for b in "LS"}
+    assert build_context_products(scene, prods, strict=False)["track"] == 112  # reference input is the first in the scene
