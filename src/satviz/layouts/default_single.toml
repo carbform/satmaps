@@ -6,7 +6,7 @@
 title = "{name}"
 subtitle = "{region_upper}"
 date = "{date_upper}"
-time = "{times_utc} UTC"
+time = "{times_label}"
 info_line = "{inputs_line}   ·   {posting_m} M   ·   {crs}"
 
 [how_to_read]
@@ -15,5 +15,5 @@ subtitle = ""
 
 [credits]
 lines = [
-  { if = "author", text = "VIZ   {author_upper}  ·  {website}" },
+  { if = "byline", text = "VIZ   {byline}" },
 ]

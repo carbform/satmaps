@@ -1,0 +1,39 @@
+# Radar and optical from several satellites on the same day, as one grid figure (2 to 6 panels, one pixel grid).
+# NISAR is a local file (./data); Sentinel-1, Sentinel-2 and Landsat are found by place and date (network, and
+# pip install "satviz[optical]"). Delete inputs you do not want. Check the picks with `satviz search multi-sensor-grid.toml`.
+
+[scene]
+name = "My place"
+region = "Somewhere, Somewhere"
+author = ""
+website = ""
+
+[area]
+center = [27.565, 94.905]
+radius_km = 6
+
+[[inputs]]
+id = "nisar"
+sensor = "nisar_gcov"
+source = { path = "NISAR_L2_*_GCOV_*.h5" }
+
+[[inputs]]
+id = "s1"
+sensor = "sentinel1_rtc"
+source = { stac = "planetary-computer", date = "2026-09-25", window_days = 2 }
+
+[[inputs]]
+id = "landsat"
+sensor = "landsat_c2l2"
+source = { stac = "planetary-computer", date = "2026-09-25", window_days = 2, max_cloud = 30 }
+
+[[inputs]]
+id = "s2"
+sensor = "sentinel2_l2a"
+source = { stac = "earth-search", date = "2026-09-25", window_days = 3, max_cloud = 30 }
+
+[[figures]]
+template = "grid"
+inputs = ["nisar", "s1", "landsat", "s2"]    # reading order: left to right, top to bottom
+theme = ["neo_retro", "neo_brutal"]
+text = { title = "My title", subtitle = "FOUR SATELLITES, ONE DAY" }

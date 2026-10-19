@@ -154,9 +154,44 @@ def test_init_lists_and_writes_presets_that_parse(tmp_path, capsys):
     assert main(["init"]) == 0
     listed = capsys.readouterr().out
     assert all(n in listed for n in ("sar", "sar-compare", "optical", "sar-vs-optical"))
-    for name in ("sar", "sar-compare", "optical", "sar-vs-optical"):
+    for name in ("sar", "sar-compare", "optical", "sar-vs-optical", "multi-sensor-grid"):
         dest = tmp_path / f"{name}.toml"
         assert main(["init", name, "-o", str(dest)]) == 0
         load_job(dest, tmp_path)  # every preset is a valid job
     assert main(["init", "sar", "-o", str(dest)]) == 2  # no silent overwrite
     assert main(["init", "nope"]) == 2
+
+
+def test_grid_legend_merges_channel_mappings_across_families():
+    from satviz.core import LegendItem as L
+    from satviz.templates.grid import grid_legend
+
+    nisar = [L("#r", "RED = HH  (SURFACE)"), L("#g", "GREEN = HV  (VOLUME)"), L("#b", "BLUE = HH−HV  (RATIO)"), L("noise", "GREY = NOISE")]
+    s1 = [L("#r", "RED = VV  (SURFACE)"), L("#g", "GREEN = VH  (VOLUME)"), L("#b", "BLUE = VV−VH  (RATIO)")]
+    opt = [L("#r", "RED = RED BAND"), L("#g", "GREEN = GREEN BAND"), L("#b", "BLUE = BLUE BAND"), L("noise", "STRETCH 0.02–0.3")]
+    assert [i.text for i in grid_legend([nisar, nisar])] == [i.text for i in nisar]  # one kind: unchanged
+    assert len(grid_legend([nisar, opt])) == 6  # two kinds: three each
+    merged = grid_legend([nisar, s1, opt, opt])
+    assert [i.text for i in merged] == ["RED = HH · VV · RED BAND", "GREEN = HV · VH · GREEN BAND", "BLUE = HH−HV · VV−VH · BLUE BAND"]
+
+
+def test_grid_template_renders_in_a_job(scene, tmp_path):
+    text = JOB + '''
+[[inputs]]
+id = "X"
+sensor = "nisar_gcov"
+source = { path = "S.h5" }
+
+[[figures]]
+template = "grid"
+inputs = ["L", "S", "X"]
+theme = "minimal"
+'''
+    p = tmp_path / "j.toml"
+    p.write_text(text)
+    paths = run_job(load_job(p, scene.data_dir), tmp_path / "out")
+    assert [x.name for x in paths] == ["NISAR_Testland_grid3_Social_Minimal.png"]
+    bad = tmp_path / "k.toml"
+    bad.write_text(text.replace('inputs = ["L", "S", "X"]', 'inputs = ["L"]'))
+    with pytest.raises(JobError, match="2 to 6"):
+        run_job(load_job(bad, scene.data_dir), tmp_path / "out2")

@@ -66,6 +66,11 @@ def _date(dt) -> str:
     return f"{dt.day} {dt:%b %Y}"
 
 
+def _times(metas: dict) -> str:
+    """Acquisition times in input order ('22:57 / 04:30'); inputs that only know a date contribute none."""
+    return " / ".join(dict.fromkeys(f"{m['start']:%H:%M}" for m in metas.values() if m.get("time_known", True)))
+
+
 def _dates_label(starts: list) -> str:
     """One date, '24 · 25 Sep 2026' within a month, or full dates joined by ' · ' (the header must not hide a gap)."""
     days = sorted({s.date() for s in starts})
@@ -114,9 +119,11 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
     ctx = {
         "inputs_line": "  ·  ".join(x.upper() for x in labels),  # e.g. "NISAR L-BAND  ·  SENTINEL-2 L2A"
         "platforms": " + ".join(dict.fromkeys(m["platform"] for m in metas.values() if m.get("platform"))),
+        "byline": "  ·  ".join(x for x in (scene.author.upper(), scene.website) if x),  # "SARAT  ·  example.org", or part of it
         "name": scene.name, "reach": scene.reach, "locality": scene.locality, "region": scene.region,
         "callout_caption": scene.callout_caption, "author": scene.author, "website": scene.website,
-        "date": _dates_label(list(starts)), "times_utc": " / ".join(dict.fromkeys(f"{s:%H:%M}" for s in starts)),
+        "date": _dates_label(list(starts)), "times_utc": _times(metas),
+        "times_label": f"{_times(metas)} UTC" if _times(metas) else "",
         "time_utc": f"{start:%H:%M}", "start_utc": f"{start:%H:%M:%S}", "end_utc": f"{end:%H:%M:%S}",
         "posting_m": int(res) if float(res).is_integer() else res, "crs": ref.meta["crs"],
         **ref.shared,

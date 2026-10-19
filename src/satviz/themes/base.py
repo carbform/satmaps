@@ -93,6 +93,34 @@ def social_header(fig, t: Theme, lay: Layout) -> None:
     fig.text(0.04, 0.858, lay.text("header.info_line"), fontsize=10.5, color=t.muted, va="center")
 
 
+def wrap_lines(fig, lines: list[str], fontsize: float, max_width: float = 0.89) -> list[str]:
+    """Greedy word wrap by measured width (fraction of the figure), so long notices stay inside their strip.
+    Lines that already fit are returned untouched."""
+    renderer = fig.canvas.get_renderer()
+    probe = fig.text(0, 0, "", fontsize=fontsize)
+
+    def width(s: str) -> float:
+        probe.set_text(s)
+        return probe.get_window_extent(renderer).width / fig.bbox.width
+
+    out = []
+    for line in lines:
+        if width(line) <= max_width:
+            out.append(line)
+            continue
+        cur = ""
+        for word in line.split(" "):
+            trial = f"{cur} {word}".strip()
+            if cur and width(trial) > max_width:
+                out.append(cur)
+                cur = word
+            else:
+                cur = trial
+        out.append(cur)
+    probe.remove()
+    return out
+
+
 def assemble_credits(lay: Layout, required=None) -> list[str]:
     """The layout's credit lines plus one DATA line with every sensor attribution the layout leaves out.
 
@@ -128,16 +156,22 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
 
     # the notice strip and credits flow downwards from the how-to-read block
     if lay.get("notes.lines") is not None:
-        notes = lay.lines("notes.lines", limit=5)
+        notes = lay.lines("notes.lines")
     else:
         notes = [shout(c) for c in caveats or []]
-        if len(notes) > 5:  # never drop a caveat silently
-            raise LayoutError(f"{lay.path}: {len(notes)} caveats, at most 5 fit; write [notes] lines to merge them")
-    # up to 3 lines at the standard size; 4 or 5 share the same height with tighter spacing and smaller type
+    # The strip is 0.0705 of the page high. A line of type needs about fs / 669.6 of it, so 5 lines fit at full size and
+    # smaller type fits more; 3 lines or fewer keep the standard spacing.
+    raw_notes = notes
+    for fs in (9.3, 8.6, 8.0, 7.5, 7.0):
+        notes = wrap_lines(fig, raw_notes, fs)
+        if len(notes) <= int(47.2 / fs + 1e-9):
+            break
+    else:
+        raise LayoutError(f"{lay.path}: the notices need {len(notes)} lines even at the smallest type; shorten them")
     pitch = min(0.0235, 0.0705 / max(len(notes), 1))
-    note_fs = 9.3 * min(1.0, pitch / 0.0235 * 1.12)
+    note_fs = fs
     bottom = round(0.119 - pitch * len(notes), 4)
-    credits = assemble_credits(lay, required_credits)
+    credits = wrap_lines(fig, assemble_credits(lay, required_credits), 9, 0.92)
     last_y = bottom - 0.02 - 0.02 * (len(credits) - 1)
     if credits and last_y < 0.005:  # the attribution must be on the page, not below it
         raise LayoutError(f"{lay.path}: {len(credits)} credit lines and {len(notes)} notice lines do not fit on the page; "
@@ -145,7 +179,9 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
     if notes:
         block(fig, t, 0.04, bottom, 0.92, round(pitch * len(notes), 4), t.note, shadow=False, lw=1.2)
     for i, line in enumerate(notes):
-        fig.text(0.05, round(0.1075 - (pitch + 0.0005) * i - (0.0235 - pitch) / 2, 4), line, fontsize=note_fs, color=t.ink, va="center")
+        # the standard pitch keeps the original positions; tighter ones are centred in their slot of the strip
+        y = 0.1075 - 0.024 * i if pitch >= 0.0235 else 0.119 - pitch * (i + 0.5)
+        fig.text(0.05, round(y, 4), line, fontsize=note_fs, color=t.ink, va="center")
     for i, line in enumerate(credits):
         fig.text(0.04, round(bottom - 0.02 - 0.02 * i, 4), line, fontsize=9, color=t.muted, va="center")
 

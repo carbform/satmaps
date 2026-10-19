@@ -8,8 +8,9 @@ from satviz.sensors.nisar_gcov.io import load_roi
 
 def test_builtins_registered():
     d = describe()
-    assert d == {"sensors": ["nisar_gcov", "sentinel2_l2a"],
-                 "recipes": ["ndvi", "ndwi", "nir_fcc", "sar_fcc", "swir_fcc", "true_colour"], "themes": ["minimal", "neo_brutal", "neo_retro"]}
+    assert d == {"sensors": ["geotiff", "landsat_c2l2", "nisar_gcov", "sentinel1_rtc", "sentinel2_l2a"],
+                 "recipes": ["ndvi", "ndwi", "nir_fcc", "sar_fcc", "swir_fcc", "true_colour"], "themes": ["minimal", "neo_brutal", "neo_retro"],
+                 "templates": ["compare", "grid", "single"]}
 
 
 def test_registry_rejects_duplicates_and_lists_known():

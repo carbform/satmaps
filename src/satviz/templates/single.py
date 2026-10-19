@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import matplotlib.pyplot as plt
 
 from satviz.config import Scene
-from satviz.core import RECIPES, THEMES
+from satviz.core import RECIPES, THEMES, check_recipe
 from satviz.geo import project
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.registry import load_builtin
@@ -34,8 +34,10 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
     t = THEMES.get_or_raise(theme)
     rec = RECIPES.get_or_raise(recipe)
     P = products[input]
-    if P.kind != rec.kind:
-        raise LayoutError(f"recipe {recipe!r} needs a {rec.kind} product but input {input!r} is {P.kind}")
+    try:
+        check_recipe(recipe, rec, P, input)
+    except ValueError as e:
+        raise LayoutError(str(e)) from None
     r = rec.render(P)
     lim = SimpleNamespace(**{f"{k}_{e}": v for k, (lo, hi) in (r.lims or {}).items() for e, v in (("lo", lo), ("hi", hi))})
     lay = Layout(layout, build_context_products(scene, {input: P}, True, extra={"lim": lim}))

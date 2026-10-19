@@ -89,20 +89,87 @@ def default_legend() -> list[LegendItem]:
     ]
 
 
+def _generic_channels(product: Product):
+    """Co/cross channels in dB for a SAR product with only `co` and `cross` layers (no noise floor, e.g. Sentinel-1 RTC)."""
+    co, cr = product.layers["co"], product.layers["cross"]
+    ok = product.valid & np.isfinite(co) & np.isfinite(cr) & (co > 0) & (cr > 0)
+    co_db, cr_db = db(np.where(ok, co, np.nan)), db(np.where(ok, cr, np.nan))
+    return ok, {"HH": co_db, "HV": cr_db, "ratio": co_db - cr_db}
+
+
+def _channels_of(product: Product):
+    return _channels_db(product.native) if product.native is not None else _generic_channels(product)
+
+
+def _pols(product: Product) -> tuple[str, str]:
+    pols = getattr(product.facts, "polarisations", "")
+    parts = pols.split("/") if pols else []
+    return (parts[0], parts[1]) if len(parts) >= 2 else ("CO", "CROSS")
+
+
+def _generic_render(product: Product, lims_in: dict | None) -> Rendered:
+    from satviz.grid import _block_mean
+
+    ok, ch = _generic_channels(product)
+    lims, chans = {}, []
+    for name, gam in GAMMAS:
+        a = ch[name]
+        lo, hi = lims_in[name] if lims_in else np.nanpercentile(a[::6, ::6], [2.0, 98.5])
+        lims[name] = (float(lo), float(hi))
+        chans.append(np.power(np.clip((a - lo) / (hi - lo + 1e-6), 0, 1), gam))
+    rgba = np.zeros(ok.shape + (4,), np.uint8)
+    for i, c in enumerate(chans):
+        rgba[..., i] = np.nan_to_num(c * 255).astype(np.uint8)
+    rgba[~ok, :3] = OUTSIDE_RGB
+    rgba[..., 3] = 255
+    # the three inputs on their own, block-averaged 4 x 4 like the NISAR panels
+    k = 4
+    H, W = (ok.shape[0] // k) * k, (ok.shape[1] // k) * k
+    co = _block_mean(np.where(ok, product.layers["co"], np.nan), k)
+    cr = _block_mean(np.where(ok, product.layers["cross"], np.nan), k)
+    cok = np.isfinite(co) & np.isfinite(cr)
+    cco, ccr = db(co), db(cr)
+    arrays = {"HH": cco, "HV": ccr, "ratio": cco - ccr}
+    comps = []
+    for (name, gam), key in zip(GAMMAS, "RGB", strict=True):
+        lo, hi = lims[name]
+        v = np.where(cok, np.power(np.clip((arrays[name] - lo) / (hi - lo + 1e-6), 0, 1), gam), np.nan)
+        tint = np.array([int(CHANNEL_COLORS[key][q:q + 2], 16) for q in (1, 3, 5)]) / 255.0
+        comps.append((key, np.where(np.isfinite(v)[..., None], v[..., None] * tint, 0.12)))
+    p1, p2 = _pols(product)
+    labels = {"R": f"CH1  {p1}", "G": f"CH2  {p2}", "B": f"CH3  {p1}−{p2}"}
+    cx, cy = product.x[:W].reshape(-1, k).mean(1), product.y[:H].reshape(-1, k).mean(1)
+    legend = [LegendItem("#d4574f", f"RED = {p1}  (SURFACE)"), LegendItem("#5fb673", f"GREEN = {p2}  (VOLUME)"),
+              LegendItem("#6580d6", f"BLUE = {p1}−{p2}  (RATIO)")]
+    return Rendered(rgba=rgba, extent=utm_extent(dict(x=product.x, y=product.y)), legend=legend, caveats=list(product.caveats),
+                    components=[Component(k_, img, CHANNEL_COLORS[k_], labels[k_]) for k_, img in comps],
+                    components_extent=utm_extent(dict(x=cx, y=cy)), lims=lims, title="R+G+B  COMPOSITE")
+
+
 def render_product(product: Product, lims_in: dict | None = None) -> Rendered:
     """A NISAR product to a `Rendered` false-colour composite, with the three channels as components."""
     d = product.native
+    if d is None:  # a SAR product from another sensor: co/cross layers, no noise floor
+        return _generic_render(product, lims_in)
     rgba, lims, _ = fcc_rgba(d, lims_in=lims_in)
     c = coarsen(d, 4)
     labels = {"R": "CH1  HH", "G": "CH2  HV", "B": "CH3  HH−HV"}
     comps = [Component(key, img, CHANNEL_COLORS[key], labels[key]) for key, img in channel_panels(c, lims)]
     return Rendered(rgba=rgba, extent=utm_extent(d), legend=default_legend(),
-                    caveats=[*product.caveats, "Noise-screened (SNR < 3 dB shown grey); no speckle filter applied."],
+                    caveats=[*product.caveats, "NISAR: noise-screened (SNR < 3 dB shown grey); no speckle filter."],
                     components=comps, components_extent=utm_extent(c), lims=lims, title="R+G+B  COMPOSITE")
 
 
 def pooled_lims(products: list[Product]) -> dict:
-    return shared_lims([p.native for p in products])
+    """Stretch limits pooled over products (NISAR or any co/cross SAR product), 2nd to 98.5th percentile."""
+    out = {}
+    for name, _ in GAMMAS:
+        vals = []
+        for p in products:
+            a = _channels_of(p)[1][name][::6, ::6]
+            vals.append(a[np.isfinite(a)])
+        out[name] = tuple(float(v) for v in np.percentile(np.concatenate(vals), [2.0, 98.5]))
+    return out
 
 
 SAR_FCC = recipe("sar_fcc")(Recipe(render=render_product, kind="sar", shared_lims=pooled_lims))

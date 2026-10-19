@@ -11,7 +11,7 @@ from satviz.core import SENSORS, THEMES
 from satviz.job import FigureSpec, Job, JobError
 from satviz.layout import LayoutError, apply_text, default_layout, load_layout
 from satviz.registry import load_builtin
-from satviz.templates import compare, single
+from satviz.templates import compare, grid, single
 
 DEFAULT_RECIPE = {"sar": "sar_fcc", "optical": "true_colour"}  # by product kind, when a figure names none
 CHIP_SLOT = ("a", "b")
@@ -66,7 +66,11 @@ def combos(fig: FigureSpec) -> list[tuple[str, ...]]:
         if len(fig.inputs) != 2:
             raise JobError(f"compare needs exactly 2 inputs (or pairs = \"all\"), got {list(fig.inputs)}")
         return [tuple(fig.inputs)]
-    raise JobError(f"unknown template {fig.template!r}; available: single, compare")
+    if fig.template == "grid":
+        if not 2 <= len(fig.inputs) <= 6:
+            raise JobError(f"grid needs 2 to 6 inputs, got {len(fig.inputs)}")
+        return [tuple(fig.inputs)]
+    raise JobError(f"unknown template {fig.template!r}; available: single, compare, grid")
 
 
 def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
@@ -102,6 +106,8 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
                 k = combo[0]
                 paths = single.render(scene, products, out, layout, input=k, recipe=recipes[k],
                                       chip_slot=CHIP_SLOT[min(list(job.inputs).index(k), 1)], theme=theme, stem=stem)
+            elif fig.template == "grid":
+                paths = grid.render(scene, products, out, layout, inputs=combo, recipe=recipes, theme=theme, stem=stem)
             else:
                 per_band = None if fig.stretch is None else fig.stretch == "per-band"
                 paths = compare.render(scene, products, out, layout, inputs=combo, recipe=recipes, per_band=per_band,

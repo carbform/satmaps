@@ -11,7 +11,7 @@ import numpy as np
 from matplotlib.patches import Rectangle
 
 from satviz.config import Scene
-from satviz.core import RECIPES, THEMES
+from satviz.core import RECIPES, THEMES, check_recipe
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
@@ -21,7 +21,7 @@ FILENAME = "{scene}_{a}vs{b}_Social_{tag}.png"
 
 def platforms(products) -> str:
     """'NISAR', or 'NISAR-Sentinel2' for a cross-sensor figure: the output file prefix."""
-    return "-".join(dict.fromkeys(p.meta["platform"] for p in products))
+    return "-".join(dict.fromkeys(p.meta["platform"].replace(" ", "") for p in products))
 
 
 def panel_text(lay: Layout, key: str, prod) -> str:
@@ -46,8 +46,10 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     names = {a: recipe, b: recipe} if isinstance(recipe, str) else {a: recipe[a], b: recipe[b]}
     recA, recB = RECIPES.get_or_raise(names[a]), RECIPES.get_or_raise(names[b])
     for pid, prod, rec_ in ((a, A, recA), (b, B, recB)):
-        if prod.kind != rec_.kind:
-            raise LayoutError(f"recipe {names[pid]!r} needs a {rec_.kind} product but input {pid!r} is {prod.kind}")
+        try:
+            check_recipe(names[pid], rec_, prod, pid)
+        except ValueError as e:
+            raise LayoutError(str(e)) from None
     rec = recA  # the recipe that pools the stretch, when both sides use the same one
     if A.layers[next(iter(A.layers))].shape != B.layers[next(iter(B.layers))].shape or not (
             np.allclose(A.x, B.x) and np.allclose(A.y, B.y)):
@@ -62,13 +64,12 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     lay = Layout(layout, build_context_products(scene, {a: A, b: B}, per_band, strict=strict))
     lims = None if per_band else rec.shared_lims([A, B])
     rA, rB = recA.render(A, lims), recB.render(B, lims)
-    if names[a] == names[b]:
-        legend = list({i.text: i for i in (*rA.legend, *rB.legend)}.values())
-    else:  # two different recipes share the six legend slots: the first three items of each
+    legend = list({i.text: i for i in (*rA.legend, *rB.legend)}.values())
+    if names[a] != names[b] or len(legend) > 6:  # the six legend slots are shared: the first three items of each side
         legend = [*rA.legend[:3], *rB.legend[:3]]
     caveats = list(dict.fromkeys(c for r in (rA, rB) for c in r.caveats))
     if per_band and (recA.shared_lims is not None or recB.shared_lims is not None):
-        caveats.append("Colours are not comparable between the two inputs (each has its own stretch).")
+        caveats.append("Colours are not comparable between the two inputs (own stretch each).")
     ext = rB.extent
     H, W = rB.rgba.shape[:2]
     split = W // 2

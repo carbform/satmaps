@@ -31,7 +31,7 @@ Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any num
 ## Job files: fill in a config, run one command
 
 ```bash
-satviz init                              # list presets (sar, sar-compare, ...)
+satviz init                              # list presets (sar, sar-compare, optical, sar-vs-optical, multi-sensor-grid)
 satviz init sar-compare -o job.toml      # write a starter file
 # edit the area, the data files and the wording
 satviz run job.toml --out outputs/
@@ -39,13 +39,40 @@ satviz run job.toml --out outputs/
 
 A job file says where (`[area]`: `center` + `radius_km` or `size_km`, or a `bbox`), which data (`[[inputs]]`: an `id`,
 a `sensor` and a `source` path or glob), optional `[[zooms]]` by place, and which figures (`[[figures]]`: a `template`
-(`single` or `compare`), `inputs`, `theme` or a list of themes, `text = { title = "...", subtitle = "..." }`, and
-`pairs = "all"` for every pair of three or more inputs). Place names, titles and credits are yours to write. A worked
+(`single`, `compare` or `grid`), `inputs`, `theme` or a list of themes, `text = { title = "...", subtitle = "..." }`, and
+`pairs = "all"` for every pair of three or more inputs, or `grid` for 2 to 6 panels). Place names, titles and credits are yours to write. A worked
 example is [jobs/brahmaputra_l_vs_s.toml](jobs/brahmaputra_l_vs_s.toml), which reproduces the L-vs-S and S-band graphics
 exactly. The area defines one pixel grid and every input is read onto it, so the inputs always line up. Grids that
 already match are copied, others are resampled. A `<job>.lock.json` next to the outputs records the grid and the files
 used. The built-in wording needs no layout file; sensors add their own attribution and caveats (calibration state,
 noise screening) and these cannot be removed.
+
+### Inputs: SAR, optical, anything with a GeoTIFF
+
+| `sensor` | Data | `source` | Notes |
+|---|---|---|---|
+| `nisar_gcov` | NISAR L2 GCOV (L-SAR, S-SAR) | `{ path = "file or glob" }` | local files; noise-screened false colour |
+| `sentinel2_l2a` | Sentinel-2 surface reflectance | `{ stac = "earth-search", date = "2026-09-25" }` | free, no login |
+| `landsat_c2l2` | Landsat 8/9 Collection 2 Level 2 | `{ stac = "planetary-computer", date = ... }` | free, anonymous token |
+| `sentinel1_rtc` | Sentinel-1 RTC (VV/VH) | `{ stac = "planetary-computer", date = ..., orbit = "ascending" }` | no noise floor published; the figure says so |
+| `geotiff` | anything else: ResourceSat, ALOS PALSAR RTC, PlanetScope, ... | `{ path = "scene.tif" }` | band map in the job file, see [sensors/geotiff.py](src/satviz/sensors/geotiff.py) |
+
+Catalogue inputs need network and `pip install "satviz[optical]"`. The scene is the one closest to `date` (within
+`window_days`) whose **cloud cover over your area** (not the tile-wide figure) is at most `max_cloud` and that covers at
+least `min_coverage` of it; pin one with `item = "..."`. `satviz search job.toml` lists what would be used. Reflectance
+scaling is read from each scene's own metadata. Clouds are shown, not masked, and the figure states the cloud share.
+Each sensor adds its own attribution (Copernicus, USGS, NISAR) and caveats; they cannot be removed from a figure. When
+inputs are from different days the header shows every date and time. Pixels coarser than the canvas are resampled, and a
+notice says so.
+
+<p align="center">
+  <img src="docs/img/sar_vs_optical.jpg" alt="NISAR L-band next to Sentinel-2" width="38%">
+  <img src="docs/img/grid_four_sensors.jpg" alt="NISAR, Sentinel-1, Landsat 8 and Sentinel-2 on one grid" width="38%">
+</p>
+
+Figures: `single` (one input), `compare` (two inputs split left/right, any recipe on each side), `grid` (2 to 6 inputs).
+Recipes: `sar_fcc` (SAR), `true_colour`, `nir_fcc`, `swir_fcc`, `ndvi`, `ndwi` (optical); `recipes = { sar = "sar_fcc",
+opt = "ndvi" }` picks one per input, otherwise each input gets its kind's default.
 
 ## Themes
 

@@ -1,0 +1,19 @@
+# Built-in wording for the `grid` template. Everything in {braces} is filled in from your job file and the data;
+# override any line from the job with  [[figures]] text = { title = "...", subtitle = "..." }  or a layout of your own.
+# What the sensors and recipes insist on (attribution, calibration and quality caveats) is added automatically.
+
+[header]
+title = "{name}"
+subtitle = "{region_upper}"
+date = "{date_upper}"
+time = "{times_label}"
+info_line = "{inputs_line}   ·   {posting_m} M   ·   {crs}"
+
+[how_to_read]
+title = "HOW TO READ"
+subtitle = ""
+
+[credits]
+lines = [
+  { if = "byline", text = "VIZ   {byline}" },
+]

@@ -116,7 +116,7 @@ def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
     if unknown := set(f) - FIGURE_KEYS:
         raise JobError(f"{where}: unknown key(s) {sorted(unknown)}; allowed: {sorted(FIGURE_KEYS)}")
     if "template" not in f:
-        raise JobError(f"{where}: needs `template` (single or compare)")
+        raise JobError(f"{where}: needs `template` (single, compare or grid)")
     ids = tuple(f.get("inputs") or inputs)
     if missing := [k for k in ids if k not in inputs]:
         raise JobError(f"{where}: unknown input(s) {missing}; the job defines {list(inputs)}")

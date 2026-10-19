@@ -20,7 +20,7 @@ def _rasterio():
     return rasterio
 
 
-def read_window(href: str, canvas: Canvas, cache_dir: Path | None = None):
+def read_window(href: str, canvas: Canvas, cache_dir: Path | None = None, band: int = 1):
     """(array, x, y, epsg, nodata) for the part of the raster under the canvas, or None if it does not overlap.
 
     `x`/`y` are pixel-centre coordinates in the raster's own CRS. Raw values are returned (scaling is the caller's job)."""
@@ -29,7 +29,7 @@ def read_window(href: str, canvas: Canvas, cache_dir: Path | None = None):
 
     cache = None
     if cache_dir is not None:
-        key = hashlib.sha1(f"{href.split('?')[0]}|{canvas.epsg}|{canvas.extent}".encode()).hexdigest()[:20]
+        key = hashlib.sha1(f"{href.split('?')[0]}|{band}|{canvas.epsg}|{canvas.extent}".encode()).hexdigest()[:20]
         cache = Path(cache_dir) / f"cog_{key}.npz"
         if cache.exists():
             with np.load(cache) as z:
@@ -50,7 +50,7 @@ def read_window(href: str, canvas: Canvas, cache_dir: Path | None = None):
             if c1 - c0 < 1 or r1 - r0 < 1:
                 result = None
             else:
-                arr = src.read(1, window=Window(c0, r0, c1 - c0, r1 - r0))
+                arr = src.read(band, window=Window(c0, r0, c1 - c0, r1 - r0))
                 x = t.c + t.a * (np.arange(c0, c1) + 0.5)
                 y = t.f + t.e * (np.arange(r0, r1) + 0.5)
                 result = (arr, x, y, epsg, src.nodata)

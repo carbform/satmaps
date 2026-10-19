@@ -15,7 +15,7 @@ SENTINEL2_L2A = so.OpticalCollection(
     bands=dict(blue="blue", green="green", red="red", nir="nir", swir16="swir16", swir22="swir22"),
     reference_band="red", quality_asset="scl",
     cloud_mask=lambda q: np.isin(q, SCL_CLOUD), nodata_mask=lambda q: q == 0,
-    attribution="Copernicus Sentinel", credit=lambda year: f"Contains modified Copernicus Sentinel data {year}",
+    attribution="Copernicus Sentinel", credit=lambda year, platform: f"Contains modified Copernicus Sentinel data {year}",
 )
 
 

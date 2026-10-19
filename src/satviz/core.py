@@ -92,6 +92,15 @@ class Component:
     label: str = ""  # default chip text; a layout's channels.labels overrides it
 
 
+def check_recipe(name: str, rec: Recipe, product: Product, input_id: str) -> None:
+    """Raise a readable error if the product is the wrong kind or lacks a layer the recipe needs."""
+    if product.kind != rec.kind:
+        raise ValueError(f"recipe {name!r} needs a {rec.kind} product but input {input_id!r} is {product.kind}")
+    if missing := [n for n in rec.needs if n not in product.layers]:
+        raise ValueError(f"recipe {name!r} needs band(s) {', '.join(missing)}, which input {input_id!r} does not have "
+                         f"(it has: {', '.join(k for k in product.layers if k != 'cloud')})")
+
+
 @dataclass
 class Rendered:
     """A recipe's output: the picture plus what must be said about it."""
@@ -113,4 +122,5 @@ class Recipe:
 
     render: Callable[..., Rendered]
     kind: str = "sar"
+    needs: tuple[str, ...] = ()  # layers the recipe reads; a product without them is refused with a clear message
     shared_lims: Callable[[list[Product]], dict] | None = None

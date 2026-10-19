@@ -52,7 +52,7 @@ def _rgb_recipe(name: str, channels: tuple[str, str, str], title: str, texts: tu
     def pooled(products: list[Product]) -> dict:
         return {"RGB": _pooled_percentiles(products, channels)}
 
-    return recipe(name)(Recipe(render=render, kind="optical", shared_lims=pooled))
+    return recipe(name)(Recipe(render=render, kind="optical", needs=channels, shared_lims=pooled))
 
 
 TRUE_COLOUR = _rgb_recipe("true_colour", ("red", "green", "blue"), "TRUE COLOUR",
@@ -63,7 +63,8 @@ SWIR_FCC = _rgb_recipe("swir_fcc", ("swir22", "nir", "red"), "SWIR FALSE COLOUR"
                        ("RED = SHORTWAVE INFRARED", "GREEN = NEAR-INFRARED", "BLUE = RED BAND"))
 
 
-def _index_recipe(name: str, title: str, fn, cmap: str, vmin: float, vmax: float, ends: tuple[str, str]):
+def _index_recipe(name: str, title: str, fn, cmap: str, vmin: float, vmax: float, ends: tuple[str, str],
+                  needs: tuple[str, ...]):
     cm = matplotlib.colormaps[cmap]
 
     def render(product: Product, lims_in: dict | None = None) -> Rendered:
@@ -77,10 +78,10 @@ def _index_recipe(name: str, title: str, fn, cmap: str, vmin: float, vmax: float
         return Rendered(rgba=_finish(rgb, ok), extent=_extent(product), legend=legend,
                         caveats=list(product.caveats), lims={"index": (vmin, vmax)}, title=title)
 
-    return recipe(name)(Recipe(render=render, kind="optical"))
+    return recipe(name)(Recipe(render=render, kind="optical", needs=needs))
 
 
 NDVI = _index_recipe("ndvi", "NDVI", lambda L: (L["nir"] - L["red"]) / (L["nir"] + L["red"]), "RdYlGn", -0.2, 0.9,
-                     ("WATER OR BARE", "DENSE VEGETATION"))
+                     ("WATER OR BARE", "DENSE VEGETATION"), ("nir", "red"))
 NDWI = _index_recipe("ndwi", "NDWI", lambda L: (L["green"] - L["nir"]) / (L["green"] + L["nir"]), "BrBG", -0.6, 0.6,
-                     ("LAND", "OPEN WATER"))
+                     ("LAND", "OPEN WATER"), ("green", "nir"))

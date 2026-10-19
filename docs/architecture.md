@@ -196,3 +196,18 @@ align, otherwise bilinear or block-mean resampling), NISAR read by area, job loa
 adaptive scale bar, sensor attributions that layouts cannot remove.
 Verified: the job file for the Brahmaputra scene reproduces the L-vs-S and S-band graphics pixel for pixel.
 Next: 3b (geotiff and Sentinel-2 readers, optical recipes, STAC search), then 3c.
+
+## Status after Phase 3 (3a, 3b, 3c)
+
+Done and checked against live data (Dibrugarh, 25 Sep 2026): NISAR L-band with Sentinel-2 (24 Sep, 7% cloud in the area),
+Sentinel-1D RTC (same day) and Landsat 8 (same day, 0% cloud in the area), on one 10 m grid.
+
+- Sources verified before coding: Earth Search serves Sentinel-2 L2A as public COGs with per-item scale/offset;
+  Earth Search Landsat is requester-pays (HTTP 403), so Landsat and Sentinel-1 RTC come from the Planetary Computer with
+  an anonymous token; Sentinel-1 RTC is linear power with nodata -32768.
+- Readers: `nisar_gcov`, `sentinel2_l2a`, `landsat_c2l2`, `sentinel1_rtc`, `geotiff`. Recipes: `sar_fcc` (NISAR path with
+  noise screening, generic path for co/cross SAR), `true_colour`, `nir_fcc`, `swir_fcc`, `ndvi`, `ndwi`.
+- Templates: `single`, `compare`, `grid`; `pairs = "all"` for every pair.
+- Not done: ALOS PALSAR needs a real file to check its conventions (use `geotiff` with `values = "amplitude"` meanwhile);
+  `date = "same_as:<input>"` (pick optical on the NISAR date automatically); place-name lookup (deferred by choice);
+  `before-after` preset; the editorial theme and newspaper template (Phase 4).

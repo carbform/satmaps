@@ -92,7 +92,7 @@ def test_cloud_is_measured_in_the_area_and_the_closest_clear_scene_wins(world):
     assert prod.meta["items"] == ["far"] and prod.facts.cloud_pct == 0
     assert prod.kind == "optical" and prod.meta["attribution"] == "Copernicus Sentinel"
     assert prod.meta["credit"] == "Contains modified Copernicus Sentinel data 2026"
-    assert "0% of this view is cloud" in prod.caveats[0] and "not masked" in prod.caveats[0]
+    assert "0% cloud, shadow or cirrus in view" in prod.caveats[0] and "not masked" in prod.caveats[0]
 
 
 def test_reflectance_scaling_comes_from_the_item_metadata(world):
