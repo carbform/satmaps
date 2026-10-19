@@ -96,7 +96,8 @@ def render_product(product: Product, lims_in: dict | None = None) -> Rendered:
     c = coarsen(d, 4)
     labels = {"R": "CH1  HH", "G": "CH2  HV", "B": "CH3  HH−HV"}
     comps = [Component(key, img, CHANNEL_COLORS[key], labels[key]) for key, img in channel_panels(c, lims)]
-    return Rendered(rgba=rgba, extent=utm_extent(d), legend=default_legend(), caveats=list(product.caveats),
+    return Rendered(rgba=rgba, extent=utm_extent(d), legend=default_legend(),
+                    caveats=[*product.caveats, "Noise-screened (SNR < 3 dB shown grey); no speckle filter applied."],
                     components=comps, components_extent=utm_extent(c), lims=lims, title="R+G+B  COMPOSITE")
 
 

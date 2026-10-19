@@ -1,0 +1,30 @@
+# NISAR radar next to Sentinel-2 optical for the same place: one split map on one pixel grid.
+# The NISAR file is local (put it in ./data); the optical scene is found by place and date (needs network and
+# pip install "satviz[optical]"). Check the pick with `satviz search sar-vs-optical.toml`, then:  satviz run sar-vs-optical.toml
+
+[scene]
+name = "My place"
+region = "Somewhere, Somewhere"
+author = ""
+website = ""
+
+[area]
+center = [27.565, 94.905]
+radius_km = 6
+
+[[inputs]]
+id = "sar"
+sensor = "nisar_gcov"
+source = { path = "NISAR_L2_*_GCOV_*.h5" }
+
+[[inputs]]
+id = "opt"
+sensor = "sentinel2_l2a"
+source = { stac = "earth-search", date = "2026-09-25", window_days = 7, max_cloud = 20 }
+
+[[figures]]
+template = "compare"
+inputs = ["sar", "opt"]               # left, right
+recipes = { sar = "sar_fcc", opt = "true_colour" }
+theme = ["neo_retro", "minimal"]
+text = { title = "Radar meets optical", subtitle = "NISAR AND SENTINEL-2" }

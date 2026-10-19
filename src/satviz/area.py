@@ -130,6 +130,14 @@ class Area:
         px, py = _tf(4326, epsg).transform(X.ravel(), Y.ravel())
         return cls(epsg, float(min(px)), float(min(py)), float(max(px)), float(max(py)), res)
 
+    def lonlat_bbox(self) -> tuple[float, float, float, float]:
+        """West, south, east, north in WGS84: what a catalogue search needs."""
+        xs = np.linspace(self.xmin, self.xmax, 9)
+        ys = np.linspace(self.ymin, self.ymax, 9)
+        X, Y = np.meshgrid(xs, ys)
+        lon, lat = _tf(self.epsg, 4326).transform(X.ravel(), Y.ravel())
+        return float(np.min(lon)), float(np.min(lat)), float(np.max(lon)), float(np.max(lat))
+
     def canvas(self, resolution_m: float | None = None, phase: tuple[float, float] | None = None) -> Canvas:
         """Pixel grid covering the area. `phase` is (x, y) of any pixel centre of a reference grid; the canvas is aligned
         to it so the reference input needs no resampling."""

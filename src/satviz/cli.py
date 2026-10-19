@@ -87,6 +87,12 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--layouts-dir", default="layouts", help="folder for layouts named without a path (default: %(default)s)")
     rn.add_argument("-v", "--verbose", action="store_true")
 
+    se = sub.add_parser("search", help="list the catalogue scenes a job would use, with cloud cover in your area")
+    se.add_argument("job")
+    se.add_argument("--data-dir", default=None)
+    se.add_argument("--cache", default="cache")
+    se.add_argument("--no-cache", action="store_true")
+
     ini = sub.add_parser("init", help="write a starter job file for a preset")
     ini.add_argument("preset", nargs="?", help="preset name; omit to list them")
     ini.add_argument("-o", "--output", default=None, help="file to write (default: <preset>.toml)")
@@ -117,18 +123,39 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "init":
         return _init(args)
 
+    if args.cmd == "search":
+        from satviz.area import AreaError
+        from satviz.job import JobError, load_job
+        from satviz.run import search_job
+        from satviz.sources import SourceError
+        from satviz.stac import StacError
+
+        try:
+            rows = search_job(load_job(args.job, args.data_dir), None if args.no_cache else args.cache)
+        except (JobError, AreaError, SourceError, StacError, FileNotFoundError, ValueError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+        for key, found in rows.items():
+            print(f"{key}:")
+            for r in found:
+                mark = "<- would be used" if r["chosen"] else ("" if r["ok"] else "(too cloudy or too little coverage)")
+                print(f"  {r['date']}  cloud {r['cloud_pct']:4.0f}%  coverage {r['coverage_pct']:4.0f}%  "
+                      f"{', '.join(r['scenes'])}  {mark}")
+        return 0
+
     if args.cmd == "run":
         from satviz.area import AreaError
         from satviz.job import JobError, load_job
         from satviz.layout import LayoutError
         from satviz.run import run_job
         from satviz.sources import SourceError
+        from satviz.stac import StacError
 
         try:
             job = load_job(args.job, args.data_dir)
             for path in run_job(job, args.out, None if args.no_cache else args.cache, args.layouts_dir):
                 print(path)
-        except (JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError) as e:
+        except (JobError, AreaError, SourceError, StacError, LayoutError, FileNotFoundError, KeyError, ValueError) as e:
             print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)
             return 2
         return 0

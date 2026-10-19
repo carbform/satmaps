@@ -1,0 +1,27 @@
+# One optical scene (Sentinel-2) as a social graphic; the scene is found by place and date, no files needed.
+# Needs network and:  pip install "satviz[optical]"
+# Check what would be used with `satviz search optical.toml`, then:  satviz run optical.toml
+
+[scene]
+name = "My place"
+region = "Somewhere, Somewhere"
+author = ""
+website = ""
+
+[area]
+center = [27.565, 94.905]     # lat, lon
+radius_km = 8
+
+[[inputs]]
+id = "opt"
+sensor = "sentinel2_l2a"
+# The scene closest to `date` (within window_days) with at most max_cloud % cloud IN YOUR AREA is used.
+# Pin one exactly with  item = "S2B_46RFR_20260924_0_L2A".
+source = { stac = "earth-search", date = "2026-09-25", window_days = 7, max_cloud = 20 }
+
+[[figures]]
+template = "single"
+inputs = ["opt"]
+recipes = { opt = "true_colour" }      # true_colour, nir_fcc, swir_fcc, ndvi, ndwi
+theme = "neo_retro"
+text = { title = "My title", subtitle = "SEEN BY SENTINEL-2" }

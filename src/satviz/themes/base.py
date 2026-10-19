@@ -93,6 +93,20 @@ def social_header(fig, t: Theme, lay: Layout) -> None:
     fig.text(0.04, 0.858, lay.text("header.info_line"), fontsize=10.5, color=t.muted, va="center")
 
 
+def assemble_credits(lay: Layout, required=None) -> list[str]:
+    """The layout's credit lines plus one DATA line with every sensor attribution the layout leaves out.
+
+    `required` is a list of (text that has to appear, line to add if it does not)."""
+    credits = lay.lines("credits.lines", limit=3) if lay.get("credits.lines") is not None else []
+    missing = []
+    for must, line in required or []:
+        if not any(must.upper() in c.upper() for c in credits) and shout(line) not in missing:
+            missing.append(shout(line))
+    if missing:
+        credits.append("DATA  " + "  ·  ".join(missing))
+    return credits
+
+
 def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, required_credits=None) -> None:
     """How-to-read block (up to 6 items), notice strip (up to 3 lines) and credits (up to 3 lines)."""
     block(fig, t, 0.04, 0.135, 0.92, 0.095)
@@ -114,23 +128,24 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
 
     # the notice strip and credits flow downwards from the how-to-read block
     if lay.get("notes.lines") is not None:
-        notes = lay.lines("notes.lines", limit=3)
+        notes = lay.lines("notes.lines", limit=5)
     else:
         notes = [shout(c) for c in caveats or []]
-        if len(notes) > 3:  # never drop a caveat silently
-            raise LayoutError(f"{lay.path}: {len(notes)} caveats, at most 3 fit; write [notes] lines to merge them")
-    credits = lay.lines("credits.lines", limit=3) if lay.get("credits.lines") is not None else []
-    # a sensor's attribution cannot be written out of a layout: append whatever is missing
-    for must, line in required_credits or []:  # (text that has to appear, line to add if it does not)
-        if not any(must.upper() in c.upper() for c in credits):
-            credits.append(f"DATA  {shout(line)}")
-    if len(credits) > 3:
-        raise LayoutError(f"{lay.path}: {len(credits)} credit lines, at most 3 fit")
-    bottom = round(0.119 - 0.0235 * len(notes), 4)
+        if len(notes) > 5:  # never drop a caveat silently
+            raise LayoutError(f"{lay.path}: {len(notes)} caveats, at most 5 fit; write [notes] lines to merge them")
+    # up to 3 lines at the standard size; 4 or 5 share the same height with tighter spacing and smaller type
+    pitch = min(0.0235, 0.0705 / max(len(notes), 1))
+    note_fs = 9.3 * min(1.0, pitch / 0.0235 * 1.12)
+    bottom = round(0.119 - pitch * len(notes), 4)
+    credits = assemble_credits(lay, required_credits)
+    last_y = bottom - 0.02 - 0.02 * (len(credits) - 1)
+    if credits and last_y < 0.005:  # the attribution must be on the page, not below it
+        raise LayoutError(f"{lay.path}: {len(credits)} credit lines and {len(notes)} notice lines do not fit on the page; "
+                          "shorten the notices or the credit lines")
     if notes:
-        block(fig, t, 0.04, bottom, 0.92, round(0.0235 * len(notes), 4), t.note, shadow=False, lw=1.2)
+        block(fig, t, 0.04, bottom, 0.92, round(pitch * len(notes), 4), t.note, shadow=False, lw=1.2)
     for i, line in enumerate(notes):
-        fig.text(0.05, round(0.1075 - 0.024 * i, 4), line, fontsize=9.3, color=t.ink, va="center")
+        fig.text(0.05, round(0.1075 - (pitch + 0.0005) * i - (0.0235 - pitch) / 2, 4), line, fontsize=note_fs, color=t.ink, va="center")
     for i, line in enumerate(credits):
         fig.text(0.04, round(bottom - 0.02 - 0.02 * i, 4), line, fontsize=9, color=t.muted, va="center")
 

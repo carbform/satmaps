@@ -83,7 +83,7 @@ def test_nisar_on_a_canvas_equals_the_source_where_grids_align(job_file, scene, 
     job = load_job(job_file, scene.data_dir)
     canvas, infos = choose_canvas(job, ["S"])
     assert canvas.res == 10 and infos["S"].epsg == 32646
-    prod = SENSORS["nisar_gcov"].open(job.inputs["S"], canvas, scene.data_dir)
+    prod = SENSORS["nisar_gcov"].open(job.inputs["S"], canvas, job.area, scene.data_dir)
     assert prod.layers["hh"].shape == (canvas.height, canvas.width)
     raw = read_roi(scene.data_dir / "S.h5", scene.bands["S"])
     # canvas pixel -> source pixel by coordinates; compare every canvas pixel that lies inside the file
@@ -153,8 +153,8 @@ def test_cli_run_and_errors(job_file, scene, tmp_path, capsys):
 def test_init_lists_and_writes_presets_that_parse(tmp_path, capsys):
     assert main(["init"]) == 0
     listed = capsys.readouterr().out
-    assert "sar" in listed and "sar-compare" in listed
-    for name in ("sar", "sar-compare"):
+    assert all(n in listed for n in ("sar", "sar-compare", "optical", "sar-vs-optical"))
+    for name in ("sar", "sar-compare", "optical", "sar-vs-optical"):
         dest = tmp_path / f"{name}.toml"
         assert main(["init", name, "-o", str(dest)]) == 0
         load_job(dest, tmp_path)  # every preset is a valid job

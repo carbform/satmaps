@@ -118,3 +118,15 @@ def test_products_with_differing_passes_are_allowed_when_not_strict(scene, tmp_p
     write_granule(tmp_path / "L.h5", "science/LSAR/GCOV", make_raw(2), instrument="LSAR", freq_hz=1.239e9, track=113)
     prods = {b: load_product(scene, b) for b in "LS"}
     assert build_context_products(scene, prods, strict=False)["track"] == 112  # reference input is the first in the scene
+
+
+def test_required_credits_are_merged_into_one_data_line_and_never_dropped():
+    from satviz.themes.base import assemble_credits
+
+    lay = Layout({"_path": "x.toml", "credits": {"lines": ["VIZ  ME"]}}, {})
+    need = [("NISAR", "NISAR L2 GCOV · γ⁰"), ("Copernicus Sentinel", "Contains modified Copernicus Sentinel data 2026"),
+            ("NISAR", "NISAR L2 GCOV · γ⁰")]
+    out = assemble_credits(lay, need)
+    assert out == ["VIZ  ME", "DATA  NISAR L2 GCOV · γ⁰  ·  CONTAINS MODIFIED COPERNICUS SENTINEL DATA 2026"]
+    covered = Layout({"_path": "x.toml", "credits": {"lines": ["DATA  nisar, copernicus sentinel"]}}, {})
+    assert assemble_credits(covered, need[:2]) == ["DATA  nisar, copernicus sentinel"]  # already credited: nothing added

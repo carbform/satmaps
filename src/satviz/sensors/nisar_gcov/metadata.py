@@ -14,6 +14,7 @@ import h5py
 import numpy as np
 
 from satviz.config import BandSpec
+from satviz.geo import crs_label
 
 C_M_S = 299_792_458.0
 
@@ -60,14 +61,6 @@ def _parse_time(text: str) -> datetime:
     return datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", text.strip()))
 
 
-def _crs_label(epsg: int) -> str:
-    if 32601 <= epsg <= 32660:
-        return f"UTM {epsg - 32600}N"
-    if 32701 <= epsg <= 32760:
-        return f"UTM {epsg - 32700}S"
-    return f"EPSG:{epsg}"
-
-
 def _flag(v) -> bool:
     return _s(v).strip().lower() == "true"
 
@@ -100,7 +93,7 @@ def read_band_metadata(path: Path, spec: BandSpec) -> BandMeta:
             look_direction=_s(ident["lookDirection"][()]).lower(),
             start=_parse_time(_s(ident["zeroDopplerStartTime"][()])), end=_parse_time(_s(ident["zeroDopplerEndTime"][()])),
             freq_ghz=freq / 1e9, wavelength_cm=C_M_S / freq * 100, bandwidth_mhz=bw,
-            posting_m=float(abs(g["xCoordinateSpacing"][()])), epsg=epsg, crs=_crs_label(epsg), polarisations=pols, looks=looks,
+            posting_m=float(abs(g["xCoordinateSpacing"][()])), epsg=epsg, crs=crs_label(epsg), polarisations=pols, looks=looks,
             calibrated=all(np.isfinite(v) and v != 0 for v in sf),
             rfi="not applied" if rfi_off else ("applied" if rfi_raw.lower() == "true" else rfi_raw), rfi_applied=not rfi_off,
             noise_corrected=_flag(par["noiseCorrectionApplied"][()]),

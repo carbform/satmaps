@@ -40,12 +40,12 @@ def load(scene, key: str, cache_dir=None) -> Product:
     return to_product(load_roi(scene, key, cache_dir))
 
 
-def describe(spec, data_dir) -> SourceInfo:
+def describe(spec, data_dir, area=None) -> SourceInfo:
     """Grid of the input's file, read from its coordinate arrays, to choose the canvas before reading pixels."""
     return describe_file(resolve_one_file(spec, data_dir))
 
 
-def open_on_canvas(spec, canvas, data_dir, cache_dir=None, tag: str = "job") -> Product:
+def open_on_canvas(spec, canvas, area, data_dir, cache_dir=None, tag: str = "job") -> Product:
     """Read the part of the file that covers `canvas`, then copy (aligned grids) or resample every layer onto it."""
     path = resolve_one_file(spec, data_dir)
     group = find_group(path)

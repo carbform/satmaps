@@ -66,6 +66,16 @@ def _date(dt) -> str:
     return f"{dt.day} {dt:%b %Y}"
 
 
+def _dates_label(starts: list) -> str:
+    """One date, '24 · 25 Sep 2026' within a month, or full dates joined by ' · ' (the header must not hide a gap)."""
+    days = sorted({s.date() for s in starts})
+    if len(days) == 1:
+        return _date(starts[0])
+    if len({(d.year, d.month) for d in days}) == 1:
+        return f"{' · '.join(str(d.day) for d in days)} {days[0]:%b %Y}"
+    return " · ".join(f"{d.day} {d:%b %Y}" for d in days)
+
+
 def build_context(scene: Scene, bands: dict, stats_by_band: dict, per_band: bool, extra: dict | None = None) -> dict:
     """`build_context_products` for NISAR working datasets (the older figures pass these plus their own statistics)."""
     from satviz.sensors.nisar_gcov import to_product
@@ -91,7 +101,8 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
             if diff:
                 what = ", ".join(f"{k} {a} vs {b}" for k, (a, b) in diff.items())
                 raise LayoutError(f"inputs are not from the same pass: {ref_key} and {key} differ in {what}")
-    start = min(m["start"] for m in metas.values())
+    starts = [m["start"] for m in metas.values()]
+    start = min(starts)
     end = max(m["end"] for m in metas.values())
     res = ref.meta["resolution_m"]
     uncal = [m["label"] for m in metas.values() if m.get("calibrated") is False]
@@ -105,7 +116,8 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
         "platforms": " + ".join(dict.fromkeys(m["platform"] for m in metas.values() if m.get("platform"))),
         "name": scene.name, "reach": scene.reach, "locality": scene.locality, "region": scene.region,
         "callout_caption": scene.callout_caption, "author": scene.author, "website": scene.website,
-        "date": _date(start), "time_utc": f"{start:%H:%M}", "start_utc": f"{start:%H:%M:%S}", "end_utc": f"{end:%H:%M:%S}",
+        "date": _dates_label(list(starts)), "times_utc": " / ".join(dict.fromkeys(f"{s:%H:%M}" for s in starts)),
+        "time_utc": f"{start:%H:%M}", "start_utc": f"{start:%H:%M:%S}", "end_utc": f"{end:%H:%M:%S}",
         "posting_m": int(res) if float(res).is_integer() else res, "crs": ref.meta["crs"],
         **ref.shared,
         "stretch_note": "each band stretched on its own" if per_band else "same colours and stretch in both bands",
@@ -120,6 +132,9 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
     for k, v in list(ctx.items()):
         if isinstance(v, str):
             ctx[f"{k}_upper"] = v.upper()
+    for p in products.values():
+        if not hasattr(p.facts, "date"):
+            p.facts.date = _date(p.meta["start"])
     ctx.update({k: p.facts for k, p in products.items()})
     return ctx
 

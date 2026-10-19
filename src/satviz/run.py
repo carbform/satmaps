@@ -23,7 +23,7 @@ def _sensor(spec):
 
 def choose_canvas(job: Job, needed: list[str]):
     """Canvas for the job: pixel size from [area] or the finest input; aligned to an input grid when one fits."""
-    infos = {k: _sensor(job.inputs[k]).describe(job.inputs[k], job.scene.data_dir) for k in needed}
+    infos = {k: _sensor(job.inputs[k]).describe(job.inputs[k], job.scene.data_dir, job.area) for k in needed}
     res = job.area.resolution_m or min(i.resolution_m for i in infos.values())
     phase = next((i.phase for i in infos.values()
                   if i.phase and i.epsg == job.area.epsg and abs(i.resolution_m - res) < 1e-6), None)
@@ -85,7 +85,7 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
     products = {}
     for k in needed:
         spec = job.inputs[k]
-        products[k] = _sensor(spec).open(spec, canvas, job.scene.data_dir, cache_dir, job.scene.name)
+        products[k] = _sensor(spec).open(spec, canvas, job.area, job.scene.data_dir, cache_dir, job.scene.name)
 
     written = []
     for fig, combo in plan:
@@ -107,17 +107,18 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
                 paths = compare.render(scene, products, out, layout, inputs=combo, recipe=recipes, per_band=per_band,
                                        theme=theme, strict=False, stem=stem)
             written += paths
-    _write_lock(job, out, canvas, infos, written)
+    _write_lock(job, out, canvas, infos, products, written)
     return written
 
 
-def _write_lock(job: Job, out: Path, canvas, infos: dict, written: list[Path]) -> None:
+def _write_lock(job: Job, out: Path, canvas, infos: dict, products: dict, written: list[Path]) -> None:
     """Record what was read and how it was placed, so a figure can be reproduced and credited exactly."""
     lock = {
         "job": str(job.path),
         "canvas": dataclasses.asdict(canvas),
         "area_lonlat_bbox": [round(v, 6) for v in canvas.lonlat_bbox()],
-        "inputs": {k: {"sensor": job.inputs[k].sensor, "files": i.files, "native_resolution_m": i.resolution_m}
+        "inputs": {k: {"sensor": job.inputs[k].sensor, "files": i.files, "native_resolution_m": i.resolution_m,
+                       **({"scenes": products[k].meta["items"]} if "items" in products[k].meta else {})}
                    for k, i in infos.items()},
         "figures": [p.name for p in written],
     }
@@ -125,3 +126,13 @@ def _write_lock(job: Job, out: Path, canvas, infos: dict, written: list[Path]) -
 
 
 __all__ = ["AreaError", "LayoutError", "run_job"]
+
+
+def search_job(job: Job, cache_dir: str | Path | None = None) -> dict[str, list[dict]]:
+    """For each catalogue input: the scene groups that would be tried, with cloud and coverage in the area."""
+    load_builtin()
+    needed = [k for k in job.inputs if hasattr(_sensor(job.inputs[k]), "search")]
+    if not needed:
+        raise JobError(f"{job.path}: no input reads from a catalogue, so there is nothing to search")
+    canvas, _ = choose_canvas(job, list(job.inputs))
+    return {k: _sensor(job.inputs[k]).search(job.inputs[k], canvas, job.area, cache_dir) for k in needed}

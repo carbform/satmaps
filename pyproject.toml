@@ -19,6 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+optical = ["rasterio>=1.3"]  # STAC and GeoTIFF inputs (Sentinel-2, Landsat, ...)
 dev = ["pytest>=7", "ruff>=0.4", "pillow>=10"]
 
 [project.scripts]

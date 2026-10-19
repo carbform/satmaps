@@ -19,3 +19,12 @@ def project(epsg: int, lat: float, lon: float) -> tuple[float, float]:
     from pyproj import Transformer
 
     return Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True).transform(lon, lat)
+
+
+def crs_label(epsg: int) -> str:
+    """'UTM 46N' for UTM zones, else 'EPSG:xxxx'."""
+    if 32601 <= epsg <= 32660:
+        return f"UTM {epsg - 32600}N"
+    if 32701 <= epsg <= 32760:
+        return f"UTM {epsg - 32700}S"
+    return f"EPSG:{epsg}"

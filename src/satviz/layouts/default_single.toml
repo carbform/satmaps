@@ -6,7 +6,7 @@
 title = "{name}"
 subtitle = "{region_upper}"
 date = "{date_upper}"
-time = "{time_utc} UTC"
+time = "{times_utc} UTC"
 info_line = "{inputs_line}   ·   {posting_m} M   ·   {crs}"
 
 [how_to_read]

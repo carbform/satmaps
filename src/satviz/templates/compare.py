@@ -62,7 +62,11 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     lay = Layout(layout, build_context_products(scene, {a: A, b: B}, per_band, strict=strict))
     lims = None if per_band else rec.shared_lims([A, B])
     rA, rB = recA.render(A, lims), recB.render(B, lims)
-    caveats = sorted({c for r in (rA, rB) for c in r.caveats})
+    if names[a] == names[b]:
+        legend = list({i.text: i for i in (*rA.legend, *rB.legend)}.values())
+    else:  # two different recipes share the six legend slots: the first three items of each
+        legend = [*rA.legend[:3], *rB.legend[:3]]
+    caveats = list(dict.fromkeys(c for r in (rA, rB) for c in r.caveats))
     if per_band and (recA.shared_lims is not None or recB.shared_lims is not None):
         caveats.append("Colours are not comparable between the two inputs (each has its own stretch).")
     ext = rB.extent
@@ -88,7 +92,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
         ax = img_axes(fig, t, hx, hy, hw, hh)
         ax.imshow(hero, extent=ext, origin="upper", aspect="auto", interpolation="antialiased")
         ax.axvline(xsplit, color=t.card, lw=t.lw(2.2), zorder=12)
-        ax.text(xsplit, ext[2] + 0.5 * (ext[3] - ext[2]), f"◄ {a}   {b} ►", ha="center", va="center", fontsize=10.5, color=t.ink,
+        ax.text(xsplit, ext[2] + 0.5 * (ext[3] - ext[2]), f"◄ {a.upper()}   {b.upper()} ►", ha="center", va="center", fontsize=10.5, color=t.ink,
                 zorder=13, bbox=dict(boxstyle="square,pad=0.45", fc=t.card, ec=t.ink, lw=t.lw(1.3)))
 
         def xx0(c):
@@ -121,7 +125,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
                 za.imshow(rg[r0:r1, c0:c1], aspect="auto", interpolation="antialiased")
                 chip(fig, t, px + 0.006, py + ih - 0.008, bandname, col, fs=10, va="top")
 
-        social_footer(fig, t, lay, legend=list({i.text: i for i in (*rA.legend, *rB.legend)}.values()), caveats=caveats, required_credits=[(p.meta["attribution"], p.meta["credit"]) for p in (A, B)])
+        social_footer(fig, t, lay, legend=legend, caveats=caveats, required_credits=[(p.meta["attribution"], p.meta["credit"]) for p in (A, B)])
 
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(scene=f"{platforms([A, B])}_{scene.name}", a=a, b=b, tag=t.tag))
         fig.savefig(out, dpi=180, facecolor=t.paper)
