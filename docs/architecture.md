@@ -80,7 +80,7 @@ under extras `[optical]` / `[stac]`, so installing for NISAR-only use needs no G
 | Phase | Content | Done when |
 |---|---|---|
 | 1 | Rename; `core.py`; NISAR becomes a sensor plugin; `composite` becomes recipe `sar_fcc`; theme registry with `neo_retro` as the only entry; templates take a list of products; context split into generic + per-product | golden diff of all 6 figures is empty, tests green, CLI names unchanged |
-| 2 | `minimal` and `neo_brutal` themes; `single` and `compare` templates are theme-agnostic; per-theme preview gallery | same figure renders in 3 themes without code edits |
+| 2 (themes done) | `minimal` and `neo_brutal` themes (done: one `Theme` token set drives shared chrome); `--theme`; `single` and `compare` templates are theme-agnostic; per-theme preview gallery | same figure renders in 3 themes without code edits |
 | 3 | Sentinel-2 L2A + Landsat C2 L2 readers; STAC search; optical recipes; `grid.py`; SAR-vs-optical compare (NISAR 2026-09-25 vs nearest cloud-free S2 over Dibrugarh) | cross-sensor figure renders with correct credits and caveats |
 | 4 | `editorial` theme and `newspaper` template; template research for structure | newspaper page renders from the same inputs |
 | 5 | Other sensors (Sentinel-1 GRD, MODIS, …) as needed; docs; gallery; CI | one new sensor added by one file |

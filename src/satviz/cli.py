@@ -15,15 +15,16 @@ class Figure:
     bands: tuple[str, ...]  # granules the figure needs
     layout: str  # layouts/<layout>.toml
     kwargs: dict = field(default_factory=dict)
+    themed: bool = False  # accepts --theme; the clean and publication figures are plain on purpose
 
 
 FIGURES = {
-    "ls-social": Figure("satviz.figures.ls_social", ("L", "S"), "ls_social"),
+    "ls-social": Figure("satviz.figures.ls_social", ("L", "S"), "ls_social", themed=True),
     "ls-publication": Figure("satviz.figures.ls_publication", ("L", "S"), "ls_publication"),
     "ls-clean": Figure("satviz.figures.ls_clean", ("L", "S"), "ls_clean"),
     "sband-publication": Figure("satviz.figures.sband_publication", ("S",), "sband_publication"),
-    "sband-social": Figure("satviz.figures.band_social", ("S",), "sband_social", {"band": "S"}),
-    "lband-social": Figure("satviz.figures.band_social", ("L",), "lband_social", {"band": "L"}),
+    "sband-social": Figure("satviz.figures.band_social", ("S",), "sband_social", {"band": "S"}, themed=True),
+    "lband-social": Figure("satviz.figures.band_social", ("L",), "lband_social", {"band": "L"}, themed=True),
 }
 
 
@@ -39,6 +40,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
     r.add_argument("--cache", default="cache", help="ROI cache folder (default: %(default)s)")
     r.add_argument("--no-cache", action="store_true", help="always read the HDF5 files")
+    r.add_argument("--theme", nargs="+", default=["neo_retro"], metavar="THEME",
+                   help="look of the social graphics: one or more themes, or 'all' (default: neo_retro; see `satviz list`)")
     r.add_argument("--pooled-stretch", action="store_true", help="ls-social: pooled colour stretch (overrides the layout)")
     r.add_argument("-v", "--verbose", action="store_true")
 
@@ -103,8 +106,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{{{key}}} = {val!r}")
         return 0
 
+    from satviz.core import THEMES
     from satviz.layout import load_layout
+    from satviz.registry import load_builtin
 
+    load_builtin()
+    themes = sorted(THEMES) if "all" in args.theme else args.theme
+    for th in themes:
+        THEMES.get_or_raise(th)
     names = list(FIGURES) if "all" in args.figures else args.figures
     mods = {n: importlib.import_module(FIGURES[n].module) for n in names}
     need = sorted({b for n in names for b in FIGURES[n].bands})
@@ -116,8 +125,11 @@ def main(argv: list[str] | None = None) -> int:
         if n == "ls-social" and args.pooled_stretch:
             kw["per_band"] = False
         layout = load_layout(args.layouts_dir, FIGURES[n].layout)
-        for path in mods[n].render(scene, bands, out, layout, **kw):
-            print(path)
+        for theme in themes if FIGURES[n].themed else [None]:
+            if theme:
+                kw["theme"] = theme
+            for path in mods[n].render(scene, bands, out, layout, **kw):
+                print(path)
     return 0
 
 

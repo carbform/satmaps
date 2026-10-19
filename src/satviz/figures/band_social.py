@@ -11,31 +11,34 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
 from satviz.config import Scene
+from satviz.core import THEMES
 from satviz.geo import to_xy, utm_extent
 from satviz.layout import Layout, LayoutError, build_context
 from satviz.recipes.sar_fcc import CHANNEL_COLORS, channel_panels, fcc_rgba
+from satviz.registry import load_builtin
 from satviz.sensors.nisar_gcov.processing import coarsen, stats
-from satviz.themes.neo_retro import NEO_RETRO, chip, img_axes, social_footer, social_header
+from satviz.themes.base import chip, img_axes, social_footer, social_header
 
-FILENAME = "{scene}_{band}band_Social_NeoRetro.png"
+FILENAME = "{scene}_{band}band_Social_{tag}.png"
 
 
 def _sticker(ax, t, text, xy, xytext, fc) -> None:
     ax.annotate(text, xy, xytext=xytext, textcoords="offset points", fontsize=11.5, color=t.ink, zorder=12,
-                bbox=dict(boxstyle="square,pad=0.45", fc=fc, ec=t.ink, lw=1.4),
-                arrowprops=dict(arrowstyle="-|>", color=t.ink, lw=1.5, shrinkA=0, shrinkB=2, mutation_scale=13))
-    ax.plot(*xy, "o", ms=7, mfc=fc, mec=t.ink, mew=1.5, zorder=11)
+                bbox=dict(boxstyle="square,pad=0.45", fc=fc, ec=t.ink, lw=t.lw(1.4)),
+                arrowprops=dict(arrowstyle="-|>", color=t.ink, lw=t.lw(1.5), shrinkA=0, shrinkB=2, mutation_scale=13))
+    ax.plot(*xy, "o", ms=7, mfc=fc, mec=t.ink, mew=t.lw(1.5), zorder=11)
 
 
-def render(scene: Scene, bands: dict, out_dir: Path, layout: dict, band: str = "S") -> list[Path]:
+def render(scene: Scene, bands: dict, out_dir: Path, layout: dict, band: str = "S", theme: str = "neo_retro") -> list[Path]:
     """Wording comes from `layout` (layouts/sband_social.toml or lband_social.toml); facts come from the file metadata."""
-    t = NEO_RETRO
+    load_builtin()
+    t = THEMES.get_or_raise(theme)
     d = bands[band]
     st = stats(d)
     rgba, lims, _ = fcc_rgba(d)
     lim = SimpleNamespace(**{f"{k}_{e}": v for k, (lo, hi) in lims.items() for e, v in (("lo", lo), ("hi", hi))})
     lay = Layout(layout, build_context(scene, {band: d}, {band: st}, per_band=True, extra={"lim": lim}))
-    chip_color = t.mustard if band == "L" else t.teal
+    chip_color = t.chip_l if band == "L" else t.chip_s
     ext = utm_extent(d)
     c = coarsen(d, 4)
     cext = utm_extent(c)
@@ -58,9 +61,9 @@ def render(scene: Scene, bands: dict, out_dir: Path, layout: dict, band: str = "
         x0 = ext[0] + 0.05 * (ext[1] - ext[0])
         y0 = ext[2] + 0.05 * (ext[3] - ext[2])
         for i in range(5):
-            ax.add_patch(Rectangle((x0 + i * 1000, y0), 1000, 700, fc=t.ink if i % 2 == 0 else t.card, ec=t.ink, lw=1.0, zorder=14))
+            ax.add_patch(Rectangle((x0 + i * 1000, y0), 1000, 700, fc=t.ink if i % 2 == 0 else t.card, ec=t.ink, lw=t.lw(1.0), zorder=14))
         ax.text(x0 + 2500, y0 + 1100, "5 KM", ha="center", fontsize=11, color=t.ink, zorder=15,
-                bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=1.0))
+                bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=t.lw(1.0)))
         chip(fig, t, hx + 0.012, hy + hh - 0.014, lay.text("panels.band"), chip_color, va="top", ha="left")
         chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, lay.text("panels.composite"), t.card, va="top", ha="right")
 
@@ -79,7 +82,7 @@ def render(scene: Scene, bands: dict, out_dir: Path, layout: dict, band: str = "
                  fs=10.5, va="top")
 
         social_footer(fig, t, lay)
-        out = Path(out_dir) / FILENAME.format(scene=f"NISAR_{scene.name}", band=band)
+        out = Path(out_dir) / FILENAME.format(scene=f"NISAR_{scene.name}", band=band, tag=t.tag)
         fig.savefig(out, dpi=180, facecolor=t.paper)
         plt.close(fig)
     return [out]

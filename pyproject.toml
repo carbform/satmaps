@@ -43,4 +43,5 @@ ignore = ["E741"]
 [tool.ruff.lint.per-file-ignores]
 # Figure modules carry long caption strings and layout coordinates; tests build wide fixtures.
 "src/satviz/figures/*.py" = ["E501"]
+"src/satviz/themes/*.py" = ["E501"]
 "tests/*.py" = ["E501"]

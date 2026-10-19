@@ -1,101 +1,10 @@
-"""The 'neo-retro' theme: warm paper, ink outlines, small hard shadows, one muted accent pair.
-Tokens first, then the chrome primitives (bento blocks, chips, header, footer).
-
-Only the chrome around the data is styled; data panels are never filtered, glowed or recoloured.
-"""
-from __future__ import annotations
-
-from dataclasses import dataclass
-
-from matplotlib.patches import Rectangle
-from matplotlib.transforms import offset_copy
-
+"""Neo-retro: warm paper, ink outlines, small hard shadows, one muted accent pair. See docs/design-language.md."""
 from satviz.core import theme
-from satviz.layout import Layout, LayoutError
+from satviz.themes.base import Theme
 
-
-@dataclass(frozen=True)
-class NeoRetro:
-    paper: str = "#ece4d3"
-    card: str = "#f7f2e7"
-    ink: str = "#23211f"
-    muted: str = "#6b655b"
-    orange: str = "#c4673a"  # title offset
-    mustard: str = "#e0b872"  # L-band chips
-    teal: str = "#8fbfb7"  # S-band chips
-    note: str = "#f0dfb0"  # calibration notice strip
-    noise_grey: str = "#3a3a40"
-    title_font: tuple[str, ...] = ("Gillius ADF", "DejaVu Sans")  # optional; falls back to DejaVu Sans
-    body_font: tuple[str, ...] = ("IBM Plex Mono", "DejaVu Sans Mono")  # optional; falls back to DejaVu Sans Mono
-    shadow: tuple[float, float] = (0.0028, -0.0022)  # hard shadow offset, figure fraction
-
-
-NEO_RETRO = theme("neo_retro")(NeoRetro())
-
-
-def block(fig, t: NeoRetro, x, y, w, h, fc=None, lw=1.5, shadow=True) -> None:
-    """Filled, outlined panel in figure coordinates with an optional hard offset shadow."""
-    if shadow:
-        fig.add_artist(Rectangle((x + t.shadow[0], y + t.shadow[1]), w, h, transform=fig.transFigure,
-                                 fc=t.ink, ec="none", zorder=0))
-    fig.add_artist(Rectangle((x, y), w, h, transform=fig.transFigure, fc=fc or t.card, ec=t.ink, lw=lw, zorder=1))
-
-
-def img_axes(fig, t: NeoRetro, x, y, w, h):
-    """Image axes with ink outline and hard shadow."""
-    fig.add_artist(Rectangle((x + t.shadow[0], y + t.shadow[1]), w, h, transform=fig.transFigure,
-                             fc=t.ink, ec="none", zorder=0))
-    ax = fig.add_axes([x, y, w, h], zorder=2)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    for s in ax.spines.values():
-        s.set_linewidth(1.5)
-        s.set_color(t.ink)
-    return ax
-
-
-def chip(target, t: NeoRetro, x, y, text, fc, fs=11, **kw):
-    """Small outlined label box. `target` is a Figure (figure coords) or Axes."""
-    return target.text(x, y, text, fontsize=fs, color=t.ink, zorder=20, weight="medium",
-                       bbox=dict(boxstyle="square,pad=0.35", fc=fc, ec=t.ink, lw=1.3), **kw)
-
-
-def social_header(fig, t: NeoRetro, lay: Layout) -> None:
-    """Title box with one soft offset behind the title, details right-aligned, and the info line under it."""
-    block(fig, t, 0.04, 0.885, 0.92, 0.09)
-    title = lay.text("header.title")
-    fig.text(0.06, 0.941, title, fontsize=40, color=t.orange, va="center", family=list(t.title_font), weight="bold",
-             transform=offset_copy(fig.transFigure, fig=fig, x=2.2, y=-2.2, units="points"), zorder=3)
-    fig.text(0.06, 0.941, title, fontsize=40, color=t.ink, va="center", family=list(t.title_font), weight="bold", zorder=4)
-    fig.text(0.062, 0.903, lay.text("header.subtitle"), fontsize=11.5, color=t.muted, va="center", zorder=4)
-    fig.text(0.94, 0.941, lay.text("header.date"), fontsize=13, color=t.ink, va="center", ha="right", weight="semibold", zorder=4)
-    fig.text(0.94, 0.909, lay.text("header.time"), fontsize=11.5, color=t.muted, va="center", ha="right", zorder=4)
-    fig.text(0.04, 0.858, lay.text("header.info_line"), fontsize=10.5, color=t.muted, va="center")
-
-
-def social_footer(fig, t: NeoRetro, lay: Layout) -> None:
-    """How-to-read block (up to 6 items), notice strip (up to 3 lines) and credits (up to 3 lines)."""
-    block(fig, t, 0.04, 0.135, 0.92, 0.095)
-    fig.text(0.058, 0.213, lay.text("how_to_read.title"), fontsize=11, color=t.ink, weight="bold", va="center")
-    fig.text(0.168, 0.213, lay.text("how_to_read.subtitle"), fontsize=10.5, color=t.muted, va="center")
-    items = lay.raw("how_to_read.items")
-    if len(items) > 6:
-        raise LayoutError(f"{lay.path} [how_to_read.items]: {len(items)} items, at most 6 fit")
-    for i, item in enumerate(items):
-        col = t.noise_grey if item["color"] == "noise" else item["color"]
-        xx = 0.058 + (i % 3) * 0.300
-        yy = 0.188 - (i // 3) * 0.0265
-        fig.add_artist(Rectangle((xx, yy - 0.008), 0.016, 0.016, transform=fig.transFigure, fc=col, ec=t.ink, lw=1.1, zorder=6))
-        fig.text(xx + 0.024, yy, lay.render(item["text"], f"how_to_read.items[{i}]").strip(), fontsize=9.6, color=t.ink,
-                 va="center", zorder=6)
-
-    # the notice strip and credits flow downwards from the how-to-read block
-    notes = lay.lines("notes.lines", limit=3)
-    credits = lay.lines("credits.lines", limit=3)
-    bottom = round(0.119 - 0.0235 * len(notes), 4)
-    if notes:
-        block(fig, t, 0.04, bottom, 0.92, round(0.0235 * len(notes), 4), t.note, shadow=False, lw=1.2)
-    for i, line in enumerate(notes):
-        fig.text(0.05, round(0.1075 - 0.024 * i, 4), line, fontsize=9.3, color=t.ink, va="center")
-    for i, line in enumerate(credits):
-        fig.text(0.04, round(bottom - 0.02 - 0.02 * i, 4), line, fontsize=9, color=t.muted, va="center")
+NEO_RETRO = theme("neo_retro")(Theme(
+    name="neo_retro", tag="NeoRetro", paper="#ece4d3", card="#f7f2e7", ink="#23211f", muted="#6b655b",
+    accent="#c4673a", chip_l="#e0b872", chip_s="#8fbfb7", note="#f0dfb0",
+    title_font=("Gillius ADF", "DejaVu Sans"), body_font=("IBM Plex Mono", "DejaVu Sans Mono"),
+    shadow=(0.0028, -0.0022),
+))

@@ -28,6 +28,26 @@ Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any num
 | `ls-publication` | Composites, HH L-vs-S density, HV SNR distributions; PNG + PDF | journal-style, one pooled stretch |
 | `sband-publication` | S-band alone: HH, HV, composite, SNR; PNG + PDF | journal-style |
 
+## Themes
+
+The social graphics (`ls-social`, `sband-social`, `lband-social`) come in several looks. The data panels are identical in
+every theme; only the chrome changes. Clean and publication figures stay plain on purpose.
+
+```bash
+satviz render ls-social --theme minimal
+satviz render ls-social --theme all          # one file per theme, named ..._Social_<Theme>.png
+satviz list                                  # registered sensors, recipes, themes, figures
+```
+
+<p align="center">
+  <img src="docs/img/theme_neoretro.jpg" alt="neo-retro" width="31%">
+  <img src="docs/img/theme_minimal.jpg" alt="minimal" width="31%">
+  <img src="docs/img/theme_neobrutal.jpg" alt="neo-brutal" width="31%">
+</p>
+
+A theme is a dozen tokens (colours, fonts, outline scale, shadow offset) in `src/satviz/themes/`; copy `minimal.py`
+to add one.
+
 ## Install
 
 Python 3.11 or newer.
@@ -117,7 +137,7 @@ src/satviz/
   registry.py     loads the built-in plugins; `satviz list`
   sensors/nisar_gcov/   HDF5 ROI reader + cache (io), file metadata, noise statistics (processing), placeholder facts
   recipes/sar_fcc.py    false-colour composite and pooled stretch
-  themes/neo_retro.py   design tokens and chrome (bento blocks, chips, header, footer)
+  themes/         base.py (Theme tokens + chrome: blocks, chips, header, footer), neo_retro, minimal, neo_brutal
   config.py       scene TOML -> dataclasses
   layout.py       layout TOML + placeholders filled from metadata and statistics
   geo.py, drawing.py    extent/projection helpers; theme-independent scale bar

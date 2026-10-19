@@ -8,7 +8,7 @@ from satviz.sensors.nisar_gcov.io import load_roi
 
 def test_builtins_registered():
     d = describe()
-    assert d == {"sensors": ["nisar_gcov"], "recipes": ["sar_fcc"], "themes": ["neo_retro"]}
+    assert d == {"sensors": ["nisar_gcov"], "recipes": ["sar_fcc"], "themes": ["minimal", "neo_brutal", "neo_retro"]}
 
 
 def test_registry_rejects_duplicates_and_lists_known():
