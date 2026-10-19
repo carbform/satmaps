@@ -1,6 +1,6 @@
 import numpy as np
 
-from nisar_viz.processing import SNR_MIN_DB, coarsen, db, stats
+from satviz.sensors.nisar_gcov.processing import SNR_MIN_DB, coarsen, db, stats
 from tests.conftest import ETA, NEBS_DB
 
 

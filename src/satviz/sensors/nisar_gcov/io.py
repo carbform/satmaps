@@ -9,9 +9,9 @@ import numpy as np
 from pyproj import Transformer
 from scipy.interpolate import RegularGridInterpolator
 
-from nisar_viz.config import BandSpec, Scene
-from nisar_viz.metadata import read_band_metadata
-from nisar_viz.processing import derive
+from satviz.config import BandSpec, Scene
+from satviz.sensors.nisar_gcov.metadata import read_band_metadata
+from satviz.sensors.nisar_gcov.processing import derive
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def read_roi(path: Path, spec: BandSpec) -> dict:
     """Raw ROI arrays straight from the file, with the noise layer interpolated onto the 10 m grid."""
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} not found. Put the granule there, pass --data-dir, or set NISAR_DATA_DIR (see README, 'Data')."
+            f"{path} not found. Put the granule there, pass --data-dir, or set SATVIZ_DATA_DIR/NISAR_DATA_DIR (README, 'Data')."
         )
     (r0, r1), (c0, c1) = spec.rows, spec.cols
     with h5py.File(path, "r") as f:

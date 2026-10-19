@@ -1,6 +1,6 @@
 import pytest
 
-from nisar_viz.cli import FIGURES, build_parser, main
+from satviz.cli import FIGURES, build_parser, main
 
 
 def test_parser_accepts_all_and_named_figures():

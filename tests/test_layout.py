@@ -1,8 +1,8 @@
 import pytest
 
-from nisar_viz.io import load_roi
-from nisar_viz.layout import Layout, LayoutError, build_context, load_layout
-from nisar_viz.processing import stats
+from satviz.layout import Layout, LayoutError, build_context, load_layout
+from satviz.sensors.nisar_gcov.io import load_roi
+from satviz.sensors.nisar_gcov.processing import stats
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def test_shipped_layouts_render(scene, layouts_dir, tmp_path):
     """Every shipped layout file must parse and use only placeholders that exist."""
     import importlib
 
-    from nisar_viz.cli import FIGURES
+    from satviz.cli import FIGURES
 
     bands = {b: load_roi(scene, b) for b in "LS"}
     for name, fig in FIGURES.items():
@@ -95,7 +95,7 @@ def test_shipped_layouts_render(scene, layouts_dir, tmp_path):
 def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):
     import copy
 
-    from nisar_viz.figures import ls_social
+    from satviz.figures import ls_social
 
     bands = {b: load_roi(scene, b) for b in "LS"}
     lay = copy.deepcopy(load_layout(layouts_dir, "ls_social"))

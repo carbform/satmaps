@@ -1,4 +1,4 @@
-"""Command line: `nisar-viz render <figure>... --config configs/brahmaputra.toml --data-dir /path/to/granules`."""
+"""Command line: `satviz render <figure>... --config configs/brahmaputra.toml --data-dir /path/to/granules`."""
 from __future__ import annotations
 
 import argparse
@@ -18,23 +18,23 @@ class Figure:
 
 
 FIGURES = {
-    "ls-social": Figure("nisar_viz.figures.ls_social", ("L", "S"), "ls_social"),
-    "ls-publication": Figure("nisar_viz.figures.ls_publication", ("L", "S"), "ls_publication"),
-    "ls-clean": Figure("nisar_viz.figures.ls_clean", ("L", "S"), "ls_clean"),
-    "sband-publication": Figure("nisar_viz.figures.sband_publication", ("S",), "sband_publication"),
-    "sband-social": Figure("nisar_viz.figures.band_social", ("S",), "sband_social", {"band": "S"}),
-    "lband-social": Figure("nisar_viz.figures.band_social", ("L",), "lband_social", {"band": "L"}),
+    "ls-social": Figure("satviz.figures.ls_social", ("L", "S"), "ls_social"),
+    "ls-publication": Figure("satviz.figures.ls_publication", ("L", "S"), "ls_publication"),
+    "ls-clean": Figure("satviz.figures.ls_clean", ("L", "S"), "ls_clean"),
+    "sband-publication": Figure("satviz.figures.sband_publication", ("S",), "sband_publication"),
+    "sband-social": Figure("satviz.figures.band_social", ("S",), "sband_social", {"band": "S"}),
+    "lband-social": Figure("satviz.figures.band_social", ("L",), "lband_social", {"band": "L"}),
 }
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="nisar-viz", description=__doc__)
+    p = argparse.ArgumentParser(prog="satviz", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("render", help="render one or more figures")
     r.add_argument("figures", nargs="+", choices=[*FIGURES, "all"], help="figure name(s), or 'all'")
     r.add_argument("--config", default="configs/brahmaputra.toml", help="scene TOML (default: %(default)s)")
-    r.add_argument("--data-dir", default=None, help="folder with the .h5 granules (default: $NISAR_DATA_DIR, then cwd)")
+    r.add_argument("--data-dir", default=None, help="folder with the .h5 granules (default: $SATVIZ_DATA_DIR, then ./data)")
     r.add_argument("--layouts-dir", default="layouts", help="folder with the figure wording files (default: %(default)s)")
     r.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
     r.add_argument("--cache", default="cache", help="ROI cache folder (default: %(default)s)")
@@ -62,8 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     import matplotlib
 
     matplotlib.use("Agg")  # headless; set here so importing the library never changes the backend
-    from nisar_viz.config import load_scene
-    from nisar_viz.io import load_roi
+    from satviz.config import load_scene
+    from satviz.sensors.nisar_gcov.io import load_roi
 
     scene = load_scene(args.config, args.data_dir)
     cache = None if args.no_cache else args.cache
@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "stats":
         import json
 
-        from nisar_viz.processing import stats
+        from satviz.sensors.nisar_gcov.processing import stats
 
         for key in scene.bands:
             print(key, json.dumps(stats(load_roi(scene, key, cache)), indent=1))
@@ -80,8 +80,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "placeholders":
         from types import SimpleNamespace
 
-        from nisar_viz.layout import build_context
-        from nisar_viz.processing import stats
+        from satviz.layout import build_context
+        from satviz.sensors.nisar_gcov.processing import stats
 
         bands = {key: load_roi(scene, key, cache) for key in scene.bands}
         extra = {"k": 3, "block_m": 30, "both_pct": 0}  # figure-specific values, shown with example numbers
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{{{key}}} = {val!r}")
         return 0
 
-    from nisar_viz.layout import load_layout
+    from satviz.layout import load_layout
 
     names = list(FIGURES) if "all" in args.figures else args.figures
     mods = {n: importlib.import_module(FIGURES[n].module) for n in names}

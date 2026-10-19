@@ -13,7 +13,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from nisar_viz.config import BandSpec
+from satviz.config import BandSpec
 
 C_M_S = 299_792_458.0
 

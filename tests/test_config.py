@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from nisar_viz.config import DATA_DIR_ENV, load_scene
+from satviz.config import DATA_DIR_ENV, load_scene
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "brahmaputra.toml"
 
@@ -21,6 +21,7 @@ def test_data_dir_precedence(monkeypatch, tmp_path):
     assert load_scene(CONFIG).data_dir == tmp_path / "env"
     assert load_scene(CONFIG, tmp_path / "arg").data_dir == tmp_path / "arg"
     monkeypatch.delenv(DATA_DIR_ENV)
+    monkeypatch.delenv("NISAR_DATA_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
     assert load_scene(CONFIG).data_dir == Path.cwd()
     (tmp_path / "data").mkdir()

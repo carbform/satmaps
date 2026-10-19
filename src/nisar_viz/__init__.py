@@ -1,3 +1,1 @@
-"""Noise-aware false-colour composites and figures from NISAR L-band and S-band GCOV products."""
-
-__version__ = "0.1.0"
+"""Alias for the renamed package: `python -m nisar_viz` still works. Use `satviz`."""

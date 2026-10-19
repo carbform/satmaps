@@ -1,7 +1,7 @@
 import numpy as np
 
-from nisar_viz.composite import NOISE_RGB, OUTSIDE_RGB, fcc_rgba, shared_lims
-from nisar_viz.io import assemble
+from satviz.recipes.sar_fcc import NOISE_RGB, OUTSIDE_RGB, fcc_rgba, shared_lims
+from satviz.sensors.nisar_gcov.io import assemble
 from tests.conftest import make_raw
 
 

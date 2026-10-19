@@ -1,22 +1,35 @@
-"""Shared drawing helpers: scale bar and the neo-retro 'bento' panels (outline, hard shadow, chips)."""
+"""The 'neo-retro' theme: warm paper, ink outlines, small hard shadows, one muted accent pair.
+Tokens first, then the chrome primitives (bento blocks, chips, header, footer).
+
+Only the chrome around the data is styled; data panels are never filtered, glowed or recoloured.
+"""
 from __future__ import annotations
 
-import matplotlib.patheffects as pe
+from dataclasses import dataclass
+
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import offset_copy
 
-from nisar_viz.layout import Layout, LayoutError
-from nisar_viz.themes import NeoRetro
+from satviz.layout import Layout, LayoutError
 
 
-def scalebar(ax, ext, km: float, y_frac: float = 0.045, x_frac: float = 0.035, fs: float = 10) -> None:
-    """White-over-black bar of `km` kilometres with a stroked label, in axes-data (metre) coordinates."""
-    x0 = ext[0] + x_frac * (ext[1] - ext[0])
-    y0 = ext[2] + y_frac * (ext[3] - ext[2])
-    ax.plot([x0, x0 + km * 1000], [y0, y0], color="white", lw=4.5, solid_capstyle="butt", zorder=15)
-    ax.plot([x0, x0 + km * 1000], [y0, y0], color="black", lw=1.8, solid_capstyle="butt", zorder=16)
-    ax.text(x0 + km * 500, y0 + 0.014 * (ext[3] - ext[2]), f"{km:g} km", ha="center", fontsize=fs,
-            weight="bold", color="white", path_effects=[pe.withStroke(linewidth=2.5, foreground="black")], zorder=17)
+@dataclass(frozen=True)
+class NeoRetro:
+    paper: str = "#ece4d3"
+    card: str = "#f7f2e7"
+    ink: str = "#23211f"
+    muted: str = "#6b655b"
+    orange: str = "#c4673a"  # title offset
+    mustard: str = "#e0b872"  # L-band chips
+    teal: str = "#8fbfb7"  # S-band chips
+    note: str = "#f0dfb0"  # calibration notice strip
+    noise_grey: str = "#3a3a40"
+    title_font: tuple[str, ...] = ("Gillius ADF", "DejaVu Sans")  # optional; falls back to DejaVu Sans
+    body_font: tuple[str, ...] = ("IBM Plex Mono", "DejaVu Sans Mono")  # optional; falls back to DejaVu Sans Mono
+    shadow: tuple[float, float] = (0.0028, -0.0022)  # hard shadow offset, figure fraction
+
+
+NEO_RETRO = NeoRetro()
 
 
 def block(fig, t: NeoRetro, x, y, w, h, fc=None, lw=1.5, shadow=True) -> None:

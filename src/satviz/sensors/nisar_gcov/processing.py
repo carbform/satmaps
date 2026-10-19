@@ -1,6 +1,6 @@
 """Radiometric screening of GCOV covariance terms: noise floor, SNR flags and block averaging.
 
-All arrays are linear power (gamma0). `d` is a dict of ROI layers as built by `nisar_viz.io.assemble`.
+All arrays are linear power (gamma0). `d` is a dict of ROI layers as built by `satviz.sensors.nisar_gcov.io.assemble`.
 """
 from __future__ import annotations
 

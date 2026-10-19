@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from nisar_viz.processing import db
+from satviz.sensors.nisar_gcov.processing import db
 
 NOISE_RGB = (58, 58, 64)  # HV below the noise floor: neutral dark grey, never drawn as signal
 OUTSIDE_RGB = (7, 9, 14)  # outside the valid-sample mask

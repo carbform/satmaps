@@ -12,7 +12,7 @@ import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
-from nisar_viz.config import Scene
+from satviz.config import Scene
 
 
 class _Formatter(string.Formatter):

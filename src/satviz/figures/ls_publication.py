@@ -9,12 +9,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm
 
-from nisar_viz.chrome import scalebar
-from nisar_viz.composite import fcc_rgba, shared_lims
-from nisar_viz.config import Scene
-from nisar_viz.geo import utm_extent
-from nisar_viz.layout import Layout, build_context
-from nisar_viz.processing import coarsen, db, stats
+from satviz.config import Scene
+from satviz.drawing import scalebar
+from satviz.geo import utm_extent
+from satviz.layout import Layout, build_context
+from satviz.recipes.sar_fcc import fcc_rgba, shared_lims
+from satviz.sensors.nisar_gcov.processing import coarsen, db, stats
 
 log = logging.getLogger(__name__)
 FILENAME = "{scene}_LvsS_Publication.png"

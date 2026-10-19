@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nisar-ls-viz"
+name = "satviz"
 version = "0.1.0"
-description = "Noise-aware false-colour composites and figures from NISAR L-band and S-band GCOV products"
+description = "Social, publication and editorial infographics from satellite data: NISAR first, optical next"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
@@ -22,7 +22,8 @@ dependencies = [
 dev = ["pytest>=7", "ruff>=0.4", "pillow>=10"]
 
 [project.scripts]
-nisar-viz = "nisar_viz.cli:main"
+satviz = "satviz.cli:main"
+nisar-viz = "satviz.cli:main"  # alias kept from the NISAR-only days
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -41,5 +42,5 @@ ignore = ["E741"]
 
 [tool.ruff.lint.per-file-ignores]
 # Figure modules carry long caption strings and layout coordinates; tests build wide fixtures.
-"src/nisar_viz/figures/*.py" = ["E501"]
+"src/satviz/figures/*.py" = ["E501"]
 "tests/*.py" = ["E501"]

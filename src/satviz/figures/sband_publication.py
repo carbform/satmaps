@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from nisar_viz.chrome import scalebar
-from nisar_viz.composite import fcc_rgba
-from nisar_viz.config import Scene
-from nisar_viz.geo import to_xy, utm_extent
-from nisar_viz.layout import Layout, build_context
-from nisar_viz.processing import coarsen, db, stats
+from satviz.config import Scene
+from satviz.drawing import scalebar
+from satviz.geo import to_xy, utm_extent
+from satviz.layout import Layout, build_context
+from satviz.recipes.sar_fcc import fcc_rgba
+from satviz.sensors.nisar_gcov.processing import coarsen, db, stats
 
 FILENAME = "{scene}_Publication.png"
 INK, GRAY = "#1A1A1A", "#666666"

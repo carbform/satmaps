@@ -9,7 +9,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-DATA_DIR_ENV = "NISAR_DATA_DIR"
+DATA_DIR_ENV = "SATVIZ_DATA_DIR"
+LEGACY_DATA_DIR_ENV = "NISAR_DATA_DIR"  # still honoured
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ class Scene:
 
 
 def load_scene(config: str | os.PathLike, data_dir: str | os.PathLike | None = None) -> Scene:
-    """Read a scene TOML. Data dir: argument, then $NISAR_DATA_DIR, then ./data if present, else the current directory."""
+    """Read a scene TOML. Data dir: argument, $SATVIZ_DATA_DIR (legacy $NISAR_DATA_DIR), ./data if present, else cwd."""
     with open(config, "rb") as f:
         raw = tomllib.load(f)
     s = raw["scene"]
@@ -60,7 +61,8 @@ def load_scene(config: str | os.PathLike, data_dir: str | os.PathLike | None = N
     }
     zooms = tuple(Zoom(z["key"], z["name"], tuple(z["rows"]), tuple(z["cols"])) for z in raw.get("zooms", []))
     callouts = {k: (float(v["lat"]), float(v["lon"])) for k, v in raw.get("callouts", {}).items()}
-    root = data_dir or os.environ.get(DATA_DIR_ENV) or (Path("data") if Path("data").is_dir() else Path.cwd())
+    env = os.environ.get(DATA_DIR_ENV) or os.environ.get(LEGACY_DATA_DIR_ENV)
+    root = data_dir or env or (Path("data") if Path("data").is_dir() else Path.cwd())
     return Scene(
         name=s["name"], reach=s["reach"], locality=s["locality"], region=s["region"], callout_caption=s["callout_caption"],
         author=s["author"], website=s["website"],

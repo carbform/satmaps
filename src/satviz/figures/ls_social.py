@@ -6,13 +6,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-from nisar_viz.chrome import chip, img_axes, social_footer, social_header
-from nisar_viz.composite import fcc_rgba, shared_lims
-from nisar_viz.config import Scene
-from nisar_viz.geo import utm_extent
-from nisar_viz.layout import Layout, LayoutError, build_context
-from nisar_viz.processing import stats
-from nisar_viz.themes import NEO_RETRO
+from satviz.config import Scene
+from satviz.geo import utm_extent
+from satviz.layout import Layout, LayoutError, build_context
+from satviz.recipes.sar_fcc import fcc_rgba, shared_lims
+from satviz.sensors.nisar_gcov.processing import stats
+from satviz.themes.neo_retro import NEO_RETRO, chip, img_axes, social_footer, social_header
 
 FILENAME = "{scene}_LvsS_Social_NeoRetro.png"
 
