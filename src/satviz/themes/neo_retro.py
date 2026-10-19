@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import offset_copy
 
+from satviz.core import theme
 from satviz.layout import Layout, LayoutError
 
 
@@ -29,7 +30,7 @@ class NeoRetro:
     shadow: tuple[float, float] = (0.0028, -0.0022)  # hard shadow offset, figure fraction
 
 
-NEO_RETRO = NeoRetro()
+NEO_RETRO = theme("neo_retro")(NeoRetro())
 
 
 def block(fig, t: NeoRetro, x, y, w, h, fc=None, lw=1.5, shadow=True) -> None:

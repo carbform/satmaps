@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from satviz.core import LegendItem, Product, Rendered, recipe
+from satviz.geo import utm_extent
 from satviz.sensors.nisar_gcov.processing import db
 
 NOISE_RGB = (58, 58, 64)  # HV below the noise floor: neutral dark grey, never drawn as signal
@@ -73,3 +75,19 @@ def channel_panels(d: dict, lims: dict) -> list[tuple[str, np.ndarray]]:
         tint = np.array([int(CHANNEL_COLORS[key][k:k + 2], 16) for k in (1, 3, 5)]) / 255.0
         out.append((key, np.where(np.isfinite(v)[..., None], v[..., None] * tint, 0.12)))
     return out
+
+
+def default_legend() -> list[LegendItem]:
+    """How-to-read items every SAR composite needs; the noise share is added by the template from the product facts."""
+    return [
+        LegendItem("#d4574f", "RED = HH  (SURFACE)"),
+        LegendItem("#5fb673", "GREEN = HV  (VOLUME)"),
+        LegendItem("#6580d6", "BLUE = HH−HV  (RATIO)"),
+    ]
+
+
+@recipe("sar_fcc")
+def render_product(product: Product, lims_in: dict | None = None) -> Rendered:
+    """Recipe entry: a NISAR product to a `Rendered` false-colour composite."""
+    rgba, _, _ = fcc_rgba(product.native, lims_in=lims_in)
+    return Rendered(rgba=rgba, extent=utm_extent(product.native), legend=default_legend(), caveats=list(product.caveats))

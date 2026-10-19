@@ -42,6 +42,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--pooled-stretch", action="store_true", help="ls-social: pooled colour stretch (overrides the layout)")
     r.add_argument("-v", "--verbose", action="store_true")
 
+    sub.add_parser("list", help="list the registered sensors, recipes, themes and figures")
+
     ph = sub.add_parser("placeholders", help="list the {placeholders} available in layout files, with their values")
     ph.add_argument("--config", default="configs/brahmaputra.toml")
     ph.add_argument("--data-dir", default=None)
@@ -62,6 +64,13 @@ def main(argv: list[str] | None = None) -> int:
     import matplotlib
 
     matplotlib.use("Agg")  # headless; set here so importing the library never changes the backend
+    if args.cmd == "list":
+        from satviz.registry import describe
+
+        for kind, names in {**describe(), "figures": sorted(FIGURES)}.items():
+            print(f"{kind}: {', '.join(names)}")
+        return 0
+
     from satviz.config import load_scene
     from satviz.sensors.nisar_gcov.io import load_roi
 

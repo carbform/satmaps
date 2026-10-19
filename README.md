@@ -1,6 +1,6 @@
-# nisar-ls-viz
+# satviz
 
-Noise-aware false-colour composites and figures from NISAR **L-band** and **S-band** L2 GCOV products.
+Social, publication and editorial infographics from satellite data. NISAR is the first supported sensor (noise-aware false-colour composites and figures from NISAR **L-band** and **S-band** L2 GCOV products).
 The first scene is the Brahmaputra near Dibrugarh (Assam), seen by L-SAR and S-SAR on the same pass.
 
 <p align="center">
@@ -20,7 +20,7 @@ Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any num
 - Builds a false-colour composite: R = HH, G = HV (noise-subtracted), B = HH−HV ratio, with per-band or pooled stretch.
 - Renders six figures:
 
-| `nisar-viz render …` | Output | Style |
+| `satviz render …` | Output | Style |
 |---|---|---|
 | `sband-social` / `lband-social` | One band: full-width composite and the three bands it is built from, 4:5 | neo-retro |
 | `ls-social` | L|S split view with three zoom pairs, 4:5 | neo-retro ([design notes](docs/design-language.md)) |
@@ -33,7 +33,7 @@ Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any num
 Python 3.11 or newer.
 
 ```bash
-git clone <this repo> && cd nisar-ls-viz
+git clone <this repo> && cd satviz
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
@@ -49,7 +49,7 @@ NISAR_L2_PR_GCOV_031_112_A_016_4005_DHDH_A_20260925T225740_20260925T225815_P0502
 ```
 
 Put them in `data/` (ignored by git), or point the tool elsewhere with `--data-dir /path/to/granules` or
-`export NISAR_DATA_DIR=/path/to/granules`. Lookup order: `--data-dir`, `$NISAR_DATA_DIR`, `./data`, the current directory. Reading a slice from these multi-GB files can be slow, so ROIs are cached as `.npz`
+`export SATVIZ_DATA_DIR=/path/to/granules` (the old `NISAR_DATA_DIR` still works). Lookup order: `--data-dir`, `$SATVIZ_DATA_DIR`, `./data`, the current directory. Reading a slice from these multi-GB files can be slow, so ROIs are cached as `.npz`
 in `cache/` (invalidated automatically if the source file changes; `--no-cache` to disable).
 
 ## Usage
@@ -57,11 +57,11 @@ in `cache/` (invalidated automatically if the source file changes; `--no-cache` 
 Run from the repository root (the default `--config` is `configs/brahmaputra.toml`).
 
 ```bash
-nisar-viz render all                                       # granules in ./data; writes to outputs/
-nisar-viz render ls-social ls-clean --out figs/
-nisar-viz render ls-social --pooled-stretch                # same colours in both bands (default: each band on its own)
-nisar-viz stats --data-dir /path/to/granules               # noise fractions, backscatter percentiles per band
-python -m nisar_viz render ls-publication                  # same as the console script
+satviz render all                                       # granules in ./data; writes to outputs/
+satviz render ls-social ls-clean --out figs/
+satviz render ls-social --pooled-stretch                # same colours in both bands (default: each band on its own)
+satviz stats --data-dir /path/to/granules               # noise fractions, backscatter percentiles per band
+python -m satviz render ls-publication                  # same as the console script
 ```
 
 ## Layout files: change the wording without touching code
@@ -92,13 +92,13 @@ limits of the single-band graphics are `{lim.HH_lo}`, `{lim.HH_hi}`, `{lim.HV_lo
 with their values:
 
 ```bash
-nisar-viz placeholders --data-dir /path/to/granules
+satviz placeholders --data-dir /path/to/granules
 ```
 
 Two safeguards: a line written as `{ if = "uncal_bands", text = "..." }` shows only while a band's calibration scale
 factors are zero in the file, so the provisional-calibration warning disappears by itself when ISRO populates them; and
 the tool refuses to build a figure from two granules that are not the same track, frame and pass direction. Unknown
-placeholders and over-long lists fail with the file name and the valid choices. `nisar-viz render --layouts-dir DIR`
+placeholders and over-long lists fail with the file name and the valid choices. `satviz render --layouts-dir DIR`
 uses another set of layout files.
 
 ## Another scene
@@ -112,18 +112,17 @@ building a split view.
 ## Layout
 
 ```
-src/nisar_viz/
+src/satviz/
+  core.py         Product, Rendered, registries for sensors, recipes, themes
+  registry.py     loads the built-in plugins; `satviz list`
+  sensors/nisar_gcov/   HDF5 ROI reader + cache (io), file metadata, noise statistics (processing), placeholder facts
+  recipes/sar_fcc.py    false-colour composite and pooled stretch
+  themes/neo_retro.py   design tokens and chrome (bento blocks, chips, header, footer)
   config.py       scene TOML -> dataclasses
-  metadata.py     acquisition facts read from the granule (date, pass, frequency, flags)
   layout.py       layout TOML + placeholders filled from metadata and statistics
-  io.py           HDF5 ROI reader, NEBS interpolation, cache
-  processing.py   noise floor, SNR flags, block means, statistics
-  composite.py    false-colour composite and pooled stretch
-  geo.py          extent and projection helpers
-  chrome.py       scale bar and neo-retro panels
-  themes.py       design tokens
-  figures/        one module per figure
-  cli.py          nisar-viz entry point
+  geo.py, drawing.py    extent/projection helpers; theme-independent scale bar
+  figures/        one module per figure (to become templates)
+  cli.py          satviz entry point (`nisar-viz` and `python -m nisar_viz` are aliases)
 configs/          scene definitions (granules, ROI, zooms, place names)
 layouts/          figure wording: titles, how-to-read, notes, credits, captions
 docs/             processing notes, design language, first assessment (superseded), preview images

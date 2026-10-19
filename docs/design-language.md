@@ -9,7 +9,7 @@ monospace labels, a bento grid) with a quiet 70s tone in type and colour. It rep
 **Style the chrome, never the data.** Panels, zooms and the split view are never filtered, glowed, textured or
 recoloured. Nothing in the style may hide the provisional-calibration notice.
 
-## Tokens (`nisar_viz.themes.NeoRetro`)
+## Tokens (`satviz.themes.neo_retro.NeoRetro`)
 
 | Role | Value |
 |---|---|

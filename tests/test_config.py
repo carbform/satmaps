@@ -36,3 +36,9 @@ def test_band_path_joins_data_dir(tmp_path):
 def test_missing_key_is_reported():
     with pytest.raises(KeyError):
         load_scene(CONFIG, "/data").bands["X"]
+
+
+def test_legacy_env_var_still_honoured(tmp_path, monkeypatch):
+    monkeypatch.delenv("SATVIZ_DATA_DIR", raising=False)
+    monkeypatch.setenv("NISAR_DATA_DIR", str(tmp_path / "legacy"))
+    assert load_scene(CONFIG).data_dir == tmp_path / "legacy"
