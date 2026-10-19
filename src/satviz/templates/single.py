@@ -8,7 +8,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
 
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES
@@ -16,7 +15,7 @@ from satviz.geo import project
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.registry import load_builtin
 from satviz.templates.compare import platforms
-from satviz.themes.base import chip, img_axes, social_footer, social_header
+from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
 FILENAME = "{scene}_{key}band_Social_{tag}.png"
 
@@ -35,6 +34,8 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
     t = THEMES.get_or_raise(theme)
     rec = RECIPES.get_or_raise(recipe)
     P = products[input]
+    if P.kind != rec.kind:
+        raise LayoutError(f"recipe {recipe!r} needs a {rec.kind} product but input {input!r} is {P.kind}")
     r = rec.render(P)
     lim = SimpleNamespace(**{f"{k}_{e}": v for k, (lo, hi) in (r.lims or {}).items() for e, v in (("lo", lo), ("hi", hi))})
     lay = Layout(layout, build_context_products(scene, {input: P}, True, extra={"lim": lim}))
@@ -61,14 +62,9 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
             xy = project(P.epsg, *scene.callouts[co["key"]])
             _sticker(ax, t, lay.render(co["text"], f"callouts[{i}]"), xy, (co.get("dx", -60), co.get("dy", 60)),
                      t.card if co.get("fill", "card") == "card" else chip_color)
-        x0 = ext[0] + 0.05 * (ext[1] - ext[0])
-        y0 = ext[2] + 0.05 * (ext[3] - ext[2])
-        for i in range(5):
-            ax.add_patch(Rectangle((x0 + i * 1000, y0), 1000, 700, fc=t.ink if i % 2 == 0 else t.card, ec=t.ink, lw=t.lw(1.0), zorder=14))
-        ax.text(x0 + 2500, y0 + 1100, "5 KM", ha="center", fontsize=11, color=t.ink, zorder=15,
-                bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=t.lw(1.0)))
-        chip(fig, t, hx + 0.012, hy + hh - 0.014, lay.text("panels.band"), chip_color, va="top", ha="left")
-        chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, lay.text("panels.composite"), t.card, va="top", ha="right")
+        scalebar_blocks(ax, t, ext)
+        chip(fig, t, hx + 0.012, hy + hh - 0.014, (lay.text("panels.band") if lay.get("panels.band") is not None else f"{P.meta['platform']} {P.meta['label']}".upper()), chip_color, va="top", ha="left")
+        chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, (lay.text("panels.composite") if lay.get("panels.composite") is not None else r.title), t.card, va="top", ha="right")
 
         # The inputs of the recipe (for the SAR composite: the three bands, each tinted in its channel colour)
         if r.components:
@@ -76,7 +72,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
             px, pw = hx + hw + 0.02, 0.96 - (hx + hw + 0.02)
             gap = 0.009
             ph = (hh - (n - 1) * gap) / n
-            labels = lay.raw("channels.labels")
+            labels = lay.get("channels.labels") or [c.label for c in r.components]
             if len(labels) != n:
                 raise LayoutError(f"{lay.path} [channels.labels]: need exactly {n} labels, one per panel")
             for i, comp in enumerate(r.components):
@@ -85,7 +81,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
                 a.imshow(comp.img, extent=r.components_extent, origin="upper", aspect="auto", interpolation="nearest")
                 chip(fig, t, px + 0.008, py + ph - 0.01, lay.render(labels[i], f"channels.labels[{i}]"), comp.color, fs=10.5, va="top")
 
-        social_footer(fig, t, lay, legend=r.legend, caveats=r.caveats)
+        social_footer(fig, t, lay, legend=r.legend, caveats=r.caveats, required_credits=[(P.meta["attribution"], P.meta["credit"])])
         out = Path(out_dir) / FILENAME.format(scene=f"{platforms([P])}_{scene.name}", key=input, tag=t.tag)
         fig.savefig(out, dpi=180, facecolor=t.paper)
         plt.close(fig)

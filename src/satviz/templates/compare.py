@@ -14,7 +14,7 @@ from satviz.config import Scene
 from satviz.core import RECIPES, THEMES
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.registry import load_builtin
-from satviz.themes.base import chip, img_axes, social_footer, social_header
+from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
 FILENAME = "{scene}_{a}vs{b}_Social_{tag}.png"
 
@@ -22,6 +22,13 @@ FILENAME = "{scene}_{a}vs{b}_Social_{tag}.png"
 def platforms(products) -> str:
     """'NISAR', or 'NISAR-Sentinel2' for a cross-sensor figure: the output file prefix."""
     return "-".join(dict.fromkeys(p.meta["platform"] for p in products))
+
+
+def panel_text(lay: Layout, key: str, prod) -> str:
+    """Chip text on the hero: the layout's `panels.<id>`, else the product's own label."""
+    if lay.get(f"panels.{key}") is not None:
+        return lay.text(f"panels.{key}")
+    return f"{prod.meta['platform']} {prod.meta['label']}".upper()
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, str] = ("L", "S"),
@@ -35,6 +42,9 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     rec = RECIPES.get_or_raise(recipe)
     a, b = inputs
     A, B = products[a], products[b]
+    for pid, prod in ((a, A), (b, B)):
+        if prod.kind != rec.kind:
+            raise LayoutError(f"recipe {recipe!r} needs a {rec.kind} product but input {pid!r} is {prod.kind}")
     if A.layers[next(iter(A.layers))].shape != B.layers[next(iter(B.layers))].shape or not (
             np.allclose(A.x, B.x) and np.allclose(A.y, B.y)):
         raise ValueError(f"compare needs {a} and {b} on one grid; resample one onto the other first (see docs/architecture.md)")
@@ -48,6 +58,9 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     lay = Layout(layout, build_context_products(scene, {a: A, b: B}, per_band, strict=strict))
     lims = None if per_band else rec.shared_lims([A, B])
     rA, rB = rec.render(A, lims), rec.render(B, lims)
+    caveats = sorted({c for r in (rA, rB) for c in r.caveats})
+    if per_band and rec.shared_lims is not None:
+        caveats.append("Colours are not comparable between the two inputs (each has its own stretch).")
     ext = rB.extent
     H, W = rB.rgba.shape[:2]
     split = W // 2
@@ -62,8 +75,12 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
         social_header(fig, t, lay)
 
         # Hero: first input left, second right, same pixels
-        hy, hw, hx = 0.255, 0.677, 0.04
+        hy, hw, hx = 0.255, (0.677 if scene.zooms else 0.92), 0.04
         hh = hw * 12 / 15 * (H / W)
+        if hh > 0.585:  # no zoom column: keep the picture's aspect ratio inside the page
+            hh = 0.585
+            hw = hh * 15 / 12 * (W / H)
+            hx = 0.04 + (0.92 - hw) / 2
         ax = img_axes(fig, t, hx, hy, hw, hh)
         ax.imshow(hero, extent=ext, origin="upper", aspect="auto", interpolation="antialiased")
         ax.axvline(xsplit, color=t.card, lw=t.lw(2.2), zorder=12)
@@ -81,14 +98,9 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
             ax.add_patch(Rectangle((xx0(c0), yy0(r1)), xx0(c1) - xx0(c0), yy0(r0) - yy0(r1), fc="none", ec=t.card, lw=t.lw(1.4), zorder=11))
             ax.text(xx0(c0), yy0(r0) + 0.006 * (ext[3] - ext[2]), z.key, ha="left", va="bottom", fontsize=10.5, color=t.ink, zorder=13,
                     bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=t.lw(1.0)))
-        x0 = ext[0] + 0.05 * (ext[1] - ext[0])
-        y0 = ext[2] + 0.05 * (ext[3] - ext[2])
-        for i in range(5):
-            ax.add_patch(Rectangle((x0 + i * 1000, y0), 1000, 700, fc=t.ink if i % 2 == 0 else t.card, ec=t.ink, lw=t.lw(1.0), zorder=14))
-        ax.text(x0 + 2500, y0 + 1100, "5 KM", ha="center", fontsize=11, color=t.ink, zorder=15,
-                bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=t.lw(1.0)))
-        chip(fig, t, hx + 0.012, hy + hh - 0.014, lay.text(f"panels.{a}"), t.chip_a, va="top", ha="left")
-        chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, lay.text(f"panels.{b}"), t.chip_b, va="top", ha="right")
+        scalebar_blocks(ax, t, ext)
+        chip(fig, t, hx + 0.012, hy + hh - 0.014, panel_text(lay, a, A), t.chip_a, va="top", ha="left")
+        chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, panel_text(lay, b, B), t.chip_b, va="top", ha="right")
 
         # Zoom cells: first input above second for each window
         px, pw = hx + hw + 0.02, 0.96 - (hx + hw + 0.02)
@@ -105,7 +117,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
                 za.imshow(rg[r0:r1, c0:c1], aspect="auto", interpolation="antialiased")
                 chip(fig, t, px + 0.006, py + ih - 0.008, bandname, col, fs=10, va="top")
 
-        social_footer(fig, t, lay, legend=rB.legend, caveats=sorted({c for r in (rA, rB) for c in r.caveats}))
+        social_footer(fig, t, lay, legend=rB.legend, caveats=caveats, required_credits=[(p.meta["attribution"], p.meta["credit"]) for p in (A, B)])
 
         out = Path(out_dir) / FILENAME.format(scene=f"{platforms([A, B])}_{scene.name}", a=a, b=b, tag=t.tag)
         fig.savefig(out, dpi=180, facecolor=t.paper)

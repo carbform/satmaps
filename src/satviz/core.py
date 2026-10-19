@@ -36,9 +36,10 @@ class Registry(dict):
 
 SENSORS = Registry("sensor")
 RECIPES = Registry("recipe")
+TEMPLATES = Registry("template")
 THEMES = Registry("theme")
 
-sensor, recipe, theme = SENSORS.register, RECIPES.register, THEMES.register
+sensor, recipe, theme, template = SENSORS.register, RECIPES.register, THEMES.register, TEMPLATES.register
 
 
 @dataclass
@@ -60,8 +61,19 @@ class Product:
     meta: dict
     facts: SimpleNamespace = field(default_factory=SimpleNamespace)
     caveats: list[str] = field(default_factory=list)
+    kind: str = "sar"  # layer vocabulary: "sar" or "optical"; a recipe needs one kind
     shared: dict = field(default_factory=dict)  # top-level placeholders this sensor adds (track, frame, ...); inputs must agree
     native: dict | None = None  # the sensor's own working dataset, for recipes that need more than `layers`
+
+
+@dataclass
+class SourceInfo:
+    """What a reader knows about an input before reading pixels: used to choose the canvas."""
+
+    epsg: int
+    resolution_m: float
+    phase: tuple[float, float] | None = None  # (x, y) of one pixel centre: the canvas aligns to it
+    files: list = field(default_factory=list)  # what will be read (for the lock file and messages)
 
 
 @dataclass
@@ -77,6 +89,7 @@ class Component:
     key: str
     img: np.ndarray  # float RGB 0..1
     color: str  # hex, the chip colour
+    label: str = ""  # default chip text; a layout's channels.labels overrides it
 
 
 @dataclass
@@ -89,6 +102,7 @@ class Rendered:
     caveats: list[str] = field(default_factory=list)
     components: list[Component] = field(default_factory=list)
     components_extent: list[float] | None = None
+    title: str = ""  # default chip text for the hero ("R+G+B  COMPOSITE", "TRUE COLOUR")
     lims: dict | None = None  # stretch limits used, as placeholders ({lim.HH_lo}); None if the recipe has none
 
 
@@ -98,4 +112,5 @@ class Recipe:
     several products so one colour means the same thing in all of them."""
 
     render: Callable[..., Rendered]
+    kind: str = "sar"
     shared_lims: Callable[[list[Product]], dict] | None = None

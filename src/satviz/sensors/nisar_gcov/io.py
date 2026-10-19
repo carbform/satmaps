@@ -70,21 +70,19 @@ def assemble(raw: dict, band: str) -> dict:
     return derive(d)
 
 
-def _cache_file(cache_dir: Path, scene: Scene, spec: BandSpec) -> Path:
+def _cache_file(cache_dir: Path, tag: str, spec: BandSpec) -> Path:
     (r0, r1), (c0, c1) = spec.rows, spec.cols
-    return cache_dir / f"{scene.name.lower()}_{spec.key}_{r0}-{r1}_{c0}-{c1}.npz"
+    return cache_dir / f"{tag.lower()}_{spec.key}_{r0}-{r1}_{c0}-{c1}.npz"
 
 
-def load_roi(scene: Scene, band: str, cache_dir: str | Path | None = None) -> dict:
-    """Load one band's ROI, optionally through an .npz cache (reading the multi-GB HDF5 is slow)."""
-    spec = scene.bands[band]
-    path = scene.band_path(band)
+def load_raw(path: Path, spec: BandSpec, cache_dir: str | Path | None = None, tag: str = "scene") -> dict:
+    """Raw ROI arrays, optionally through an .npz cache (reading the multi-GB HDF5 is slow)."""
     raw = None
     cf = None
     if cache_dir is not None:
         cache_dir = Path(cache_dir)
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cf = _cache_file(cache_dir, scene, spec)
+        cf = _cache_file(cache_dir, tag, spec)
         if cf.exists() and path.exists():
             st = path.stat()
             with np.load(cf) as z:
@@ -98,6 +96,13 @@ def load_roi(scene: Scene, band: str, cache_dir: str | Path | None = None) -> di
         if cf is not None:
             st = path.stat()
             np.savez(cf, _size=st.st_size, _mtime_ns=st.st_mtime_ns, **raw)
-    d = assemble(raw, band)
+    return raw
+
+
+def load_roi(scene: Scene, band: str, cache_dir: str | Path | None = None) -> dict:
+    """Load one band's ROI (rows/cols from the scene config), optionally through an .npz cache."""
+    spec = scene.bands[band]
+    path = scene.band_path(band)
+    d = assemble(load_raw(path, spec, cache_dir, scene.name), band)
     d["meta"] = read_band_metadata(path, spec)  # acquisition facts come from the file, not from configuration
     return d

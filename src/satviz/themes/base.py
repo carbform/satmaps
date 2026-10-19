@@ -87,7 +87,7 @@ def social_header(fig, t: Theme, lay: Layout) -> None:
     fig.text(0.04, 0.858, lay.text("header.info_line"), fontsize=10.5, color=t.muted, va="center")
 
 
-def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None) -> None:
+def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, required_credits=None) -> None:
     """How-to-read block (up to 6 items), notice strip (up to 3 lines) and credits (up to 3 lines)."""
     block(fig, t, 0.04, 0.135, 0.92, 0.095)
     fig.text(0.058, 0.213, lay.text("how_to_read.title"), fontsize=11, color=t.ink, weight="bold", va="center")
@@ -113,7 +113,13 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None) -> None
         notes = [c.upper() for c in caveats or []]
         if len(notes) > 3:  # never drop a caveat silently
             raise LayoutError(f"{lay.path}: {len(notes)} caveats, at most 3 fit; write [notes] lines to merge them")
-    credits = lay.lines("credits.lines", limit=3)
+    credits = lay.lines("credits.lines", limit=3) if lay.get("credits.lines") is not None else []
+    # a sensor's attribution cannot be written out of a layout: append whatever is missing
+    for must, line in required_credits or []:  # (text that has to appear, line to add if it does not)
+        if not any(must.upper() in c.upper() for c in credits):
+            credits.append(f"DATA  {line.upper()}")
+    if len(credits) > 3:
+        raise LayoutError(f"{lay.path}: {len(credits)} credit lines, at most 3 fit")
     bottom = round(0.119 - 0.0235 * len(notes), 4)
     if notes:
         block(fig, t, 0.04, bottom, 0.92, round(0.0235 * len(notes), 4), t.note, shadow=False, lw=1.2)
@@ -121,3 +127,25 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None) -> None
         fig.text(0.05, round(0.1075 - 0.024 * i, 4), line, fontsize=9.3, color=t.ink, va="center")
     for i, line in enumerate(credits):
         fig.text(0.04, round(bottom - 0.02 - 0.02 * i, 4), line, fontsize=9, color=t.muted, va="center")
+
+
+NICE_KM = (0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
+
+
+def nice_km(width_m: float) -> float:
+    """Round scale-bar length: the largest 1-2-5 value that is at most about a fifth of the map width."""
+    limit = width_m / 1000 / 5.5
+    return max([k for k in NICE_KM if k <= limit] or [NICE_KM[0]])
+
+
+def scalebar_blocks(ax, t: Theme, ext) -> None:
+    """Five alternating blocks with a label, lower left of a map in metre coordinates; the length adapts to the map."""
+    km = nice_km(ext[1] - ext[0])
+    cell = km * 1000 / 5
+    x0 = ext[0] + 0.05 * (ext[1] - ext[0])
+    y0 = ext[2] + 0.05 * (ext[3] - ext[2])
+    for i in range(5):
+        ax.add_patch(Rectangle((x0 + i * cell, y0), cell, 0.7 * cell, fc=t.ink if i % 2 == 0 else t.card, ec=t.ink,
+                               lw=t.lw(1.0), zorder=14))
+    ax.text(x0 + 2.5 * cell, y0 + 1.1 * cell, f"{km:g} KM", ha="center", fontsize=11, color=t.ink, zorder=15,
+            bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=t.lw(1.0)))

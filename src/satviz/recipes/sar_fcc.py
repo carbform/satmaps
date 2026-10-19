@@ -91,13 +91,14 @@ def render_product(product: Product, lims_in: dict | None = None) -> Rendered:
     d = product.native
     rgba, lims, _ = fcc_rgba(d, lims_in=lims_in)
     c = coarsen(d, 4)
-    comps = [Component(key, img, CHANNEL_COLORS[key]) for key, img in channel_panels(c, lims)]
+    labels = {"R": "CH1  HH", "G": "CH2  HV", "B": "CH3  HH−HV"}
+    comps = [Component(key, img, CHANNEL_COLORS[key], labels[key]) for key, img in channel_panels(c, lims)]
     return Rendered(rgba=rgba, extent=utm_extent(d), legend=default_legend(), caveats=list(product.caveats),
-                    components=comps, components_extent=utm_extent(c), lims=lims)
+                    components=comps, components_extent=utm_extent(c), lims=lims, title="R+G+B  COMPOSITE")
 
 
 def pooled_lims(products: list[Product]) -> dict:
     return shared_lims([p.native for p in products])
 
 
-SAR_FCC = recipe("sar_fcc")(Recipe(render=render_product, shared_lims=pooled_lims))
+SAR_FCC = recipe("sar_fcc")(Recipe(render=render_product, kind="sar", shared_lims=pooled_lims))

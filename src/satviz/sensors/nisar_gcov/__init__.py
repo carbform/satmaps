@@ -7,10 +7,14 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from satviz.core import Product, sensor
+from satviz.core import Product, SourceInfo, sensor
+from satviz.sensors.nisar_gcov.canvas import describe as describe_file
+from satviz.sensors.nisar_gcov.canvas import find_group, raw_on_canvas, window
 from satviz.sensors.nisar_gcov.facts import band_facts
-from satviz.sensors.nisar_gcov.io import load_roi
+from satviz.sensors.nisar_gcov.io import assemble, load_raw, load_roi
+from satviz.sensors.nisar_gcov.metadata import read_band_metadata
 from satviz.sensors.nisar_gcov.processing import stats
+from satviz.sources import resolve_one_file
 
 LAYER_KEYS = ("hh", "hv", "hh_ns", "hv_ns", "snr_hh", "snr_hv", "n_hh", "n_hv", "eta")
 
@@ -24,7 +28,8 @@ def to_product(d: dict, st: dict | None = None) -> Product:
     return Product(
         key=d["band"], layers={k: d[k] for k in LAYER_KEYS}, x=d["x"], y=d["y"], epsg=d["epsg"], valid=d["valid"],
         meta=dict(platform="NISAR", sensor=m.instrument, label=f"{m.radar_band}-band", start=m.start, end=m.end,
-                  resolution_m=m.posting_m, crs=m.crs, calibrated=m.calibrated),
+                  resolution_m=m.posting_m, crs=m.crs, calibrated=m.calibrated,
+                  attribution="NISAR", credit=f"NISAR L2 GCOV, {m.instrument[0]}-SAR · γ⁰ · CRID {m.crid}"),
         facts=band_facts(m, st or stats(d)), caveats=caveats, native=d,
         shared=dict(track=m.track, frame=m.frame, pass_direction=m.pass_direction, look_direction=m.look_direction,
                     polarisations=m.polarisations),
@@ -35,4 +40,21 @@ def load(scene, key: str, cache_dir=None) -> Product:
     return to_product(load_roi(scene, key, cache_dir))
 
 
-NISAR_GCOV = sensor("nisar_gcov")(SimpleNamespace(load=load, load_dataset=load_roi, to_product=to_product))
+def describe(spec, data_dir) -> SourceInfo:
+    """Grid of the input's file, read from its coordinate arrays, to choose the canvas before reading pixels."""
+    return describe_file(resolve_one_file(spec, data_dir))
+
+
+def open_on_canvas(spec, canvas, data_dir, cache_dir=None, tag: str = "job") -> Product:
+    """Read the part of the file that covers `canvas`, then copy (aligned grids) or resample every layer onto it."""
+    path = resolve_one_file(spec, data_dir)
+    group = find_group(path)
+    win = window(path, group, canvas)
+    raw = load_raw(path, win, cache_dir, f"{tag}_{path.stem[-28:]}")
+    d = assemble(raw_on_canvas(raw, canvas), spec.key)
+    d["meta"] = read_band_metadata(path, win)
+    return to_product(d)
+
+
+NISAR_GCOV = sensor("nisar_gcov")(SimpleNamespace(
+    load=load, load_dataset=load_roi, to_product=to_product, describe=describe, open=open_on_canvas, kind="sar"))

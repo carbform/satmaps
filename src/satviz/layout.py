@@ -71,7 +71,10 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
     res = ref.meta["resolution_m"]
     uncal = [m["label"] for m in metas.values() if m.get("calibrated") is False]
     cal = [m["label"] for m in metas.values() if m.get("calibrated") is True]
+    labels = [f"{m.get('platform', '')} {m.get('label', '')}".strip() for m in metas.values()]
     ctx = {
+        "inputs_line": "  ·  ".join(x.upper() for x in labels),  # e.g. "NISAR L-BAND  ·  SENTINEL-2 L2A"
+        "platforms": " + ".join(dict.fromkeys(m["platform"] for m in metas.values() if m.get("platform"))),
         "name": scene.name, "reach": scene.reach, "locality": scene.locality, "region": scene.region,
         "callout_caption": scene.callout_caption, "author": scene.author, "website": scene.website,
         "date": _date(start), "time_utc": f"{start:%H:%M}", "start_utc": f"{start:%H:%M:%S}", "end_utc": f"{end:%H:%M:%S}",
