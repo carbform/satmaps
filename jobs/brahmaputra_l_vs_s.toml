@@ -1,0 +1,55 @@
+# Brahmaputra near Dibrugarh: NISAR L-band vs S-band from the same pass.
+# Run:  satviz run jobs/brahmaputra_l_vs_s.toml --out outputs/
+# Granules are looked up in ./data (or --data-dir / $SATVIZ_DATA_DIR).
+# Input order matters a little: the first input supplies shared facts (track, CRS) and the first chip colour.
+
+[scene]                       # all optional; this is the wording you control
+name = "Brahmaputra"
+region = "Dibrugarh, Assam"
+author = "Sarat (NRSC/ISRO)"
+website = "www.carbform.github.io"
+
+[area]
+center = [27.60279514, 94.87069168]   # lat, lon
+size_km = [29.0, 30.8]                # width, height
+resolution_m = 10
+
+[[inputs]]
+id = "L"
+sensor = "nisar_gcov"
+source = { path = "NISAR_L2_PR_GCOV_031_112_A_016_4005_DHDH_A_20260925T225740_20260925T225815_P05023_N_F_J_001.h5" }
+
+[[inputs]]
+id = "S"
+sensor = "nisar_gcov"
+source = { path = "NISAR_S2_PR_GCOV_031_112_A_016_3700_DHNA_A_20260925T225740_20260925T225816_P00500_M_F_I_001.h5" }
+
+# Zoom windows: geographic (center + size) or, as here, canvas pixel rows/cols (10 m): 300 x 780 px = 3.0 x 7.8 km
+[[zooms]]
+key = "A"
+name = "HILL EDGE"
+rows = [520, 820]
+cols = [560, 1340]
+
+[[zooms]]
+key = "B"
+name = "SAND BARS"
+rows = [2500, 2800]
+cols = [1200, 1980]
+
+[[zooms]]
+key = "C"
+name = "SOUTH BANK"
+rows = [2600, 2900]
+cols = [2000, 2780]
+
+[[figures]]
+template = "compare"
+inputs = ["L", "S"]                   # left, right
+layout = "layouts/ls_social.toml"     # your own wording file; leave out to use the built-in one
+theme = "neo_retro"                   # or minimal, neo_brutal, or a list of them
+
+[[figures]]
+template = "single"
+inputs = ["S"]
+layout = "layouts/sband_social.toml"

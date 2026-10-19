@@ -28,6 +28,9 @@ nisar-viz = "satviz.cli:main"  # alias kept from the NISAR-only days
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+satviz = ["layouts/*.toml", "presets/*.toml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

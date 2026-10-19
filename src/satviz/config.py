@@ -68,7 +68,7 @@ class Scene:
             object.__setattr__(self, "inputs", ins)
         elif self.inputs and not self.bands:
             bands = {k: BandSpec(k, i.file, i.options["group"], tuple(i.options["rows"]), tuple(i.options["cols"]))
-                     for k, i in self.inputs.items() if i.sensor == NISAR}
+                     for k, i in self.inputs.items() if i.sensor == NISAR and {"group", "rows", "cols"} <= set(i.options)}
             object.__setattr__(self, "bands", bands)
 
     def input_path(self, key: str) -> Path:

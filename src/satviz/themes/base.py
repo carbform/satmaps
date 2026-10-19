@@ -9,6 +9,7 @@ hide the notice strip.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from matplotlib.patches import Rectangle
@@ -43,6 +44,11 @@ class Theme:
 
     def lw(self, base: float) -> float:
         return base * self.line_scale
+
+
+def shout(text: str) -> str:
+    """Upper-case for the all-caps notice and credit lines, keeping units and symbols right (dB, γ⁰)."""
+    return re.sub(r"\bDB\b", "dB", text.upper()).replace("Γ", "γ")
 
 
 def block(fig, t: Theme, x, y, w, h, fc=None, lw=1.5, shadow=True) -> None:
@@ -110,14 +116,14 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
     if lay.get("notes.lines") is not None:
         notes = lay.lines("notes.lines", limit=3)
     else:
-        notes = [c.upper() for c in caveats or []]
+        notes = [shout(c) for c in caveats or []]
         if len(notes) > 3:  # never drop a caveat silently
             raise LayoutError(f"{lay.path}: {len(notes)} caveats, at most 3 fit; write [notes] lines to merge them")
     credits = lay.lines("credits.lines", limit=3) if lay.get("credits.lines") is not None else []
     # a sensor's attribution cannot be written out of a layout: append whatever is missing
     for must, line in required_credits or []:  # (text that has to appear, line to add if it does not)
         if not any(must.upper() in c.upper() for c in credits):
-            credits.append(f"DATA  {line.upper()}")
+            credits.append(f"DATA  {shout(line)}")
     if len(credits) > 3:
         raise LayoutError(f"{lay.path}: {len(credits)} credit lines, at most 3 fit")
     bottom = round(0.119 - 0.0235 * len(notes), 4)

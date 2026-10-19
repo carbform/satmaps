@@ -37,6 +37,31 @@ def load_layout(layouts_dir: str | Path, name: str) -> dict:
     return data
 
 
+def default_layout(template: str) -> dict:
+    """The wording file that ships with the package for a template (src/satviz/layouts/default_<template>.toml)."""
+    path = Path(__file__).parent / "layouts" / f"default_{template}.toml"
+    if not path.exists():
+        raise LayoutError(f"no built-in layout for template {template!r}")
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    data["_path"] = str(path)
+    return data
+
+
+def apply_text(data: dict, text: dict) -> dict:
+    """Wording overrides from a job: ``title``/``subtitle``/``date``/``time``/``info_line`` set the header; a dotted key
+    (``"credits.lines"``, ``"how_to_read.title"``) sets anything else."""
+    out = {k: (dict(v) if isinstance(v, dict) else v) for k, v in data.items()}
+    for key, value in text.items():
+        dotted = key if "." in key else f"header.{key}"
+        node = out
+        *parents, leaf = dotted.split(".")
+        for part in parents:
+            node = node.setdefault(part, {})
+        node[leaf] = value
+    return out
+
+
 def _date(dt) -> str:
     return f"{dt.day} {dt:%b %Y}"
 
@@ -71,7 +96,10 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
     res = ref.meta["resolution_m"]
     uncal = [m["label"] for m in metas.values() if m.get("calibrated") is False]
     cal = [m["label"] for m in metas.values() if m.get("calibrated") is True]
-    labels = [f"{m.get('platform', '')} {m.get('label', '')}".strip() for m in metas.values()]
+    by_platform: dict[str, list[str]] = {}
+    for m in metas.values():
+        by_platform.setdefault(m.get("platform", ""), []).append(m.get("label", ""))
+    labels = [f"{plat} {' + '.join(x for x in labs if x)}".strip() for plat, labs in by_platform.items()]
     ctx = {
         "inputs_line": "  ·  ".join(x.upper() for x in labels),  # e.g. "NISAR L-BAND  ·  SENTINEL-2 L2A"
         "platforms": " + ".join(dict.fromkeys(m["platform"] for m in metas.values() if m.get("platform"))),

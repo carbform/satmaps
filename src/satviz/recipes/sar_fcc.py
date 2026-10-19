@@ -78,11 +78,14 @@ def channel_panels(d: dict, lims: dict) -> list[tuple[str, np.ndarray]]:
 
 
 def default_legend() -> list[LegendItem]:
-    """How-to-read items every SAR composite needs; the noise share is added by the template from the product facts."""
+    """How-to-read items for the composite; layouts may replace them (e.g. to add the noise share)."""
     return [
         LegendItem("#d4574f", "RED = HH  (SURFACE)"),
         LegendItem("#5fb673", "GREEN = HV  (VOLUME)"),
         LegendItem("#6580d6", "BLUE = HH−HV  (RATIO)"),
+        LegendItem("#a05cb5", "PURPLE = HV LOW, SURFACE-LIKE"),
+        LegendItem("#a8c25c", "LIME = HV HIGH, VOLUME-LIKE"),
+        LegendItem("noise", "GREY = NOISE (SNR < 3 dB)"),
     ]
 
 

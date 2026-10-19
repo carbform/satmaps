@@ -40,6 +40,27 @@ def load_products(scene, keys, cache) -> dict:
     return {k: SENSORS.get_or_raise(scene.inputs[k].sensor).load(scene, k, cache) for k in keys}
 
 
+def _init(args) -> int:
+    from importlib.resources import files
+
+    found = sorted(files("satviz").joinpath("presets").iterdir(), key=lambda p: p.name)
+    presets = {p.name.removesuffix(".toml"): p for p in found if p.name.endswith(".toml")}
+    if not args.preset:
+        for name, p in presets.items():
+            print(f"{name:16} {p.read_text().splitlines()[0].lstrip('# ')}")
+        return 0
+    if args.preset not in presets:
+        print(f"error: unknown preset {args.preset!r}; available: {', '.join(presets)}", file=sys.stderr)
+        return 2
+    dest = Path(args.output or f"{args.preset}.toml")
+    if dest.exists() and not args.force:
+        print(f"error: {dest} exists; pass --force to overwrite", file=sys.stderr)
+        return 2
+    dest.write_text(presets[args.preset].read_text())
+    print(dest)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="satviz", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -56,6 +77,20 @@ def build_parser() -> argparse.ArgumentParser:
                    help="look of the social graphics: one or more themes, or 'all' (default: neo_retro; see `satviz list`)")
     r.add_argument("--pooled-stretch", action="store_true", help="ls-social: pooled colour stretch (overrides the layout)")
     r.add_argument("-v", "--verbose", action="store_true")
+
+    rn = sub.add_parser("run", help="render the figures of a job file")
+    rn.add_argument("job", help="job TOML (see `satviz init`)")
+    rn.add_argument("--data-dir", default=None, help="where source paths are looked up (default: $SATVIZ_DATA_DIR, then ./data)")
+    rn.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
+    rn.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")
+    rn.add_argument("--no-cache", action="store_true")
+    rn.add_argument("--layouts-dir", default="layouts", help="folder for layouts named without a path (default: %(default)s)")
+    rn.add_argument("-v", "--verbose", action="store_true")
+
+    ini = sub.add_parser("init", help="write a starter job file for a preset")
+    ini.add_argument("preset", nargs="?", help="preset name; omit to list them")
+    ini.add_argument("-o", "--output", default=None, help="file to write (default: <preset>.toml)")
+    ini.add_argument("--force", action="store_true", help="overwrite an existing file")
 
     sub.add_parser("list", help="list the registered sensors, recipes, themes and figures")
 
@@ -79,6 +114,25 @@ def main(argv: list[str] | None = None) -> int:
     import matplotlib
 
     matplotlib.use("Agg")  # headless; set here so importing the library never changes the backend
+    if args.cmd == "init":
+        return _init(args)
+
+    if args.cmd == "run":
+        from satviz.area import AreaError
+        from satviz.job import JobError, load_job
+        from satviz.layout import LayoutError
+        from satviz.run import run_job
+        from satviz.sources import SourceError
+
+        try:
+            job = load_job(args.job, args.data_dir)
+            for path in run_job(job, args.out, None if args.no_cache else args.cache, args.layouts_dir):
+                print(path)
+        except (JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError) as e:
+            print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)
+            return 2
+        return 0
+
     if args.cmd == "list":
         from satviz.registry import describe
 

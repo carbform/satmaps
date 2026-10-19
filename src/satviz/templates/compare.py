@@ -32,19 +32,23 @@ def panel_text(lay: Layout, key: str, prod) -> str:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, str] = ("L", "S"),
-           recipe: str = "sar_fcc", per_band: bool | None = None, theme: str = "neo_retro", strict: bool = True) -> list[Path]:
+           recipe: str | dict = "sar_fcc", per_band: bool | None = None, theme: str = "neo_retro", strict: bool = True,
+           stem: str | None = None) -> list[Path]:
     """`inputs` are the two input ids, left and right of the split. Wording comes from `layout`; facts from the products.
 
+    `recipe` is one name for both inputs or ``{input id: name}`` (SAR on one side, optical on the other). `stem` names the file.
     `per_band` overrides `[style] stretch`: True stretches each input to its own percentiles (colours not comparable),
     False uses one stretch pooled over both (needs a recipe that can pool). `strict=False` allows different passes."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
-    rec = RECIPES.get_or_raise(recipe)
     a, b = inputs
     A, B = products[a], products[b]
-    for pid, prod in ((a, A), (b, B)):
-        if prod.kind != rec.kind:
-            raise LayoutError(f"recipe {recipe!r} needs a {rec.kind} product but input {pid!r} is {prod.kind}")
+    names = {a: recipe, b: recipe} if isinstance(recipe, str) else {a: recipe[a], b: recipe[b]}
+    recA, recB = RECIPES.get_or_raise(names[a]), RECIPES.get_or_raise(names[b])
+    for pid, prod, rec_ in ((a, A, recA), (b, B, recB)):
+        if prod.kind != rec_.kind:
+            raise LayoutError(f"recipe {names[pid]!r} needs a {rec_.kind} product but input {pid!r} is {prod.kind}")
+    rec = recA  # the recipe that pools the stretch, when both sides use the same one
     if A.layers[next(iter(A.layers))].shape != B.layers[next(iter(B.layers))].shape or not (
             np.allclose(A.x, B.x) and np.allclose(A.y, B.y)):
         raise ValueError(f"compare needs {a} and {b} on one grid; resample one onto the other first (see docs/architecture.md)")
@@ -53,13 +57,13 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
         if mode not in ("per-band", "pooled"):
             raise LayoutError(f"{layout.get('_path')}: [style] stretch must be 'per-band' or 'pooled', not {mode!r}")
         per_band = mode == "per-band"
-    if not per_band and rec.shared_lims is None:
-        raise LayoutError(f"recipe {recipe!r} cannot pool a stretch over two inputs; use per-band")
+    if not per_band and (names[a] != names[b] or rec.shared_lims is None):
+        raise LayoutError(f"cannot pool a stretch over {names[a]!r} and {names[b]!r}; use per-band")
     lay = Layout(layout, build_context_products(scene, {a: A, b: B}, per_band, strict=strict))
     lims = None if per_band else rec.shared_lims([A, B])
-    rA, rB = rec.render(A, lims), rec.render(B, lims)
+    rA, rB = recA.render(A, lims), recB.render(B, lims)
     caveats = sorted({c for r in (rA, rB) for c in r.caveats})
-    if per_band and rec.shared_lims is not None:
+    if per_band and (recA.shared_lims is not None or recB.shared_lims is not None):
         caveats.append("Colours are not comparable between the two inputs (each has its own stretch).")
     ext = rB.extent
     H, W = rB.rgba.shape[:2]
@@ -117,9 +121,9 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
                 za.imshow(rg[r0:r1, c0:c1], aspect="auto", interpolation="antialiased")
                 chip(fig, t, px + 0.006, py + ih - 0.008, bandname, col, fs=10, va="top")
 
-        social_footer(fig, t, lay, legend=rB.legend, caveats=caveats, required_credits=[(p.meta["attribution"], p.meta["credit"]) for p in (A, B)])
+        social_footer(fig, t, lay, legend=list({i.text: i for i in (*rA.legend, *rB.legend)}.values()), caveats=caveats, required_credits=[(p.meta["attribution"], p.meta["credit"]) for p in (A, B)])
 
-        out = Path(out_dir) / FILENAME.format(scene=f"{platforms([A, B])}_{scene.name}", a=a, b=b, tag=t.tag)
+        out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(scene=f"{platforms([A, B])}_{scene.name}", a=a, b=b, tag=t.tag))
         fig.savefig(out, dpi=180, facecolor=t.paper)
         plt.close(fig)
     return [out]

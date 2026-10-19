@@ -28,6 +28,25 @@ Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any num
 | `ls-publication` | Composites, HH L-vs-S density, HV SNR distributions; PNG + PDF | journal-style, one pooled stretch |
 | `sband-publication` | S-band alone: HH, HV, composite, SNR; PNG + PDF | journal-style |
 
+## Job files: fill in a config, run one command
+
+```bash
+satviz init                              # list presets (sar, sar-compare, ...)
+satviz init sar-compare -o job.toml      # write a starter file
+# edit the area, the data files and the wording
+satviz run job.toml --out outputs/
+```
+
+A job file says where (`[area]`: `center` + `radius_km` or `size_km`, or a `bbox`), which data (`[[inputs]]`: an `id`,
+a `sensor` and a `source` path or glob), optional `[[zooms]]` by place, and which figures (`[[figures]]`: a `template`
+(`single` or `compare`), `inputs`, `theme` or a list of themes, `text = { title = "...", subtitle = "..." }`, and
+`pairs = "all"` for every pair of three or more inputs). Place names, titles and credits are yours to write. A worked
+example is [jobs/brahmaputra_l_vs_s.toml](jobs/brahmaputra_l_vs_s.toml), which reproduces the L-vs-S and S-band graphics
+exactly. The area defines one pixel grid and every input is read onto it, so the inputs always line up. Grids that
+already match are copied, others are resampled. A `<job>.lock.json` next to the outputs records the grid and the files
+used. The built-in wording needs no layout file; sensors add their own attribution and caveats (calibration state,
+noise screening) and these cannot be removed.
+
 ## Themes
 
 The social graphics (`ls-social`, `sband-social`, `lband-social`) come in several looks. The data panels are identical in
@@ -142,6 +161,8 @@ src/satviz/
   config.py       scene TOML -> dataclasses
   layout.py       layout TOML + placeholders filled from metadata and statistics
   geo.py, drawing.py    extent/projection helpers; theme-independent scale bar
+  area.py, grid.py, job.py, run.py, sources.py   area -> canvas grid, resampling, job file, runner, data paths
+  presets/, layouts/    starter job files and built-in wording (shipped with the package)
   templates/      single (one product + its recipe inputs) and compare (split view of two products); take Products and any recipe
   figures/        the clean and publication figures (still NISAR-specific, take working datasets)
   cli.py          satviz entry point (`nisar-viz` and `python -m nisar_viz` are aliases)

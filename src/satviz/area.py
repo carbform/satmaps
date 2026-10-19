@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import numpy as np
 from pyproj import Transformer
 
+EDGE_TOL = 1e-3  # a thousandth of a pixel: lat/lon round trips must not add a row or column
 MAX_PIXELS = 60_000_000  # refuse canvases beyond this (memory); ask for a coarser resolution instead
 
 
@@ -75,6 +76,17 @@ class Canvas:
         return slice(r0, r1), slice(c0, c1)
 
 
+    def window_around(self, lat: float, lon: float, size_km: tuple[float, float]) -> tuple[tuple[int, int], tuple[int, int]]:
+        """((row0, row1), (col0, col1)) of a w x h km box centred on a point; raises if it is not inside the canvas."""
+        cx, cy = _tf(4326, self.epsg).transform(lon, lat)
+        hw, hh = size_km[0] * 500 / self.res, size_km[1] * 500 / self.res
+        col, row = (cx - self.x0) / self.res, (self.y0 - cy) / self.res
+        c0, c1, r0, r1 = round(col - hw), round(col + hw), round(row - hh), round(row + hh)
+        if c0 < 0 or r0 < 0 or c1 > self.width or r1 > self.height or c1 <= c0 or r1 <= r0:
+            raise AreaError(f"a {size_km[0]:g} x {size_km[1]:g} km box around lat {lat}, lon {lon} is not inside the area")
+        return (r0, r1), (c0, c1)
+
+
 @dataclass(frozen=True)
 class Area:
     """Rectangle in `epsg` metres. Build one with `Area.from_config`."""
@@ -126,12 +138,12 @@ class Area:
             raise AreaError("no pixel size: set [area] resolution_m, or read an input that has a native resolution")
         if phase:
             px, py = phase[0] - res / 2, phase[1] + res / 2
-            x0 = px + math.floor((self.xmin - px) / res) * res
-            y0 = py + math.ceil((self.ymax - py) / res) * res
+            x0 = px + math.floor((self.xmin - px) / res + EDGE_TOL) * res
+            y0 = py + math.ceil((self.ymax - py) / res - EDGE_TOL) * res
         else:
             x0, y0 = self.xmin, self.ymax
-        width = math.ceil((self.xmax - x0) / res)
-        height = math.ceil((y0 - self.ymin) / res)
+        width = math.ceil((self.xmax - x0) / res - EDGE_TOL)
+        height = math.ceil((y0 - self.ymin) / res - EDGE_TOL)
         if width * height > MAX_PIXELS:
             raise AreaError(f"canvas would be {width} x {height} = {width * height / 1e6:.0f} M pixels at {res:g} m; "
                             f"set a coarser [area] resolution_m or a smaller area")

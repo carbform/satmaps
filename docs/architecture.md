@@ -187,3 +187,12 @@ satviz render ...                          the current NISAR-only command, kept 
 Earth Search collection names and asset keys (`sentinel-2-l2a`, `landsat-c2-l2`), Sentinel-2 processing-baseline
 reflectance offset, Landsat C2 scale/offset, whether a Sentinel-1 RTC source is freely readable without login, and ALOS
 PALSAR RTC product conventions (amplitude vs power).
+
+## Status after Phase 3a
+
+Done: `[area]` (point + radius, size, bbox), `Canvas` with snapping to an input grid, `to_canvas` (exact copy when grids
+align, otherwise bilinear or block-mean resampling), NISAR read by area, job loader with `extends`, `satviz run` and
+`init`, `<job>.lock.json`, built-in layouts, per-input recipes in `compare`, kind check between recipe and product,
+adaptive scale bar, sensor attributions that layouts cannot remove.
+Verified: the job file for the Brahmaputra scene reproduces the L-vs-S and S-band graphics pixel for pixel.
+Next: 3b (geotiff and Sentinel-2 readers, optical recipes, STAC search), then 3c.
