@@ -46,10 +46,18 @@ def resolve_zooms(job: Job, canvas):
     return tuple(out)
 
 
-def _layout(fig: FigureSpec, layouts_dir) -> dict:
+def _layout(fig: FigureSpec, job: Job, layouts_dir) -> dict:
+    """The figure's wording: its `layout` file (looked up next to the job file, then the working directory, then
+    `layouts_dir`) or the template's built-in one, with the job's `text` overrides applied."""
     if fig.layout:
-        p = Path(fig.layout)
-        data = load_layout(p.parent, p.stem) if p.suffix == ".toml" and p.exists() else load_layout(layouts_dir, fig.layout)
+        name = Path(fig.layout).expanduser()
+        if name.suffix != ".toml":
+            name = name.with_name(name.name + ".toml")
+        tried = [name] if name.is_absolute() else [job.path.parent / name, Path.cwd() / name, Path(layouts_dir) / name]
+        found = next((p for p in tried if p.is_file()), None)
+        if found is None:
+            raise JobError(f"layout {fig.layout!r} not found; looked in: " + ", ".join(str(p.parent) for p in tried))
+        data = load_layout(found.parent, found.stem)
     else:
         data = default_layout(fig.template)
     return apply_text(data, fig.text)
@@ -93,7 +101,7 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
 
     written = []
     for fig, combo in plan:
-        layout = _layout(fig, layouts_dir)
+        layout = _layout(fig, job, layouts_dir)
         recipes = {k: fig.recipes.get(k) or fig.recipes.get("default") or DEFAULT_RECIPE[products[k].kind] for k in combo}
         for theme in fig.themes:
             stem = None
@@ -107,11 +115,12 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
                 paths = single.render(scene, products, out, layout, input=k, recipe=recipes[k],
                                       chip_slot=CHIP_SLOT[min(list(job.inputs).index(k), 1)], theme=theme, stem=stem)
             elif fig.template == "grid":
-                paths = grid.render(scene, products, out, layout, inputs=combo, recipe=recipes, theme=theme, stem=stem)
+                paths = grid.render(scene, products, out, layout, inputs=combo, recipe=recipes, theme=theme, stem=stem,
+                                    strict=fig.strict)
             else:
                 per_band = None if fig.stretch is None else fig.stretch == "per-band"
                 paths = compare.render(scene, products, out, layout, inputs=combo, recipe=recipes, per_band=per_band,
-                                       theme=theme, strict=False, stem=stem)
+                                       theme=theme, strict=fig.strict, stem=stem)
             written += paths
     _write_lock(job, out, canvas, infos, products, written)
     return written

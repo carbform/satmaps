@@ -195,3 +195,34 @@ theme = "minimal"
     bad.write_text(text.replace('inputs = ["L", "S", "X"]', 'inputs = ["L"]'))
     with pytest.raises(JobError, match="2 to 6"):
         run_job(load_job(bad, scene.data_dir), tmp_path / "out2")
+
+
+def test_inputs_from_different_passes_need_an_explicit_opt_in(scene, tmp_path):
+    from satviz.layout import LayoutError
+    from tests.conftest import make_raw, write_granule
+
+    write_granule(tmp_path / "S2.h5", "science/SSAR/GCOV", make_raw(3), track=113)
+    base = JOB.replace('source = { path = "S.h5" }', 'source = { path = "S2.h5" }')
+    p = tmp_path / "j.toml"
+    p.write_text(base)
+    with pytest.raises(LayoutError, match="allow_different_passes"):
+        run_job(load_job(p, scene.data_dir), tmp_path / "out")
+    p.write_text(base + '\n[[figures]]\ntemplate = "compare"\ninputs = ["L", "S"]\nallow_different_passes = true\n')
+    assert run_job(load_job(p, scene.data_dir), tmp_path / "out2")[0].exists()
+
+
+def test_layout_files_are_found_next_to_the_job_whatever_the_working_directory(scene, tmp_path, monkeypatch, layouts_dir):
+    import shutil
+
+    job_dir = tmp_path / "jobs"
+    (job_dir / "layouts").mkdir(parents=True)
+    shutil.copy(layouts_dir / "ls_social.toml", job_dir / "layouts" / "ls_social.toml")
+    p = job_dir / "j.toml"
+    p.write_text(JOB + '\n[[figures]]\ntemplate = "compare"\ninputs = ["L", "S"]\nlayout = "layouts/ls_social.toml"\n')
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    assert run_job(load_job(p, scene.data_dir), tmp_path / "out")[0].exists()
+    p.write_text(JOB + '\n[[figures]]\ntemplate = "compare"\ninputs = ["L", "S"]\nlayout = "nope.toml"\n')
+    with pytest.raises(JobError, match="not found; looked in"):
+        run_job(load_job(p, scene.data_dir), tmp_path / "out3")

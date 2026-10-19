@@ -67,18 +67,30 @@ def _date(dt) -> str:
 
 
 def _times(metas: dict) -> str:
-    """Acquisition times in input order ('22:57 / 04:30'); inputs that only know a date contribute none."""
+    """Acquisition times for inputs that share one day ('22:57 / 11:48'); empty when the days differ, because a list of
+    times beside a range of dates cannot be matched to its inputs (each panel's chip carries its own date and time)."""
+    if len({m["start"].date() for m in metas.values()}) > 1:
+        return ""
     return " / ".join(dict.fromkeys(f"{m['start']:%H:%M}" for m in metas.values() if m.get("time_known", True)))
 
 
 def _dates_label(starts: list) -> str:
-    """One date, '24 · 25 Sep 2026' within a month, or full dates joined by ' · ' (the header must not hide a gap)."""
+    """One date, or the span of acquisition dates ('24 – 25 Sep 2026'): a range, so it implies no pairing with inputs."""
     days = sorted({s.date() for s in starts})
     if len(days) == 1:
         return _date(starts[0])
-    if len({(d.year, d.month) for d in days}) == 1:
-        return f"{' · '.join(str(d.day) for d in days)} {days[0]:%b %Y}"
-    return " · ".join(f"{d.day} {d:%b %Y}" for d in days)
+    a, b = days[0], days[-1]
+    if (a.year, a.month) == (b.year, b.month):
+        return f"{a.day} – {b.day} {b:%b %Y}"
+    if a.year == b.year:
+        return f"{a.day} {a:%b} – {b.day} {b:%b %Y}"
+    return f"{a.day} {a:%b %Y} – {b.day} {b:%b %Y}"
+
+
+def acquisition_label(meta: dict) -> str:
+    """'25 Sep 22:57' (time only when the input knows it): what a panel chip says about when it was taken."""
+    s = meta["start"]
+    return f"{s.day} {s:%b}" + (f" {s:%H:%M}" if meta.get("time_known", True) else "")
 
 
 def build_context(scene: Scene, bands: dict, stats_by_band: dict, per_band: bool, extra: dict | None = None) -> dict:
@@ -94,18 +106,21 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
     """Placeholder values: scene names, facts every product has (dates, resolution, CRS), what the sensors share
     (e.g. NISAR track and frame) and each product's own namespace under its input id (``{L.wavelength_cm}``).
 
-    With ``strict`` the products must agree on everything the sensors call shared (same pass); a before/after template
-    passes ``strict=False`` and gets the reference input's values."""
+    With ``strict`` the products must agree on everything the sensors call shared (same pass). Without it, the keys they
+    disagree on (e.g. NISAR ``track``) are left out, so a layout that uses them fails with an unknown-placeholder error
+    instead of printing one input's value as if it were shared."""
     metas = {k: p.meta for k, p in products.items()}
     order = [k for k in scene.inputs if k in products] or list(products)
     ref_key = order[0]
     ref = products[ref_key]
-    if strict:
-        for key, p in products.items():
-            diff = {k: (ref.shared[k], v) for k, v in p.shared.items() if k in ref.shared and ref.shared[k] != v}
-            if diff:
-                what = ", ".join(f"{k} {a} vs {b}" for k, (a, b) in diff.items())
-                raise LayoutError(f"inputs are not from the same pass: {ref_key} and {key} differ in {what}")
+    disagree: set = set()
+    for key, p in products.items():
+        diff = {k: (ref.shared[k], v) for k, v in p.shared.items() if k in ref.shared and ref.shared[k] != v}
+        if diff and strict:
+            what = ", ".join(f"{k} {a} vs {b}" for k, (a, b) in diff.items())
+            raise LayoutError(f"inputs are not from the same pass: {ref_key} and {key} differ in {what}; "
+                              "set allow_different_passes = true on the figure if that is intended")
+        disagree |= set(diff)
     starts = [m["start"] for m in metas.values()]
     start = min(starts)
     end = max(m["end"] for m in metas.values())
@@ -126,7 +141,7 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
         "times_label": f"{_times(metas)} UTC" if _times(metas) else "",
         "time_utc": f"{start:%H:%M}", "start_utc": f"{start:%H:%M:%S}", "end_utc": f"{end:%H:%M:%S}",
         "posting_m": int(res) if float(res).is_integer() else res, "crs": ref.meta["crs"],
-        **ref.shared,
+        **{k: v for k, v in ref.shared.items() if k not in disagree},  # a disputed value is left out, not guessed
         "stretch_note": "each band stretched on its own" if per_band else "same colours and stretch in both bands",
         "stretch_warning": "Colours are not comparable between bands (own stretch)." if per_band else "",
         # inputs whose calibration is unpopulated; empty when all are calibrated (lines using it can be conditional)

@@ -10,7 +10,7 @@ from satviz.core import sensor
 from satviz.sensors import stac_optical as so
 
 LANDSAT_C2L2 = so.OpticalCollection(
-    sensor="landsat_c2l2", provider="planetary-computer", collection="landsat-c2-l2", platform="Landsat", label="Collection 2 L2",
+    sensor="landsat_c2l2", provider="planetary-computer", collection="landsat-c2-l2", platform="Landsat", label="C2 L2",
     bands=dict(blue="blue", green="green", red="red", nir="nir08", swir16="swir16", swir22="swir22"),
     reference_band="red", quality_asset="qa_pixel",
     # QA_PIXEL bits: 0 fill, 1 dilated cloud, 2 cirrus, 3 cloud, 4 cloud shadow. Value 0 only occurs outside the scene.

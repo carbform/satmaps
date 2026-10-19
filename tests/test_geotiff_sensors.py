@@ -1,3 +1,5 @@
+import importlib.util
+
 import numpy as np
 import pytest
 
@@ -12,8 +14,7 @@ from satviz.sensors.sentinel1 import SENTINEL1_RTC as S1
 from satviz.sources import SourceError
 from tests.test_optical import FakeWorld, item, spec
 
-rasterio = pytest.importorskip("rasterio")
-from rasterio.transform import from_origin  # noqa: E402
+needs_rasterio = pytest.mark.skipif(importlib.util.find_spec("rasterio") is None, reason="pip install -e '.[optical]'")
 
 load_builtin()
 EPSG = 32646
@@ -22,6 +23,9 @@ AREA = Area(EPSG, X0 + 100, Y0 - 700, X0 + 700, Y0 - 100, 10)  # 60 x 60 canvas 
 
 
 def write_tif(path, arrays, res=10.0, size=100, nodata=None):
+    import rasterio
+    from rasterio.transform import from_origin
+
     with rasterio.open(path, "w", driver="GTiff", height=size, width=size, count=len(arrays), dtype=arrays[0].dtype,
                        crs=f"EPSG:{EPSG}", transform=from_origin(X0, Y0, res, res), nodata=nodata) as dst:
         for i, a in enumerate(arrays, 1):
@@ -35,6 +39,7 @@ def gspec(**opts):
     return InputSpec("liss", "geotiff", "", base)
 
 
+@needs_rasterio
 def test_geotiff_optical_band_map_scale_and_credit(tmp_path):
     dn = [np.full((100, 100), v, np.uint16) for v in (1000, 2000, 3000)]  # band 1 blue, 2 green, 3 red
     dn[2][:10] = 0  # nodata rows in the red band
@@ -50,6 +55,7 @@ def test_geotiff_optical_band_map_scale_and_credit(tmp_path):
     assert info.epsg == EPSG and info.resolution_m == 10 and info.phase == (X0 + 5, Y0 - 5)
 
 
+@needs_rasterio
 def test_geotiff_one_file_per_band_and_coarse_pixels_are_declared(tmp_path):
     for name, v in (("b1", 10), ("b2", 20)):
         write_tif(tmp_path / f"{name}.tif", [np.full((20, 20), v, np.uint16)], res=50.0, size=20)
@@ -58,6 +64,7 @@ def test_geotiff_one_file_per_band_and_coarse_pixels_are_declared(tmp_path):
     assert np.allclose(prod.layers["green"], 20) and any("50 m pixels are resampled" in c for c in prod.caveats)
 
 
+@needs_rasterio
 def test_geotiff_sar_amplitude_becomes_power_and_uses_the_generic_sar_recipe(tmp_path):
     ramp = np.linspace(0.05, 0.2, 100, dtype=np.float32)[None, :].repeat(100, 0)
     write_tif(tmp_path / "sar.tif", [ramp, ramp / 2])
@@ -78,11 +85,13 @@ def test_geotiff_sar_amplitude_becomes_power_and_uses_the_generic_sar_recipe(tmp
     ({"credit": ""}, "`credit` is required"),
     ({"colour": 1}, "unknown key"),
 ])
+@needs_rasterio
 def test_geotiff_misconfiguration_is_explained(tmp_path, opts, msg):
     with pytest.raises(SourceError, match=msg):
         geotiff.open_on_canvas(gspec(**opts), AREA.canvas(), AREA, tmp_path)
 
 
+@needs_rasterio
 def test_a_recipe_missing_a_band_is_refused_clearly(tmp_path):
     write_tif(tmp_path / "scene.tif", [np.full((100, 100), 1000, np.uint16)] * 3)
     prod = geotiff.open_on_canvas(gspec(), AREA.canvas(), AREA, tmp_path)
@@ -92,6 +101,7 @@ def test_a_recipe_missing_a_band_is_refused_clearly(tmp_path):
         check_recipe("ndvi", RECIPES["ndvi"], prod, "liss")
 
 
+@needs_rasterio
 def test_a_file_that_misses_the_area_is_reported(tmp_path):
     write_tif(tmp_path / "scene.tif", [np.full((100, 100), 1000, np.uint16)] * 3)
     far = Area(EPSG, X0 + 50_000, Y0 - 50_700, X0 + 50_600, Y0 - 50_100, 10)
@@ -141,7 +151,8 @@ def test_sentinel1_picks_polarisations_orbit_query_and_has_no_cloud(monkeypatch)
                              area.canvas(), area, S1)
     assert prod.kind == "sar" and prod.meta["platform"] == "Sentinel-1D" and prod.facts.polarisations == "VV/VH"
     assert np.allclose(prod.layers["co"], 0.2) and prod.valid.all() and prod.facts.cloud_pct == 0
-    assert "no noise floor published" in prod.caveats[0] and prod.meta["attribution"] == "Copernicus Sentinel"
+    assert "no noise floor published" in prod.caveats[0]
+    assert prod.meta["attribution"] == ("Copernicus Sentinel", "Catalyst") and "CC BY 4.0" in prod.meta["credit"]
     from satviz.sensors.sentinel2 import SENTINEL2_L2A
 
     with pytest.raises(SourceError, match="orbit"):  # optical collections have no orbit direction to filter on

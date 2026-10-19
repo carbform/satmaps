@@ -42,7 +42,7 @@ class OpticalCollection:
     quality_asset: str | None  # per-pixel quality layer; None: coverage is judged from the reference band, cloud is 0
     cloud_mask: Callable[[np.ndarray], np.ndarray]  # quality array -> bool, cloud / shadow / cirrus
     nodata_mask: Callable[[np.ndarray], np.ndarray]  # quality array -> bool, no data
-    attribution: str  # text that must appear in the credits
+    attribution: str | tuple  # text (or every fragment of a tuple) that must appear in the credits
     credit: Callable[[int, str], str]  # (year, platform) -> credit line
     kind: str = "optical"  # layer vocabulary of the product: "optical" or "sar"
     group_key: Callable[[dict], str] = field(default=lambda it: it["properties"]["datetime"][:10])

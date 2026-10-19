@@ -12,7 +12,7 @@ from matplotlib.patches import Rectangle
 
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, check_recipe
-from satviz.layout import Layout, LayoutError, build_context_products
+from satviz.layout import Layout, LayoutError, acquisition_label, build_context_products
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
@@ -28,7 +28,7 @@ def panel_text(lay: Layout, key: str, prod) -> str:
     """Chip text on the hero: the layout's `panels.<id>`, else the product's own label."""
     if lay.get(f"panels.{key}") is not None:
         return lay.text(f"panels.{key}")
-    return f"{prod.meta['platform']} {prod.meta['label']}".upper()
+    return f"{prod.meta['platform']} {prod.meta['label']} · {acquisition_label(prod.meta)}".upper()
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, str] = ("L", "S"),

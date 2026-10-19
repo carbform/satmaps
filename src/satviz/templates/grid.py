@@ -59,7 +59,7 @@ def layout_cells(n: int, aspect: float) -> tuple[int, int, float]:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, ...], recipe: str | dict = "sar_fcc",
-           theme: str = "neo_retro", stem: str | None = None, **_) -> list[Path]:
+           theme: str = "neo_retro", stem: str | None = None, strict: bool = True) -> list[Path]:
     """`inputs` are two to six input ids in reading order (left to right, top to bottom); `recipe` is one name or {id: name}."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -75,7 +75,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
             raise LayoutError(str(e)) from None
         rendered[k] = recs[k].render(products[k])
     first = rendered[inputs[0]]
-    lay = Layout(layout, build_context_products(scene, {k: products[k] for k in inputs}, True, strict=False))
+    lay = Layout(layout, build_context_products(scene, {k: products[k] for k in inputs}, True, strict=strict))
 
     legend = grid_legend([rendered[k].legend for k in inputs])
     caveats = list(dict.fromkeys(c for k in inputs for c in rendered[k].caveats))

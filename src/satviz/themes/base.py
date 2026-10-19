@@ -127,8 +127,10 @@ def assemble_credits(lay: Layout, required=None) -> list[str]:
     `required` is a list of (text that has to appear, line to add if it does not)."""
     credits = lay.lines("credits.lines", limit=3) if lay.get("credits.lines") is not None else []
     missing = []
+    text = " | ".join(credits).upper()
     for must, line in required or []:
-        if not any(must.upper() in c.upper() for c in credits) and shout(line) not in missing:
+        musts = must if isinstance(must, (tuple, list)) else (must,)
+        if not all(m.upper() in text for m in musts) and shout(line) not in missing:
             missing.append(shout(line))
     if missing:
         credits.append("DATA  " + "  ·  ".join(missing))

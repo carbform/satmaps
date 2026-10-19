@@ -25,7 +25,10 @@ SENTINEL1_RTC = so.OpticalCollection(
     sensor="sentinel1_rtc", provider="planetary-computer", collection="sentinel-1-rtc", platform="Sentinel-1", label="RTC",
     bands=dict(co="vv", cross="vh"), reference_band="co", quality_asset=None,
     cloud_mask=lambda q: np.zeros(q.shape, bool), nodata_mask=lambda q: q == 0,
-    attribution="Copernicus Sentinel", credit=lambda year, platform: f"Contains modified Copernicus Sentinel data {year}",
+    # CC BY 4.0 (Planetary Computer collection metadata): the RTC processor (Catalyst) and the host are credited too
+    attribution=("Copernicus Sentinel", "Catalyst"),
+    credit=lambda year, platform: (f"Contains modified Copernicus Sentinel data {year}; "
+                                   "RTC by Catalyst via Microsoft Planetary Computer (CC BY 4.0)"),
     kind="sar",
     group_key=lambda it: f"{it['properties']['datetime'][:10]}_{it['properties'].get('sat:relative_orbit', '')}",
     platform_of=lambda it: it["properties"].get("platform", "sentinel-1").title(),  # "sentinel-1d" -> "Sentinel-1D"

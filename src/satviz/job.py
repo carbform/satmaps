@@ -15,7 +15,7 @@ from satviz.config import DATA_DIR_ENV, LEGACY_DATA_DIR_ENV, InputSpec, Scene
 
 TOP_LEVEL = {"extends", "scene", "area", "inputs", "figures", "zooms", "callouts"}
 SCENE_KEYS = ("name", "reach", "locality", "region", "callout_caption", "author", "website")
-FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "pairs", "stretch", "name"}
+FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "pairs", "stretch", "name", "allow_different_passes"}
 
 
 class JobError(ValueError):
@@ -33,6 +33,7 @@ class FigureSpec:
     pairs: str | None = None  # "all": one figure per unordered pair of `inputs`
     stretch: str | None = None  # compare: "per-band" or "pooled"
     name: str | None = None  # output filename stem
+    strict: bool = True  # inputs must share a pass (NISAR track/frame); allow_different_passes = true lifts it
 
 
 @dataclass(frozen=True)
@@ -128,4 +129,4 @@ def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
         raise JobError(f"{where}: stretch must be \"per-band\" or \"pooled\"")
     return FigureSpec(template=f["template"], inputs=ids, recipes=dict(f.get("recipes", {})), themes=themes,
                       layout=f.get("layout"), text=dict(f.get("text", {})), pairs=f.get("pairs"),
-                      stretch=f.get("stretch"), name=f.get("name"))
+                      stretch=f.get("stretch"), name=f.get("name"), strict=not f.get("allow_different_passes", False))

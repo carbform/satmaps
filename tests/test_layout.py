@@ -117,7 +117,13 @@ def test_products_with_differing_passes_are_allowed_when_not_strict(scene, tmp_p
 
     write_granule(tmp_path / "L.h5", "science/LSAR/GCOV", make_raw(2), instrument="LSAR", freq_hz=1.239e9, track=113)
     prods = {b: load_product(scene, b) for b in "LS"}
-    assert build_context_products(scene, prods, strict=False)["track"] == 112  # reference input is the first in the scene
+    ctx = build_context_products(scene, prods, strict=False)
+    assert "track" not in ctx and ctx["frame"] == 16  # the disputed value is left out, the agreed one kept
+    lay = Layout({"_path": "x.toml", "h": {"t": "TRACK {track}"}}, ctx)
+    with pytest.raises(LayoutError, match="unknown placeholder"):  # a layout that relies on it fails loudly
+        lay.text("h.t")
+    with pytest.raises(LayoutError, match="allow_different_passes"):
+        build_context_products(scene, prods)
 
 
 def test_required_credits_are_merged_into_one_data_line_and_never_dropped():
@@ -130,3 +136,34 @@ def test_required_credits_are_merged_into_one_data_line_and_never_dropped():
     assert out == ["VIZ  ME", "DATA  NISAR L2 GCOV · γ⁰  ·  CONTAINS MODIFIED COPERNICUS SENTINEL DATA 2026"]
     covered = Layout({"_path": "x.toml", "credits": {"lines": ["DATA  nisar, copernicus sentinel"]}}, {})
     assert assemble_credits(covered, need[:2]) == ["DATA  nisar, copernicus sentinel"]  # already credited: nothing added
+
+
+def test_dates_form_a_range_and_times_are_not_listed_when_days_differ(scene):
+    from datetime import datetime
+
+    from satviz.layout import _dates_label, _times, acquisition_label, build_context_products
+    from satviz.sensors.nisar_gcov import load as load_product
+
+    assert _dates_label([datetime(2026, 9, 25, 22, 57)] * 2) == "25 Sep 2026"
+    assert _dates_label([datetime(2026, 9, 25, 22, 57), datetime(2026, 9, 24, 4, 30)]) == "24 – 25 Sep 2026"
+    assert _dates_label([datetime(2026, 8, 28), datetime(2026, 9, 3)]) == "28 Aug – 3 Sep 2026"
+    prods = {b: load_product(scene, b) for b in "LS"}
+    prods["S"].meta["start"] = datetime(2026, 9, 24, 4, 30)
+    ctx = build_context_products(scene, prods, strict=False)
+    assert ctx["date"] == "24 – 25 Sep 2026" and ctx["times_utc"] == "" and ctx["times_label"] == ""  # no unpairable times
+    assert acquisition_label(prods["S"].meta) == "24 Sep 04:30" and acquisition_label(prods["L"].meta).startswith("25 Sep")
+    prods["S"].meta["time_known"] = False
+    assert acquisition_label(prods["S"].meta) == "24 Sep"
+    same_day = {b: load_product(scene, b) for b in "LS"}
+    assert _times({k: p.meta for k, p in same_day.items()}) == "22:57"  # same day: unchanged behaviour
+
+
+def test_attribution_can_require_several_fragments():
+    from satviz.themes.base import assemble_credits
+
+    lay = Layout({"_path": "x.toml", "credits": {"lines": ["DATA  Contains modified Copernicus Sentinel data 2026"]}}, {})
+    need = [(("Copernicus Sentinel", "Catalyst"), "Contains modified Copernicus Sentinel data 2026; RTC by Catalyst (CC BY 4.0)")]
+    out = assemble_credits(lay, need)
+    assert len(out) == 2 and "CATALYST" in out[1]  # Copernicus alone is not enough: the processor is credited too
+    both = Layout({"_path": "x.toml", "credits": {"lines": ["DATA  copernicus sentinel; catalyst"]}}, {})
+    assert assemble_credits(both, need) == ["DATA  copernicus sentinel; catalyst"]

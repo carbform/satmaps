@@ -43,8 +43,8 @@ a `sensor` and a `source` path or glob), optional `[[zooms]]` by place, and whic
 `pairs = "all"` for every pair of three or more inputs, or `grid` for 2 to 6 panels). Place names, titles and credits are yours to write. A worked
 example is [jobs/brahmaputra_l_vs_s.toml](jobs/brahmaputra_l_vs_s.toml), which reproduces the L-vs-S and S-band graphics
 exactly. The area defines one pixel grid and every input is read onto it, so the inputs always line up. Grids that
-already match are copied, others are resampled. A `<job>.lock.json` next to the outputs records the grid and the files
-used. The built-in wording needs no layout file; sensors add their own attribution and caveats (calibration state,
+already match are copied, others are resampled. A `<job>.lock.json` next to the outputs records the grid, the input files and the catalogue scenes that were chosen
+(it documents a run; to repeat a scene exactly, pin it with `item = "..."`). The built-in wording needs no layout file; sensors add their own attribution and caveats (calibration state,
 noise screening) and these cannot be removed.
 
 ### Inputs: SAR, optical, anything with a GeoTIFF
