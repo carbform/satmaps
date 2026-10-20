@@ -50,9 +50,23 @@ def default_recipe(product: Product, input_id: str = "") -> str:
                         f"no default recipe fits, set recipes = {{ {input_id} = \"...\" }} in the figure")
 
 
+def shared_optical_recipe(products: list[Product]) -> str | None:
+    """The first preferred optical recipe every product can do, so several optical inputs show the same composite."""
+    for name in OPTICAL_PREFERENCE:
+        if all(layer in p.layers for p in products for layer in RECIPES[name].needs):
+            return name
+    return None
+
+
 def pick_recipes(named: dict, products: dict, combo: tuple[str, ...]) -> dict[str, str]:
-    """Per input: its entry in the figure's `recipes`, else `default`, else the sensor-appropriate default."""
-    return {k: named.get(k) or named.get("default") or default_recipe(products[k], k) for k in combo}
+    """Per input: its entry in the figure's `recipes`, else `default`, else a sensor-appropriate default.
+
+    With several optical inputs and nothing named, they all get one recipe (LISS-IV, which has no blue band, next to Sentinel-2
+    gets NIR false colour on both sides), so the figure compares like with like."""
+    optical = [products[k] for k in combo if products[k].kind == "optical"]
+    shared = shared_optical_recipe(optical) if len(optical) > 1 else None
+    return {k: named.get(k) or named.get("default") or (shared if shared and products[k].kind == "optical" else None)
+            or default_recipe(products[k], k) for k in combo}
 
 
 def pairs(ids: list[str]) -> list[tuple[str, ...]]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from collections import Counter
 from pathlib import Path
 
 from satviz.area import AreaError
@@ -89,6 +90,7 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
         products[k] = _sensor(spec).open(spec, canvas, job.area, job.scene.data_dir, cache_dir, job.scene.name)
 
     written = []
+    per_figure = Counter(id(f) for f, _ in plan)
     for fig, combo in plan:
         try:
             resolved = TEMPLATES[fig.template].resolve(fig, combo, products, job.scene)
@@ -101,6 +103,8 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
                 parts = [fig.name]
                 if len(combo) == 2 and len(plan) > 1:
                     parts.append(f"{combo[0]}vs{combo[1]}")
+                elif len(combo) == 1 and per_figure[id(fig)] > 1:  # one file per input must not overwrite its siblings
+                    parts.append(combo[0])
                 stem = "_".join([*parts, THEMES[theme].tag])
             written += draw(resolved, scene=scene, products=products, out_dir=out, layout=layout, combo=combo, theme=theme,
                             stem=stem, slot=list(job.inputs).index(combo[0]), strict=fig.strict, stretch=fig.stretch)

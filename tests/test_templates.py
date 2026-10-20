@@ -188,3 +188,47 @@ def test_every_shipped_preset_loads_and_plans(tmp_path):
         job = load_job(copy, tmp_path)
         for f in job.figures:
             assert f.template in TEMPLATES and plan_figure(f, job), preset.name
+
+
+def test_named_figures_with_one_file_per_input_do_not_overwrite_each_other(scene, tmp_path):
+    from tests.test_job import JOB as BASE  # NISAR L and S inputs
+
+    p = tmp_path / "j.toml"
+    p.write_text(BASE + '\n[[figures]]\nname = "x"\ntemplate = "sar"\ninputs = ["L", "S"]\ntheme = "minimal"\n'
+                 '\n[[figures]]\nname = "y"\ntemplate = "single"\ninputs = ["L", "S"]\ntheme = "minimal"\n')
+    paths = run_job(load_job(p, scene.data_dir), tmp_path / "out")
+    names = sorted(q.name for q in paths)
+    assert names == ["x_L_Minimal.png", "x_S_Minimal.png", "y_L_Minimal.png", "y_S_Minimal.png"]
+    assert all(q.exists() for q in paths)
+
+
+def test_no_band_is_claimed_for_a_sar_product_that_does_not_state_one():
+    l = sar("L", "NISAR", "L", 24.2)
+    untagged = sar("A", "ALOS-2", "", 0.0)
+    del untagged.meta["radar_band"], untagged.meta["wavelength_cm"]  # e.g. a generic GeoTIFF
+    r = relate([l, untagged])
+    assert r.kind == "sar_band_unknown" and r.label == "SAR · DIFFERENT SENSORS"
+    assert "band" not in r.label.replace("SAR ·", "").lower() and not any("-band" in n for n in r.notes)
+    assert any("Radar band not stated by the ALOS-2 product" in n for n in r.notes)
+    twin = sar("B", "ALOS-2", "", 0.0)
+    del twin.meta["radar_band"], twin.meta["wavelength_cm"]
+    assert relate([untagged, twin]).label == "SAR · SAME SENSOR"  # never "different bands" with an empty band list
+
+
+def test_a_band_letter_without_a_frequency_is_stated_without_a_wavelength():
+    c = sar("C", "Sentinel-1D", "C", 0.0)
+    del c.meta["wavelength_cm"]
+    l = sar("L", "NISAR", "L", 24.2)
+    notes = " | ".join(relate([l, c]).notes)
+    assert "L-band 24.2 cm, C-band" in notes and "C-band 0" not in notes
+
+
+def test_several_optical_inputs_share_one_recipe_when_none_is_named():
+    liss = optical("L4", "ResourceSat-2", layers=("green", "red", "nir"))  # no blue
+    s2 = optical("S2", "Sentinel-2")
+    both = {"L4": liss, "S2": s2}
+    assert pick_recipes({}, both, ("L4", "S2")) == {"L4": "nir_fcc", "S2": "nir_fcc"}  # like with like
+    assert pick_recipes({"S2": "ndvi"}, both, ("L4", "S2")) == {"L4": "nir_fcc", "S2": "ndvi"}  # a named recipe still wins
+    assert pick_recipes({}, {"S2": s2}, ("S2",)) == {"S2": "true_colour"}  # alone it keeps true colour
+    mixed = {"E": sar("E", "EOS-04", "C", 5.55), "L4": liss, "S2": s2}
+    assert pick_recipes({}, mixed, ("E", "L4", "S2")) == {"E": "sar_fcc", "L4": "nir_fcc", "S2": "nir_fcc"}

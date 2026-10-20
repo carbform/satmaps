@@ -232,7 +232,7 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, coll: OpticalCollection, ca
         key=spec.key, layers=layers, x=canvas.x, y=canvas.y, epsg=canvas.epsg, valid=valid, kind=coll.kind,
         meta=dict(platform=platform, sensor=coll.label, label=coll.label, start=when, end=max(times),
                   resolution_m=canvas.res, crs=crs_label(canvas.epsg), attribution=coll.attribution,
-                  **(radar_facts(float(props["sar:center_frequency"])) if "sar:center_frequency" in props else {}),
+                  **_radar_meta(props),
                   **({"backscatter": "gamma0, terrain-corrected"} if coll.kind == "sar" else {}),
                   credit=coll.credit(when.year, platform), items=assess["ids"]),
         facts=SimpleNamespace(cloud_pct=cloud, coverage_pct=100 * assess["coverage"], items=", ".join(assess["ids"]),
@@ -241,6 +241,15 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, coll: OpticalCollection, ca
                               polarisations="/".join(props.get("sar:polarizations", []))),
         caveats=caveats,
     )
+
+
+def _radar_meta(props: dict) -> dict:
+    """Band facts from a catalogue item: the centre frequency when given, else just the band letter, else nothing."""
+    if "sar:center_frequency" in props:
+        return radar_facts(float(props["sar:center_frequency"]))
+    if props.get("sar:frequency_band"):
+        return dict(radar_band=str(props["sar:frequency_band"]).upper())
+    return {}
 
 
 def search_rows(spec, coll: OpticalCollection, area: Area, canvas: Canvas, cache_dir=None) -> list[dict]:

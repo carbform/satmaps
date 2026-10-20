@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from satviz.core import Product
+from satviz.radar import BANDS
 
 
 @dataclass(frozen=True)
@@ -45,9 +46,10 @@ def time_gap(products: list[Product]) -> str:
 
 
 def _bands(products: list[Product]) -> list[tuple[str, float]]:
-    """(band letter, wavelength cm) of each distinct SAR band, longest wavelength first."""
-    seen = {p.meta["radar_band"]: p.meta.get("wavelength_cm", 0.0) for p in products if p.meta.get("radar_band")}
-    return sorted(seen.items(), key=lambda kv: -kv[1])
+    """(band letter, wavelength cm or 0 when only the letter is known) of each distinct SAR band, longest wavelength first."""
+    seen = {p.meta["radar_band"]: p.meta.get("wavelength_cm", 0.0) for p in products}
+    order = [b for b, _, _ in BANDS]
+    return sorted(seen.items(), key=lambda kv: order.index(kv[0]) if kv[0] in order else len(order))
 
 
 def _backscatter(products: list[Product]) -> str:
@@ -71,9 +73,15 @@ def relate(products: list[Product]) -> Relation:
         if same_platform:
             return Relation("optical_same_sensor", f"{platforms[0].upper()} · {len(products)} SCENES", (gap,) if gap else ())
         return Relation("optical_different_sensors", "OPTICAL · DIFFERENT SENSORS", (gap,) if gap else ())
+    if untagged := [p for p in products if not p.meta.get("radar_band")]:
+        # a band claim needs every product to state its band; otherwise say so instead of guessing
+        names = ", ".join(dict.fromkeys(p.meta.get("label") or p.meta["platform"] for p in untagged))
+        label = "SAR · " + ("SAME SENSOR" if same_platform else "DIFFERENT SENSORS")
+        notes = [gap, f"Radar band not stated by the {names} product", _backscatter(products)]
+        return Relation("sar_band_unknown", label, tuple(n for n in notes if n))
     bands = _bands(products)
     letters = [b for b, _ in bands]
-    wl = ", ".join(f"{b}-band {w:g} cm" for b, w in bands)
+    wl = ", ".join(f"{b}-band {w:g} cm" if w else f"{b}-band" for b, w in bands)
     if same_platform and len(bands) == 1:
         kind, label = "same_sensor_same_band", f"SAME SENSOR · {letters[0]}-BAND"
         notes = [gap]
