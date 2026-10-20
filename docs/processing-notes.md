@@ -107,6 +107,8 @@ is dark. Unexplained (wind-roughened water, or a noise floor that is too low?). 
 
 ## Corrections to the first assessment
 
+(The first assessment was an early draft written from the JPL L-SAR specification alone. It was removed in the Oct 2026 cleanup, with the other early exploration material; it is in the git history. What it got wrong is listed here.)
+
 | Earlier statement | Now |
 |---|---|
 | "RFI `FDNF` not defined" | An RFI-mitigation algorithm name (ISRO document). Mitigation was applied to S-band. |

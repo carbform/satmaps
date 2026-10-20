@@ -35,21 +35,29 @@ and no theme can hide the caveat strip.
 - Registries with decorators: `@sensor("nisar_gcov")`, `@recipe("sar_fcc")`, `@theme("neo_retro")`, `@template("compare")`.
   Third-party additions are one file each.
 
-## Package layout (target)
+## Package layout
+
+(Updated Oct 2026; the original target layout is in the git history. See also [pipelines.md](pipelines.md).)
 
 ```
 src/satviz/
-  core.py            Product, Rendered, registries
-  sensors/           nisar_gcov.py (from io/metadata/processing)  sentinel2.py  landsat.py  (optional extra)
-  recipes/           sar_fcc.py (from composite)  optical.py (true colour, NIR, NDVI, NDWI)
-  themes/            minimal.py  neo_retro.py  neo_brutal.py  editorial.py   (tokens + chrome primitives)
-  templates/         single.py  compare.py  clean.py  publication.py  newspaper.py
-  layout.py          TOML wording, placeholders (generic keys + per-product namespaces)
-  search/            stac.py (Earth Search: bbox + date -> items; optional extra)
-  grid.py            common-grid resampling for cross-sensor comparison
-  cli.py
-layouts/             wording files; recipes and sensors supply defaults for legend and caveats
-configs/             [[inputs]] sensor=…, path|stac=…, roi (lon/lat bbox, or rows/cols for NISAR)
+  core.py            Product, BandInfo, Rendered, registries (sensors, recipes, templates, themes)
+  registry.py        loads the built-in plugins; `satviz list`
+  sensors/           nisar_gcov/  eos04  sentinel1_grd  sentinel1 (RTC, catalogue)  sentinel2 (catalogue)  sentinel2_safe (local)
+                     landsat  liss4  geotiff;  nrsc.py (shared NRSC metadata), stac_optical.py (shared catalogue reader)
+  recipes/           sar_fcc  optical (true colour, NIR/SWIR false colour, NDVI, NDWI)  bands (single-band grey panels)
+  templates/         scenarios: optical, sar, multispectral, optical_sar, sar_vs_sar; generic: single, compare, grid
+  relations.py       how the products of a figure relate (band, sensor, time gap, backscatter convention, reflectance level)
+  radar.py           radar band and wavelength from a centre frequency
+  arrangements/      single, compare, grid, bands: where products sit on the page; `draw` runs one
+  themes/            base (Theme tokens, chrome hooks, notice strip), neo_retro, minimal, neo_brutal, newspaper, xkcd
+  area.py grid.py job.py run.py sources.py cog.py   area -> canvas, resampling, job file, runner, data paths, GeoTIFF windows
+  config.py layout.py geo.py                        scene dataclasses, wording files and placeholders, projections
+  presets/  layouts/                                starter job files and built-in wording (shipped with the package)
+  legacy/            the NISAR-only figures behind `satviz render` (clean, publication)
+  cli.py             `satviz` (aliases: `nisar-viz`, `python -m nisar_viz`)
+legacy/              configs/ and layouts/ for `satviz render`
+jobs/                worked job files
 ```
 
 Dependencies: core stays `numpy, matplotlib, h5py, pyproj, scipy`. Optical adds `rasterio` and `pystac-client`
@@ -86,7 +94,7 @@ under extras `[optical]` / `[stac]`, so installing for NISAR-only use needs no G
 | 4 | `editorial` theme and `newspaper` template; template research for structure | newspaper page renders from the same inputs |
 | 5 | Other sensors (Sentinel-1 GRD, MODIS, …) as needed; docs; gallery; CI | one new sensor added by one file |
 
-## Status after Phase 2
+## Status after Phase 2 (history; superseded by the sections below)
 
 - `[[inputs]]` config (`[bands.X]` still parsed); `build_context_products` builds placeholders from products
   (generic facts, what sensors share, one namespace per input id).

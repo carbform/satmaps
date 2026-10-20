@@ -38,7 +38,6 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 130
 src = ["src", "tests"]
-extend-exclude = ["archive"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

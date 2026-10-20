@@ -236,7 +236,6 @@ jobs/             worked job files: Dibrugarh (NISAR, Sentinel-1, EOS-04, Sentin
 legacy/           configs/ and layouts/ for `satviz render`
 docs/             architecture, pipelines, processing notes, design language; references/ lists the (git-ignored) PDFs
 tests/            synthetic-data tests (no granules needed)
-archive/          earlier scripts and design explorations, unmaintained
 ```
 
 ## Fonts

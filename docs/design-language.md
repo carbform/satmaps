@@ -2,7 +2,7 @@
 
 The social graphic is "neo-retro": the structural honesty of neo-brutalism (outlined boxes, small hard shadows,
 monospace labels, a bento grid) with a quiet 70s tone in type and colour. It replaced two louder explorations
-(dark, then "retro-brutal telemetry" with stripes, starfield and a mission patch; see `archive/design-explorations/`).
+(dark, then "retro-brutal telemetry" with stripes, starfield and a mission patch). Those explorations were removed from the repository; they are in the git history before the cleanup of Oct 2026.
 
 ## One rule above the rest
 
