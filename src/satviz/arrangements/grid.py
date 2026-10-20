@@ -92,7 +92,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     x0 = AREA_BOX[0] + (AREA_BOX[2] - total_w) / 2
     ytop = AREA_BOX[1] + AREA_BOX[3] - (AREA_BOX[3] - total_h) / 2
 
-    with plt.rc_context({"font.family": list(t.body_font), "font.weight": "normal"}):
+    with plt.rc_context(t.rc_params()):
         fig = plt.figure(figsize=(FIG_W, FIG_H), facecolor=t.paper)
         social_header(fig, t, lay)
         for i, k in enumerate(inputs):
@@ -109,6 +109,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
                       required_credits=[(products[k].meta["attribution"], products[k].meta["credit"]) for k in inputs])
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(
             scene=f"{platforms([products[k] for k in inputs])}_{scene.name}", n=len(inputs), tag=t.tag))
+        t.finish(fig)
         fig.savefig(out, dpi=180, facecolor=t.paper)
         plt.close(fig)
     return [out]

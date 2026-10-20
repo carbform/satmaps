@@ -46,7 +46,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
     ext = r.extent
     H, W = r.rgba.shape[:2]
 
-    with plt.rc_context({"font.family": list(t.body_font), "font.weight": "normal"}):
+    with plt.rc_context(t.rc_params()):
         fig = plt.figure(figsize=(12, 15), facecolor=t.paper)
         social_header(fig, t, lay)
 
@@ -86,6 +86,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
 
         social_footer(fig, t, lay, legend=r.legend, caveats=[*r.caveats, *extra_caveats], required_credits=[(P.meta["attribution"], P.meta["credit"])])
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(scene=f"{platforms([P])}_{scene.name}", key=input, tag=t.tag))
+        t.finish(fig)
         fig.savefig(out, dpi=180, facecolor=t.paper)
         plt.close(fig)
     return [out]

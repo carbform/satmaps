@@ -18,6 +18,8 @@ def load_builtin() -> None:
     import satviz.themes.minimal  # noqa: F401
     import satviz.themes.neo_brutal  # noqa: F401
     import satviz.themes.neo_retro  # noqa: F401
+    import satviz.themes.newspaper  # noqa: F401
+    import satviz.themes.xkcd  # noqa: F401
 
     _register_templates()
 

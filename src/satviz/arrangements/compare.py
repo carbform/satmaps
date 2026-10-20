@@ -79,7 +79,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     xsplit = ext[0] + (ext[1] - ext[0]) * split / W
     rA_, rB_ = rA.rgba, rB.rgba
 
-    with plt.rc_context({"font.family": list(t.body_font), "font.weight": "normal"}):
+    with plt.rc_context(t.rc_params()):
         fig = plt.figure(figsize=(12, 15), facecolor=t.paper)
 
         social_header(fig, t, lay)
@@ -130,6 +130,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
         social_footer(fig, t, lay, legend=legend, caveats=caveats, required_credits=[(p.meta["attribution"], p.meta["credit"]) for p in (A, B)])
 
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(scene=f"{platforms([A, B])}_{scene.name}", a=a, b=b, tag=t.tag))
+        t.finish(fig)
         fig.savefig(out, dpi=180, facecolor=t.paper)
         plt.close(fig)
     return [out]

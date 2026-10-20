@@ -10,12 +10,22 @@ hide the notice strip.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import offset_copy
 
 from satviz.layout import Layout, LayoutError
+
+
+def installed(*families: str) -> tuple[str, ...]:
+    """The families of a font stack that are installed here, in order; the last (a bundled font) if none is.
+
+    Resolving the stack once keeps matplotlib from warning about every missing name, and the figure uses the first one found."""
+    from matplotlib import font_manager
+
+    have = {f.name for f in font_manager.fontManager.ttflist}
+    return tuple(f for f in families if f in have) or (families[-1],)
 
 
 @dataclass(frozen=True)
@@ -37,10 +47,33 @@ class Theme:
     title_size: float = 40
     shadow: tuple[float, float] = (0.0, 0.0)  # hard shadow offset, figure fraction; (0, 0) = none
     line_scale: float = 1.0  # multiplies every outline width
+    chrome: object | None = None  # optional overrides of `header` and `block` for a look the tokens alone cannot make
+    rc: dict = field(default_factory=dict)  # extra matplotlib rcParams for the page (e.g. a hand-drawn sketch effect)
+    sketch: bool = False  # `rc` sketches lines; `finish` then keeps the data axes exact (see below)
 
     @property
     def has_shadow(self) -> bool:
         return self.shadow != (0.0, 0.0)
+
+    def rc_params(self) -> dict:
+        """rcParams for the page: the body font, then the theme's own."""
+        return {"font.family": list(self.body_font), "font.weight": "normal", **self.rc}
+
+    def finish(self, fig) -> None:
+        """Last step before saving. A sketching theme styles the chrome only: every artist in an axes that shows data is put
+        back to exact lines (no sketch, no stroke effect), so scale bars, zoom boxes and split lines stay measurements."""
+        if not self.sketch:
+            return
+        for ax in fig.axes:
+            if not ax.images:
+                continue
+            for artist in ax.get_children():
+                targets = [artist]
+                if hasattr(artist, "get_bbox_patch") and artist.get_bbox_patch() is not None:  # a label's box is not a child
+                    targets.append(artist.get_bbox_patch())
+                for a in targets:
+                    a.set_sketch_params(None)
+                    a.set_path_effects([])
 
     def lw(self, base: float) -> float:
         return base * self.line_scale
@@ -53,6 +86,8 @@ def shout(text: str) -> str:
 
 def block(fig, t: Theme, x, y, w, h, fc=None, lw=1.5, shadow=True) -> None:
     """Filled, outlined panel in figure coordinates with an optional hard offset shadow."""
+    if hasattr(t.chrome, "block"):
+        return t.chrome.block(fig, t, x, y, w, h, fc, lw, shadow)
     if shadow and t.has_shadow:
         fig.add_artist(Rectangle((x + t.shadow[0], y + t.shadow[1]), w, h, transform=fig.transFigure,
                                  fc=t.ink, ec="none", zorder=0))
@@ -81,6 +116,8 @@ def chip(target, t: Theme, x, y, text, fc, fs=11, **kw):
 
 def social_header(fig, t: Theme, lay: Layout) -> None:
     """Title box with (if the theme has an accent) one soft offset behind the title, details right-aligned, and the info line under it."""
+    if hasattr(t.chrome, "header"):
+        return t.chrome.header(fig, t, lay)
     block(fig, t, 0.04, 0.885, 0.92, 0.09, fc=t.header_fc)
     title = lay.text("header.title")
     if t.accent:
