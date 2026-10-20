@@ -18,5 +18,5 @@ theme = "minimal"
 name = "radar_and_optical"
 template = "optical_sar"       # each SAR input against each optical input, SAR on the left
 inputs = ["E", "L4"]
-theme = "minimal"
+theme = ["neo_retro", "minimal", "neo_brutal", "newspaper", "xkcd"]   # one file per look
 text = { title = "Radar and optical, one coast" }
