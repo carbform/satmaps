@@ -7,11 +7,11 @@ import json
 from pathlib import Path
 
 from satviz.area import AreaError
+from satviz.arrangements import compare, grid, single
 from satviz.core import SENSORS, THEMES
 from satviz.job import FigureSpec, Job, JobError
 from satviz.layout import LayoutError, apply_text, default_layout, load_layout
 from satviz.registry import load_builtin
-from satviz.templates import compare, grid, single
 
 DEFAULT_RECIPE = {"sar": "sar_fcc", "optical": "true_colour"}  # by product kind, when a figure names none
 CHIP_SLOT = ("a", "b")

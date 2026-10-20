@@ -95,8 +95,8 @@ def test_shipped_layouts_render(scene, layouts_dir, tmp_path):
 def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):
     import copy
 
+    from satviz.arrangements import compare as ls_social
     from satviz.sensors.nisar_gcov import load as load_product
-    from satviz.templates import compare as ls_social
 
     bands = {b: load_product(scene, b) for b in "LS"}
     lay = copy.deepcopy(load_layout(layouts_dir, "ls_social"))

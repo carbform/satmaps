@@ -30,6 +30,7 @@ from satviz.area import Area, AreaError, Canvas
 from satviz.cog import _rasterio
 from satviz.core import Product, SourceInfo, sensor
 from satviz.geo import crs_label
+from satviz.radar import radar_facts
 from satviz.sensors import nrsc
 from satviz.sources import SourceError, resolve_one_file
 
@@ -153,7 +154,8 @@ def _annotation(path: Path) -> dict:
     root = ET.parse(path).getroot()
     return dict(start=datetime.fromisoformat(root.findtext(".//productFirstLineUtcTime")),
                 stop=datetime.fromisoformat(root.findtext(".//productLastLineUtcTime")),
-                orbit=root.findtext(".//pass", "").lower(), mission=root.findtext(".//missionId", "S1"),
+                orbit=root.findtext(".//pass", "").lower(),
+                freq_ghz=float(root.findtext(".//radarFrequency")) / 1e9, mission=root.findtext(".//missionId", "S1"),
                 res=float(root.findtext(".//rangePixelSpacing")), rel_orbit=root.findtext(".//relativeOrbitNumber", ""))
 
 
@@ -222,7 +224,7 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     return Product(
         key=spec.key, layers=layers, x=canvas.x, y=canvas.y, epsg=canvas.epsg, valid=valid, kind="sar",
         meta=dict(platform=platform, sensor="IW GRD", label=str(spec.options.get("label", "IW GRD")), start=when, end=when,
-                  resolution_m=canvas.res, crs=crs_label(canvas.epsg),
+                  resolution_m=canvas.res, crs=crs_label(canvas.epsg), **radar_facts(info["freq_ghz"]),
                   attribution=str(spec.options.get("attribution", "Copernicus Sentinel")), credit=credit, items=used),
         facts=SimpleNamespace(date=f"{when.day} {when:%b %Y}", files=folder.name, polarisations="/".join(pols),
                               orbit=info["orbit"], relative_orbit=info["rel_orbit"]),

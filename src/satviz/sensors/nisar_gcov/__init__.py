@@ -8,6 +8,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from satviz.core import Product, SourceInfo, sensor
+from satviz.radar import radar_facts
 from satviz.sensors.nisar_gcov.canvas import describe as describe_file
 from satviz.sensors.nisar_gcov.canvas import find_group, raw_on_canvas, window
 from satviz.sensors.nisar_gcov.facts import band_facts
@@ -29,6 +30,7 @@ def to_product(d: dict, st: dict | None = None) -> Product:
         key=d["band"], layers={k: d[k] for k in LAYER_KEYS}, x=d["x"], y=d["y"], epsg=d["epsg"], valid=d["valid"],
         meta=dict(platform="NISAR", sensor=m.instrument, label=f"{m.radar_band}-band", start=m.start, end=m.end,
                   resolution_m=m.posting_m, crs=m.crs, calibrated=m.calibrated,
+                  **radar_facts(m.freq_ghz, m.radar_band),
                   attribution="NISAR", credit="NISAR L2 GCOV (NASA-ISRO) · γ⁰"),
         facts=band_facts(m, st or stats(d)), caveats=caveats, native=d,
         shared=dict(track=m.track, frame=m.frame, pass_direction=m.pass_direction, look_direction=m.look_direction,

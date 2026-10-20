@@ -24,7 +24,7 @@ def test_figure_renders(name, scene, tmp_path, layouts_dir):
 
 
 def test_social_pooled_stretch_variant(scene, tmp_path, layouts_dir):
-    from satviz.templates import compare as ls_social
+    from satviz.arrangements import compare as ls_social
 
     bands = {b: load_product(scene, b) for b in "LS"}
     assert ls_social.render(scene, bands, tmp_path, load_layout(layouts_dir, "ls_social"), per_band=False)[0].exists()
@@ -44,7 +44,7 @@ def test_social_figures_render_in_every_theme(name, theme, scene, tmp_path, layo
 
 
 def test_unknown_theme_lists_available(scene, tmp_path, layouts_dir):
-    from satviz.templates import compare as ls_social
+    from satviz.arrangements import compare as ls_social
 
     bands = {b: load_product(scene, b) for b in "LS"}
     with pytest.raises(KeyError, match="neo_brutal"):
@@ -52,7 +52,7 @@ def test_unknown_theme_lists_available(scene, tmp_path, layouts_dir):
 
 
 def test_compare_takes_inputs_in_any_order(scene, tmp_path, layouts_dir):
-    from satviz.templates import compare
+    from satviz.arrangements import compare
 
     prods = {b: load_product(scene, b) for b in "LS"}
     out = compare.render(scene, prods, tmp_path, load_layout(layouts_dir, "ls_social"), inputs=("S", "L"))[0]
@@ -60,7 +60,7 @@ def test_compare_takes_inputs_in_any_order(scene, tmp_path, layouts_dir):
 
 
 def test_compare_rejects_inputs_on_different_grids(scene, tmp_path, layouts_dir):
-    from satviz.templates import compare
+    from satviz.arrangements import compare
 
     prods = {b: load_product(scene, b) for b in "LS"}
     prods["L"].x = prods["L"].x + 500.0
@@ -71,7 +71,7 @@ def test_compare_rejects_inputs_on_different_grids(scene, tmp_path, layouts_dir)
 def test_layout_without_legend_and_notes_uses_the_recipe_and_product(scene, tmp_path, layouts_dir):
     import copy
 
-    from satviz.templates import single
+    from satviz.arrangements import single
 
     lay = copy.deepcopy(load_layout(layouts_dir, "sband_social"))
     del lay["how_to_read"]["items"], lay["notes"]

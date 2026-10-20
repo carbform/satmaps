@@ -20,13 +20,14 @@ class Figure:
 
 
 FIGURES = {
-    "ls-social": Figure("satviz.templates.compare", ("L", "S"), "ls_social", {"inputs": ("L", "S")}, themed=True, products=True),
+    "ls-social": Figure("satviz.arrangements.compare", ("L", "S"), "ls_social", {"inputs": ("L", "S")}, themed=True,
+                        products=True),
     "ls-publication": Figure("satviz.figures.ls_publication", ("L", "S"), "ls_publication"),
     "ls-clean": Figure("satviz.figures.ls_clean", ("L", "S"), "ls_clean"),
     "sband-publication": Figure("satviz.figures.sband_publication", ("S",), "sband_publication"),
-    "sband-social": Figure("satviz.templates.single", ("S",), "sband_social", {"input": "S", "chip_slot": "b"},
+    "sband-social": Figure("satviz.arrangements.single", ("S",), "sband_social", {"input": "S", "chip_slot": "b"},
                          themed=True, products=True),
-    "lband-social": Figure("satviz.templates.single", ("L",), "lband_social", {"input": "L", "chip_slot": "a"},
+    "lband-social": Figure("satviz.arrangements.single", ("L",), "lband_social", {"input": "L", "chip_slot": "a"},
                          themed=True, products=True),
 }
 

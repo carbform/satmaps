@@ -11,11 +11,11 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from satviz.arrangements.compare import panel_text, platforms
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, LegendItem, check_recipe
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.registry import load_builtin
-from satviz.templates.compare import panel_text, platforms
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
 FILENAME = "{scene}_grid{n}_Social_{tag}.png"

@@ -24,6 +24,7 @@ from satviz.cog import read_window
 from satviz.core import Product, SourceInfo
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
+from satviz.radar import radar_facts
 from satviz.sources import SourceError, source_of
 
 SOURCE_KEYS = {"stac", "collection", "date", "window_days", "max_cloud", "pick", "min_coverage", "item", "items", "orbit"}
@@ -231,6 +232,7 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, coll: OpticalCollection, ca
         key=spec.key, layers=layers, x=canvas.x, y=canvas.y, epsg=canvas.epsg, valid=valid, kind=coll.kind,
         meta=dict(platform=platform, sensor=coll.label, label=coll.label, start=when, end=max(times),
                   resolution_m=canvas.res, crs=crs_label(canvas.epsg), attribution=coll.attribution,
+                  **(radar_facts(float(props["sar:center_frequency"])) if "sar:center_frequency" in props else {}),
                   credit=coll.credit(when.year, platform), items=assess["ids"]),
         facts=SimpleNamespace(cloud_pct=cloud, coverage_pct=100 * assess["coverage"], items=", ".join(assess["ids"]),
                               date=f"{when.day} {when:%b %Y}", collection=collection, provider=prov,

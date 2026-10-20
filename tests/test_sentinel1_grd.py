@@ -44,7 +44,7 @@ def safe_folder(tmp_path):
             "<product><adsHeader><missionId>S1D</missionId></adsHeader>"
             "<productFirstLineUtcTime>2026-09-25T11:48:37.5</productFirstLineUtcTime>"
             "<productLastLineUtcTime>2026-09-25T11:49:02.5</productLastLineUtcTime><pass>Ascending</pass>"
-            "<rangePixelSpacing>1.0e+01</rangePixelSpacing><relativeOrbitNumber>12</relativeOrbitNumber></product>")
+            "<radarFrequency>5.405000454334350e+09</radarFrequency><rangePixelSpacing>1.0e+01</rangePixelSpacing><relativeOrbitNumber>12</relativeOrbitNumber></product>")
         a = " ".join([str(CAL_A)] * 4)
         (folder / "annotation" / "calibration" / f"calibration-{stem}.xml").write_text(
             "<calibration><calibrationVectorList>" + vec("calibrationVector", 0, "sigmaNought", a)
@@ -100,6 +100,7 @@ def test_open_on_canvas_geolocates_calibrates_and_credits(tmp_path):
     prod = g.open_on_canvas(spec, canvas, area, tmp_path)
     assert prod.kind == "sar" and set(prod.layers) == {"co", "cross"} and prod.facts.polarisations == "VV/VH"
     assert prod.meta["platform"] == "Sentinel-1D" and prod.meta["credit"] == "Contains modified Copernicus Sentinel data 2026"
+    assert prod.meta["radar_band"] == "C" and prod.meta["wavelength_cm"] == pytest.approx(5.55, abs=0.01)
     assert any("not terrain-flattened" in c for c in prod.caveats)
     co = prod.layers["co"]
     flat = (600**2 - NOISE_R * NOISE_AZ) / CAL_A**2

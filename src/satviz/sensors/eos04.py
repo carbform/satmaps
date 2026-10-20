@@ -23,6 +23,7 @@ from satviz.cog import _rasterio, raster_epsg, read_window
 from satviz.core import Product, SourceInfo, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
+from satviz.radar import radar_facts
 from satviz.sensors import nrsc
 from satviz.sources import SourceError, resolve_one_file
 
@@ -59,6 +60,17 @@ def _mask(folder: Path) -> Path:
     if not hits:
         raise FileNotFoundError(f"{folder}: no *_mask.tif; the layover/shadow mask is required to use the data")
     return hits[0]
+
+
+def _radar(folder: Path) -> dict:
+    """Band and centre frequency from product.xml (`RadarBand`, `RadarCenterFrequency` in Hz)."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(folder / "product.xml").getroot()
+    hz = root.findtext(".//RadarCenterFrequency")
+    if hz is None:
+        raise SourceError(f"{folder.name}: product.xml has no RadarCenterFrequency")
+    return radar_facts(float(hz) / 1e9, root.findtext(".//RadarBand") or None)
 
 
 def gamma0_linear(dn: np.ndarray, k_beta0_db: float, noise_bias: float) -> np.ndarray:
@@ -118,7 +130,8 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
         key=spec.key, layers=layers, x=canvas.x, y=canvas.y, epsg=canvas.epsg, valid=valid & np.isfinite(layers["co"]),
         kind="sar",
         meta=dict(platform="EOS-04", sensor="SAR", label=str(spec.options.get("label", "SAR")), start=when, end=when,
-                  resolution_m=canvas.res, crs=crs_label(canvas.epsg), attribution=str(spec.options.get("attribution", credit)),
+                  resolution_m=canvas.res, crs=crs_label(canvas.epsg), **_radar(folder),
+                  attribution=str(spec.options.get("attribution", credit)),
                   credit=credit, items=files),
         facts=SimpleNamespace(date=f"{when.day} {when:%b %Y}", files=folder.name, polarisations="/".join(pols),
                               orbit=meta.get("Node", "").lower(), relative_orbit="", mode=meta["ImagingMode"].strip()),

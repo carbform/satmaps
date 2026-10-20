@@ -1,4 +1,4 @@
-"""Compare template (4:5): chrome around a split-view hero of two products and three zoom pairs.
+"""Compare arrangement (4:5): chrome around a split-view hero of two products and three zoom pairs.
 
 Any two products on one grid and any recipe: L-vs-S, before/after, SAR-vs-optical (once resampled to a common grid).
 """

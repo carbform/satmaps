@@ -126,9 +126,9 @@ def test_optical_recipes_render_and_check_the_product_kind(world):
 
 
 def test_compare_refuses_a_recipe_of_the_wrong_kind(scene, world, tmp_path, layouts_dir):
+    from satviz.arrangements import compare
     from satviz.layout import LayoutError, load_layout
     from satviz.sensors.nisar_gcov import load as load_nisar
-    from satviz.templates import compare
 
     world([item("a", "2026-09-24")], {"a": 4})
     opt = so.open_on_canvas(spec(date="2026-09-25"), CANVAS, AREA, S2)

@@ -30,6 +30,7 @@ RTC_Apply_Flag=1
 def product_folder(tmp_path, dn_hh=3000, dn_hv=900, rtc=1):
     folder = tmp_path / "E04_scene"
     folder.mkdir()
+    (folder / "product.xml").write_text("<p><RadarBand>C</RadarBand><RadarCenterFrequency units='Hz'>5.40e09</RadarCenterFrequency></p>")
     (folder / "BAND_META.txt").write_text(META.replace("RTC_Apply_Flag=1", f"RTC_Apply_Flag={rtc}"))
     for pol, v in (("HH", dn_hh), ("HV", dn_hv)):
         (folder / f"scene_{pol}").mkdir()
@@ -69,6 +70,7 @@ def test_open_on_canvas_layers_mask_and_credit(tmp_path):
     prod = eos04.open_on_canvas(espec(), AREA.canvas(phase=(X0 + 5, Y0 - 5)), AREA, tmp_path)
     assert prod.kind == "sar" and set(prod.layers) == {"co", "cross"} and prod.facts.polarisations == "HH/HV"
     assert prod.meta["credit"] == "EOS-04 SAR data, NRSC/ISRO" and prod.meta["platform"] == "EOS-04"
+    assert prod.meta["radar_band"] == "C" and prod.meta["freq_ghz"] == 5.4
     # canvas pixel (r, c) is raster pixel (r + 10, c + 10)
     assert not prod.valid[15, 15] and not prod.valid[30, 30] and prod.valid[5, 5]  # shadow, layover, clear
     assert np.isnan(prod.layers["co"][45, 45]) and not prod.valid[45, 45]  # DN below the noise bias

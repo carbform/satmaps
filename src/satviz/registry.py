@@ -23,7 +23,7 @@ def load_builtin() -> None:
 
 
 def _register_templates() -> None:
-    from satviz.templates import compare, grid, single
+    from satviz.arrangements import compare, grid, single
 
     for name, mod in (("single", single), ("compare", compare), ("grid", grid)):
         if name not in TEMPLATES:

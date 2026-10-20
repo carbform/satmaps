@@ -1,4 +1,4 @@
-"""Single template (4:5): one product as a full-width hero, plus the inputs of its recipe as small panels if it has any.
+"""Single arrangement (4:5): one product as a full-width hero, plus the inputs of its recipe as small panels if it has any.
 
 For a SAR composite the panels are the three channels it is built from; a recipe with none gets a larger hero.
 """
@@ -9,12 +9,12 @@ from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 
+from satviz.arrangements.compare import platforms
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, check_recipe
 from satviz.geo import project
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.registry import load_builtin
-from satviz.templates.compare import platforms
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
 FILENAME = "{scene}_{key}band_Social_{tag}.png"

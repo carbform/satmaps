@@ -163,8 +163,8 @@ def test_init_lists_and_writes_presets_that_parse(tmp_path, capsys):
 
 
 def test_grid_legend_merges_channel_mappings_across_families():
+    from satviz.arrangements.grid import grid_legend
     from satviz.core import LegendItem as L
-    from satviz.templates.grid import grid_legend
 
     nisar = [L("#r", "RED = HH  (SURFACE)"), L("#g", "GREEN = HV  (VOLUME)"), L("#b", "BLUE = HH−HV  (RATIO)"), L("noise", "GREY = NOISE")]
     s1 = [L("#r", "RED = VV  (SURFACE)"), L("#g", "GREEN = VH  (VOLUME)"), L("#b", "BLUE = VV−VH  (RATIO)")]
