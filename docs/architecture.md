@@ -211,3 +211,21 @@ Sentinel-1D RTC (same day) and Landsat 8 (same day, 0% cloud in the area), on on
 - Not done: ALOS PALSAR needs a real file to check its conventions (use `geotiff` with `values = "amplitude"` meanwhile);
   `date = "same_as:<input>"` (pick optical on the NISAR date automatically); place-name lookup (deferred by choice);
   `before-after` preset; the editorial theme and newspaper template (Phase 4).
+
+## Status: ISRO products and local Sentinel-1 (Oct 2026)
+
+Added as one module each under `sensors/`, with no change to recipes, themes or templates:
+
+| Sensor | Reads | Layers | Notes |
+|---|---|---|---|
+| `liss4` | ResourceSat-2 LISS-IV product folder | `green red nir` (TOA reflectance) | no blue band, so `nir_fcc`, `ndvi`, `ndwi` only; ESUN from the Disasters Charter LISS-4 page, not from `docs/` |
+| `eos04` | EOS-04 MRS Level-2B folder | `co cross` (linear gamma0) | `gamma0 = (DN^2 - noise bias) / 10^(K/10)`, K = the Beta0 constant (format document eq. 10); valid = mask 128 |
+| `sentinel1_grd` | unzipped `.SAFE` | `co cross` (linear sigma0) | image-space GCP warp; sigmaNought LUT and range/azimuth noise from the annotation |
+
+Shared by the NRSC readers: `sensors/nrsc.py` (`key=value` metadata, times) and `cog.raster_epsg` (NRSC GeoTIFFs carry
+UTM without an EPSG tag). One canvas per job is kept: a job names one place, so combinations are tried per region
+(`jobs/krishna_delta.toml`: EOS-04 + LISS-IV; `jobs/brahmaputra_sar.toml`: NISAR L, NISAR S, Sentinel-1 GRD).
+
+Checks on real data: NISAR L vs Sentinel-1 GRD water-mask cross-correlation peaks at zero offset at 30 m; EOS-04 HH/HV
+medians are -8.3 / -17.3 dB over the delta. Not settled by `docs/`: LISS-IV `SaturationRadiance` vs `Lmax` (about 9 %
+in green) and the EOS-04 Beta0 vs Gamma0 constant (1.1 dB; the document says Beta0).

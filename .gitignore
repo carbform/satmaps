@@ -1,11 +1,11 @@
-# Data: never track granules, rasters or the third-party PDFs
+# Data: never track granules, rasters, the data folder or the third-party PDFs
+data/
 *.h5
 *.hdf5
 *.tif
 *.tiff
 *.aux.xml
 *.pdf
-!docs/**/*.pdf
 
 # Generated
 outputs/

@@ -1,0 +1,117 @@
+"""ResourceSat-2 LISS-IV (NRSC/ISRO) multispectral product folders: green, red and near-infrared at 5 m.
+
+```toml
+[[inputs]]
+id = "liss"
+sensor = "liss4"
+source = { path = "R2F05OCT2026080242010300062SSANSTUC00GTDA" }   # the unzipped product folder (BAND2/3/4.tif + .meta)
+```
+Digital numbers become top-of-atmosphere reflectance from the product's `.meta`: L = DN x SR / 1024 (SR = the band's saturation
+radiance, mW/cm2/sr/um), then rho = pi L d^2 / (ESUN cos(zenith)). There is no blue band, so only false-colour recipes
+(`nir_fcc`) and `ndvi` / `ndwi` apply. TOA reflectance is not surface reflectance: haze lifts green and red, so compare
+it with Sentinel-2 L2A by pattern, not by value.
+
+Sources: the NRSC R2 Data User Handbook (docs/) gives 10-bit quantisation and nominal saturation radiances of 53 / 47 / 31.5
+mW/cm2/sr/um for B2 / B3 / B4, but no irradiance values or DN-to-radiance formula. Those two come from the Disasters Charter
+LISS-4 page (see ESUN below). The product's own SaturationRadiance (47.56 / 45.70 / 31.50) is used rather than `B*_Lmax`
+(52 / 47 / 31.5); that choice moves absolute green reflectance by about 9 %, and nothing in docs/ settles it.
+"""
+from __future__ import annotations
+
+import math
+from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+
+from satviz.area import Area, AreaError, Canvas
+from satviz.cog import _rasterio, raster_epsg, read_window
+from satviz.core import Product, SourceInfo, sensor
+from satviz.geo import crs_label
+from satviz.grid import to_canvas
+from satviz.sensors import nrsc
+from satviz.sources import SourceError, resolve_one_file
+
+BANDS = {"green": 2, "red": 3, "nir": 4}
+# Mean TOA solar irradiance in the same mW/cm2/um family as the saturation radiance (the Disasters Charter LISS-4 page,
+# citing ISRO's RE-01 note, prints 181.89 / 156.96 / 110.48). Checked by order of magnitude: median green DN 145 gives ~0.14.
+ESUN = {"green": 181.89, "red": 156.96, "nir": 110.48}
+DN_RANGE = 1024.0
+CREDIT = "ResourceSat-2 LISS-IV data, NRSC/ISRO"
+KEYS = {"label", "credit", "attribution", "note"}
+
+
+def read_meta(folder: Path) -> dict[str, str]:
+    return nrsc.read_meta(folder, "*.meta")
+
+
+def _folder(spec, data_dir) -> Path:
+    return nrsc.product_folder(resolve_one_file(spec, data_dir))
+
+
+def _when(meta: dict) -> datetime:
+    return nrsc.parse_time(meta["SceneCenterTime"])
+
+
+def earth_sun_distance(when: datetime) -> float:
+    """Astronomical units, from the day of year (good to ~1e-4, far below the calibration uncertainty)."""
+    return 1.0 - 0.01672 * math.cos(math.radians(0.9856 * (when.timetuple().tm_yday - 4)))
+
+
+def toa_reflectance(dn: np.ndarray, band: str, meta: dict, when: datetime) -> np.ndarray:
+    radiance = dn.astype(np.float32) * float(meta[f"B{BANDS[band]}SaturationRadiance"]) / DN_RANGE
+    sin_elev = math.sin(math.radians(float(meta["SunElevationAtCenter"])))
+    return math.pi * radiance * earth_sun_distance(when) ** 2 / (ESUN[band] * sin_elev)
+
+
+def _check(spec) -> None:
+    if unknown := set(spec.options) - KEYS - {"source"}:
+        raise SourceError(f"input {spec.key!r}: unknown key(s) {sorted(unknown)}; allowed: {sorted(KEYS | {'source'})}")
+
+
+def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
+    _check(spec)
+    folder = _folder(spec, data_dir)
+    path = folder / f"BAND{BANDS['red']}.tif"
+    with _rasterio().open(path) as src:
+        t = src.transform
+        res = abs(t.a)
+        return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)])
+
+
+def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, tag="job") -> Product:
+    _check(spec)
+    folder = _folder(spec, data_dir)
+    meta = read_meta(folder)
+    when = _when(meta)
+    layers, files, native = {}, [], None
+    for name, n in BANDS.items():
+        path = folder / f"BAND{n}.tif"
+        files.append(str(path))
+        r = read_window(str(path), canvas, cache_dir)
+        if r is None:
+            raise AreaError(f"input {spec.key!r}: {path.name} does not cover the area")
+        dn, x, y, epsg, _ = r
+        refl = toa_reflectance(dn, name, meta, when)
+        refl[dn == 0] = np.nan  # DN 0 is outside the scene
+        native = abs(float(x[1] - x[0])) if len(x) > 1 else canvas.res
+        layers[name] = to_canvas(refl, x, y, epsg, canvas, "bilinear")
+    valid = np.isfinite(layers["red"]) & np.isfinite(layers["green"]) & np.isfinite(layers["nir"])
+    caveats = [str(spec.options["note"])] if spec.options.get("note") else []
+    caveats.append("Top-of-atmosphere reflectance from the product's radiometric constants; no atmospheric correction, "
+                   "no cloud screening. No blue band: false colour only.")
+    if native > canvas.res * 1.5:
+        caveats.append(f"LISS-IV: {native:g} m pixels are resampled to this figure's {canvas.res:g} m grid.")
+    credit = str(spec.options.get("credit", CREDIT))
+    return Product(
+        key=spec.key, layers=layers, x=canvas.x, y=canvas.y, epsg=canvas.epsg, valid=valid, kind="optical",
+        meta=dict(platform="ResourceSat-2", sensor="LISS-IV", label=str(spec.options.get("label", "LISS-IV")), start=when,
+                  end=when, resolution_m=canvas.res, crs=crs_label(canvas.epsg),
+                  attribution=str(spec.options.get("attribution", credit)), credit=credit, items=files, time_known=True),
+        facts=SimpleNamespace(date=f"{when.day} {when:%b %Y}", files=folder.name, path_row=f"{meta['Path']}/{meta['Row']}"),
+        caveats=caveats,
+    )
+
+
+sensor("liss4")(SimpleNamespace(describe=describe, open=open_on_canvas, kind="optical"))

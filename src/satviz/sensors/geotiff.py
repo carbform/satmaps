@@ -28,7 +28,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from satviz.area import Area, AreaError, Canvas
-from satviz.cog import _rasterio, read_window
+from satviz.cog import _rasterio, raster_epsg, read_window
 from satviz.core import Product, SourceInfo, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
@@ -76,7 +76,7 @@ def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
     with rio.open(path) as src:
         t = src.transform
         res = abs(t.a)
-        return SourceInfo(epsg=src.crs.to_epsg(), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)])
+        return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)])
 
 
 def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, tag="job") -> Product:

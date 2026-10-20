@@ -54,6 +54,9 @@ noise screening) and these cannot be removed.
 | `nisar_gcov` | NISAR L2 GCOV (L-SAR, S-SAR) | `{ path = "file or glob" }` | local files; noise-screened false colour |
 | `sentinel2_l2a` | Sentinel-2 surface reflectance | `{ stac = "earth-search", date = "2026-09-25" }` | free, no login |
 | `landsat_c2l2` | Landsat 8/9 Collection 2 Level 2 | `{ stac = "planetary-computer", date = ... }` | free, anonymous token |
+| `eos04` | EOS-04 (RISAT-1A) SAR, Level-2B gamma0 ARD (MRS) | `{ path = "E04_…" }` (unzipped product folder) | local; calibrated per the EOS-04 format document; layover/shadow masked |
+| `sentinel1_grd` | Sentinel-1 IW GRD (VV/VH) from a `.SAFE` folder | `{ path = "S1…SAFE" }` (unzipped) | local; sigma0 with noise subtracted; GCP geolocation, not terrain-flattened |
+| `liss4` | ResourceSat-2 LISS-IV (NRSC/ISRO), green/red/NIR at 5 m | `{ path = "R2F…" }` (unzipped product folder) | local; TOA reflectance from the `.meta`; false colour only |
 | `sentinel1_rtc` | Sentinel-1 RTC (VV/VH) | `{ stac = "planetary-computer", date = ..., orbit = "ascending" }` | no noise floor published; the figure says so |
 | `geotiff` | anything else: ResourceSat, ALOS PALSAR RTC, PlanetScope, ... | `{ path = "scene.tif" }` | band map in the job file, see [sensors/geotiff.py](src/satviz/sensors/geotiff.py) |
 

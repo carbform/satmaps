@@ -20,6 +20,18 @@ def _rasterio():
     return rasterio
 
 
+def raster_epsg(src) -> int:
+    """EPSG code of an open raster. Some producers (e.g. NRSC) write the UTM zone without an EPSG tag, so fall back to a
+    looser match against the registry before giving up."""
+    if (epsg := src.crs.to_epsg()) is not None:
+        return epsg
+    from pyproj import CRS
+
+    if (epsg := CRS.from_wkt(src.crs.to_wkt()).to_epsg(min_confidence=20)) is None:
+        raise ValueError(f"{src.name}: cannot tell which EPSG code its coordinate system is")
+    return epsg
+
+
 def read_window(href: str, canvas: Canvas, cache_dir: Path | None = None, band: int = 1):
     """(array, x, y, epsg, nodata) for the part of the raster under the canvas, or None if it does not overlap.
 
@@ -37,7 +49,7 @@ def read_window(href: str, canvas: Canvas, cache_dir: Path | None = None, band: 
     with rio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif,.TIF,.tiff",
                  GDAL_HTTP_MAX_RETRY="3", GDAL_HTTP_RETRY_DELAY="1"):
         with rio.open(href) as src:
-            epsg = src.crs.to_epsg()
+            epsg = raster_epsg(src)
             e = canvas.extent
             xs, ys = np.meshgrid(np.linspace(e[0], e[1], 9), np.linspace(e[2], e[3], 9))
             if epsg != canvas.epsg:
