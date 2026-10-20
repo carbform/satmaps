@@ -23,6 +23,13 @@ id = "E"
 sensor = "eos04"
 source = { path = "E04_SAR_MRS_10SEP2026_253234052550_25247_STUC00ZTD_1830_6_DH_D_R_N27673_E094265" }
 
+# the same EOS-04 scene as sigma0, so it can sit next to Sentinel-1 (also sigma0) without a convention mismatch
+[[inputs]]
+id = "Es"
+sensor = "eos04"
+source = { path = "E04_SAR_MRS_10SEP2026_253234052550_25247_STUC00ZTD_1830_6_DH_D_R_N27673_E094265" }
+backscatter = "sigma0"                  # default is "gamma0", the product as delivered
+
 [[figures]]
 name = "pair"
 template = "sar_vs_sar"
@@ -37,3 +44,10 @@ arrangement = "grid"                    # all four on one page
 inputs = ["L", "S", "S1", "E"]
 theme = ["minimal", "newspaper"]
 text = { title = "Four radars, one river" }
+
+[[figures]]
+name = "sigma0"
+template = "sar_vs_sar"
+inputs = ["S1", "Es"]                   # both sigma0: the figure carries no backscatter warning
+theme = "minimal"
+text = { title = "Same band, same convention" }

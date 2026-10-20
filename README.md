@@ -56,7 +56,7 @@ noise screening) and these cannot be removed.
 | `sentinel2_l2a` | Sentinel-2 surface reflectance | `{ stac = "earth-search", date = "2026-09-25" }` | free, no login |
 | `sentinel2_safe` | Sentinel-2 L2A, all 12 bands, from a `.SAFE` folder | `{ path = "S2C_MSIL2A_….SAFE" }` (unzipped) | local; each band at its native resolution; wavelengths from the metadata |
 | `landsat_c2l2` | Landsat 8/9 Collection 2 Level 2 | `{ stac = "planetary-computer", date = ... }` | free, anonymous token |
-| `eos04` | EOS-04 (RISAT-1A) SAR, Level-2B gamma0 ARD (MRS) | `{ path = "E04_…" }` (unzipped product folder) | local; calibrated per the EOS-04 format document; layover/shadow masked |
+| `eos04` | EOS-04 (RISAT-1A) SAR, Level-2B gamma0 ARD (MRS) | `{ path = "E04_…" }` (unzipped product folder) | local; calibrated per the EOS-04 format document; layover/shadow masked; `backscatter = "gamma0"` (default) or `"sigma0"` |
 | `sentinel1_grd` | Sentinel-1 IW GRD (VV/VH) from a `.SAFE` folder | `{ path = "S1…SAFE" }` (unzipped) | local; sigma0 with noise subtracted; GCP geolocation, not terrain-flattened |
 | `liss4` | ResourceSat-2 and 2A LISS-IV (NRSC/ISRO), green/red/NIR at 5 m | `{ path = "R2F…" }` (unzipped product folder) | local; TOA reflectance from the `.meta`; false colour only |
 | `sentinel1_rtc` | Sentinel-1 RTC (VV/VH) | `{ stac = "planetary-computer", date = ..., orbit = "ascending" }` | no noise floor published; the figure says so |
@@ -107,7 +107,7 @@ If a figure names no recipe, SAR inputs get `sar_fcc`; optical inputs get `true_
 sets one per input.
 
 <p align="center">
-  <img src="docs/img/scenario_sar_vs_sar.jpg" alt="SAR against SAR: NISAR L-band and Sentinel-1 C-band, relation stated in the subtitle and notices" width="38%">
+  <img src="docs/img/scenario_sar_vs_sar.jpg" alt="SAR against SAR: Sentinel-1 and EOS-04, both C-band; the relation, the 15 days between them and the backscatter conventions are stated" width="38%">
 </p>
 
 ## Themes
@@ -232,7 +232,7 @@ src/satviz/
   presets/, layouts/    starter job files and built-in wording (shipped with the package)
   legacy/         the NISAR-only figures behind `satviz render` (clean, publication)
   cli.py          satviz entry point (`nisar-viz` and `python -m nisar_viz` are aliases)
-jobs/             worked job files: Dibrugarh (NISAR, Sentinel-1, EOS-04, Sentinel-2, LISS-IV) and their template variants; Krishna delta (data removed)
+jobs/             worked job files: Dibrugarh (NISAR, Sentinel-1, EOS-04, Sentinel-2, LISS-IV) and their template variants
 legacy/           configs/ and layouts/ for `satviz render`
 docs/             architecture, pipelines, processing notes, design language; references/ lists the (git-ignored) PDFs
 tests/            synthetic-data tests (no granules needed)

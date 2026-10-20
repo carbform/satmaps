@@ -43,6 +43,12 @@ def product_folder(tmp_path, dn_hh=3000, dn_hv=900, rtc=1):
     mask[35:45, 35:45] = 16  # layover
     mask[20:30, 20:30] = 64  # shadow
     write_tif(folder / "E04_scene_mask.tif", [mask], res=10.0)
+    area = np.full((100, 100), 1.0, np.float32)
+    area[60:70, 60:70] = 0.0  # no illumination area: nodata
+    lia = np.full((100, 100), 30.0, np.float32)
+    lia[80:90, 80:90] = -2.0  # nodata
+    write_tif(folder / "E04_scene_area.tif", [area], res=10.0)
+    write_tif(folder / "E04_scene_lia.tif", [lia], res=10.0)
     return folder
 
 
@@ -97,3 +103,54 @@ def test_missing_pieces_are_reported(tmp_path):
         eos04._check(espec(scale=2))
     with pytest.raises(SourceError, match="dual-polarisation"):
         eos04._pols({"TxRxPol1": "HH"})
+
+
+def test_to_sigma0_follows_equations_13_and_14_and_drops_nodata():
+    gamma0 = np.array([1.0, 1.0, 1.0, 1.0], np.float32)
+    area = np.array([1.0, 1.34, 0.0, 1.0], np.float32)
+    lia = np.array([30.0, 36.5, 30.0, -2.0], np.float32)
+    s0 = eos04.to_sigma0(gamma0, area, lia)
+    assert s0[0] == pytest.approx(0.5)  # 1 x 1 x sin 30 deg
+    assert s0[1] == pytest.approx(1.34 * np.sin(np.deg2rad(36.5)), rel=1e-5)
+    assert np.isnan(s0[2:]).all()  # no area, no incidence angle
+    # on flat ground the area is cot(i), so sigma0 = gamma0 x cos(i): the relation the real product obeys
+    i = np.deg2rad(36.5)
+    assert eos04.to_sigma0(np.float32([2.0]), np.float32([1 / np.tan(i)]), np.float32([36.5]))[0] == pytest.approx(2 * np.cos(i), rel=1e-5)
+
+
+@needs_rasterio
+def test_sigma0_option_converts_labels_and_changes_only_what_it_should(tmp_path):
+    product_folder(tmp_path)
+    canvas = AREA.canvas(phase=(X0 + 5, Y0 - 5))
+    g = eos04.open_on_canvas(espec(), canvas, AREA, tmp_path)
+    s = eos04.open_on_canvas(espec(backscatter="sigma0"), canvas, AREA, tmp_path)
+    assert g.meta["backscatter"] == "gamma0, terrain-normalised" and s.meta["backscatter"] == "sigma0, not terrain-normalised"
+    ratio = s.layers["co"] / g.layers["co"]
+    assert np.nanmedian(ratio) == pytest.approx(0.5, rel=1e-4)  # area 1 x sin 30 deg
+    # canvas pixel (r, c) is raster pixel (r + 10, c + 10): the area hole at raster 60-70 is canvas 50-60, the incidence hole 80-90 is 70-80
+    assert not s.valid[55, 55] and g.valid[55, 55]  # no illumination area: invalid for sigma0 only
+    assert any("sigma0 from L2B gamma0" in c and "eq. 13-14" in c for c in s.caveats)
+    assert any("L2B gamma0," in c for c in g.caveats)
+
+
+def test_sigma0_refuses_an_untrusted_normalisation_and_bad_values(tmp_path):
+    with pytest.raises(SourceError, match="backscatter must be one of gamma0, sigma0"):
+        eos04._check(espec(backscatter="beta0"))
+
+
+@needs_rasterio
+def test_sigma0_needs_a_terrain_normalised_product(tmp_path):
+    product_folder(tmp_path, rtc=0)
+    with pytest.raises(SourceError, match="RTC_Apply_Flag 0"):
+        eos04.open_on_canvas(espec(backscatter="sigma0"), AREA.canvas(phase=(X0 + 5, Y0 - 5)), AREA, tmp_path)
+
+
+def test_matching_conventions_raise_no_backscatter_warning():
+    from satviz.relations import relate
+    from tests.test_templates import sar
+
+    s1 = sar("S1", "Sentinel-1D", "C", 5.55, backscatter="sigma0, ellipsoid")
+    eos_sigma = sar("E", "EOS-04", "C", 5.55, backscatter="sigma0, not terrain-normalised")
+    eos_gamma = sar("G", "EOS-04", "C", 5.55, backscatter="gamma0, terrain-normalised")
+    assert not any("Backscatter" in n for n in relate([s1, eos_sigma]).notes)  # both sigma0: comparable conventions
+    assert any("Backscatter differs (sigma0 vs gamma0)" in n for n in relate([s1, eos_gamma]).notes)

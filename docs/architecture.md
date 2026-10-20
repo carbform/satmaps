@@ -225,7 +225,7 @@ Added as one module each under `sensors/`, with no change to recipes, themes or 
 
 Shared by the NRSC readers: `sensors/nrsc.py` (`key=value` metadata, times) and `cog.raster_epsg` (NRSC GeoTIFFs carry
 UTM without an EPSG tag). One canvas per job is kept: a job names one place, so combinations are tried per region
-(`jobs/krishna_delta.toml`: EOS-04 + LISS-IV; `jobs/brahmaputra_sar.toml`: NISAR L, NISAR S, Sentinel-1 GRD).
+(`jobs/brahmaputra_sar.toml`: NISAR L, NISAR S, Sentinel-1 GRD; `jobs/brahmaputra_all.toml` adds EOS-04; `jobs/brahmaputra_optical.toml` adds Sentinel-2 and LISS-IV).
 
 Checks on real data: NISAR L vs Sentinel-1 GRD water-mask cross-correlation peaks at zero offset at 30 m; EOS-04 HH/HV
 medians are -8.3 / -17.3 dB over the delta. Not settled by `docs/`: LISS-IV `SaturationRadiance` vs `Lmax` (about 9 %

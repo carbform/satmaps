@@ -18,7 +18,7 @@ arrangement, and adds what must be said about the combination. A theme never tou
 | Sensor | Kind | Reads | Layers | Facts the figure states (all read from the files) |
 |---|---|---|---|---|
 | `nisar_gcov` | SAR, L or S band | L2 GCOV HDF5 (local) | `hh hv` and noise-screened terms | band, frequency, track, frame, noise shares, calibration state |
-| `eos04` | SAR, C band | Level-2B folder (local) | `co cross` gamma0 | band and frequency from `product.xml`, noise bias, RTC flag |
+| `eos04` | SAR, C band | Level-2B folder (local) | `co cross` gamma0, or sigma0 with `backscatter = "sigma0"` (document eq. 13-14) | band and frequency from `product.xml`, noise bias, RTC flag |
 | `sentinel1_grd` | SAR, C band | `.SAFE` folder (local) | `co cross` sigma0 | frequency, orbit, ellipsoid geolocation, noise dropped |
 | `sentinel1_rtc` | SAR, C band | Planetary Computer STAC | `co cross` gamma0 | frequency from the catalogue |
 | `sentinel2_l2a` | optical | Earth Search STAC | `blue green red nir swir16 swir22` | cloud share in the area |
