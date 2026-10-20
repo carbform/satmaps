@@ -144,4 +144,4 @@ def test_band_table_comes_from_the_handbook_ranges(tmp_path):
     product_folder(tmp_path)
     prod = liss4.open_on_canvas(lspec(), AREA.canvas(phase=(X0 + 5, Y0 - 5)), AREA, tmp_path)
     assert [b.id for b in prod.bands] == ["B2", "B3", "B4"] and [b.layer for b in prod.bands] == ["green", "red", "nir"]
-    assert prod.bands[1].range_nm == (620.0, 680.0) and prod.bands[1].wavelength_nm == 650.0
+    assert prod.bands[1].range_nm == (620.0, 680.0) and prod.bands[1].wavelength_nm is None  # only a nominal range is known

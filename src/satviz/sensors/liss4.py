@@ -125,8 +125,8 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     if native > canvas.res * 1.5:
         caveats.append(f"LISS-IV: {native:g} m pixels are resampled to this figure's {canvas.res:g} m grid.")
     credit = str(spec.options.get("credit", f"{platform} LISS-IV data, NRSC/ISRO"))
-    bands = tuple(BandInfo(id=f"B{n}", layer=name, name=name, wavelength_nm=sum(RANGES_NM[name]) / 2,
-                           range_nm=RANGES_NM[name], resolution_m=native) for name, n in BANDS.items())
+    bands = tuple(BandInfo(id=f"B{n}", layer=name, name=name, range_nm=RANGES_NM[name], resolution_m=native)
+                  for name, n in BANDS.items())
     return Product(
         key=spec.key, layers=layers, x=canvas.x, y=canvas.y, epsg=canvas.epsg, valid=valid, kind="optical",
         meta=dict(platform=platform, sensor="LISS-IV", reflectance="top-of-atmosphere",

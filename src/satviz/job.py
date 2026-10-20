@@ -16,7 +16,7 @@ from satviz.config import DATA_DIR_ENV, LEGACY_DATA_DIR_ENV, InputSpec, Scene
 TOP_LEVEL = {"extends", "scene", "area", "inputs", "figures", "zooms", "callouts"}
 SCENE_KEYS = ("name", "reach", "locality", "region", "callout_caption", "author", "website")
 FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "pairs", "stretch", "name", "allow_different_passes",
-               "arrangement"}
+               "arrangement", "composites"}
 
 
 class JobError(ValueError):
@@ -34,6 +34,7 @@ class FigureSpec:
     pairs: str | None = None  # "all": one figure per unordered pair of `inputs`
     stretch: str | None = None  # compare: "per-band" or "pooled"
     name: str | None = None  # output filename stem
+    composites: tuple[str, ...] = ()  # multispectral: recipes to add after the band panels (true_colour, nir_fcc, ...)
     arrangement: str | None = None  # single, compare or grid; default: the template's own (optical_sar and sar_vs_sar compare)
     strict: bool = True  # inputs must share a pass (NISAR track/frame); allow_different_passes = true lifts it
 
@@ -119,7 +120,8 @@ def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
     if unknown := set(f) - FIGURE_KEYS:
         raise JobError(f"{where}: unknown key(s) {sorted(unknown)}; allowed: {sorted(FIGURE_KEYS)}")
     if "template" not in f:
-        raise JobError(f"{where}: needs `template` (optical, sar, optical_sar, sar_vs_sar; or single, compare, grid)")
+        raise JobError(f"{where}: needs `template` "
+                       "(optical, sar, multispectral, optical_sar, sar_vs_sar; or single, compare, grid)")
     ids = tuple(f.get("inputs") or inputs)
     if missing := [k for k in ids if k not in inputs]:
         raise JobError(f"{where}: unknown input(s) {missing}; the job defines {list(inputs)}")
@@ -132,4 +134,5 @@ def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
     return FigureSpec(template=f["template"], inputs=ids, recipes=dict(f.get("recipes", {})), themes=themes,
                       layout=f.get("layout"), text=dict(f.get("text", {})), pairs=f.get("pairs"),
                       stretch=f.get("stretch"), name=f.get("name"), arrangement=f.get("arrangement"),
+                      composites=tuple(f.get("composites", ())),
                       strict=not f.get("allow_different_passes", False))

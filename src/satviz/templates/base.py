@@ -33,6 +33,7 @@ class Resolved:
     recipes: dict[str, str]  # input id -> recipe name
     text: dict = field(default_factory=dict)  # default wording; the job's own `text` overrides it
     caveats: tuple[str, ...] = ()  # relation statements added to the notice strip
+    options: dict = field(default_factory=dict)  # arrangement-specific choices, e.g. the composites of the bands arrangement
 
 
 def input_kind(spec) -> str:
@@ -80,12 +81,14 @@ class Template:
     summary = ""
     kinds: tuple[str, ...] = ("sar", "optical")
     default_arrangement = "single"
+    arrangements: tuple[str, ...] = ARRANGEMENTS  # the page arrangements this template can use
+    hints: dict = {}  # kind -> what to use instead, when an input of that kind is refused
     min_inputs = 1
 
     def arrangement_of(self, fig) -> str:
         arrangement = fig.arrangement or self.default_arrangement
-        if arrangement not in ARRANGEMENTS:
-            raise TemplateError(f"arrangement must be one of {', '.join(ARRANGEMENTS)}, not {arrangement!r}")
+        if arrangement not in self.arrangements:
+            raise TemplateError(f"template {self.name!r}: arrangement must be one of {', '.join(self.arrangements)}, not {arrangement!r}")
         return arrangement
 
     def sorted_inputs(self, fig, job) -> dict[str, list[str]]:
@@ -94,9 +97,9 @@ class Template:
         for i in fig.inputs:
             kind = input_kind(job.inputs[i])
             if kind not in out:
-                others = {"sar": "optical_sar", "optical": "optical_sar"}.get(kind, "single")
+                hint = self.hints.get(kind) or f"see template '{ {'sar': 'optical_sar', 'optical': 'optical_sar'}.get(kind, 'single') }'"
                 raise TemplateError(f"template {self.name!r} takes {' and '.join(self.kinds)} inputs only; input {i!r} is {kind} "
-                                    f"(see template {others!r})")
+                                    f"({hint})")
             out[kind].append(i)
         return out
 

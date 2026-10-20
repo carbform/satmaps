@@ -1,0 +1,32 @@
+# Multispectral: each optical product band by band, no comparison. Sentinel-2C L2A (12 bands, 29 Sep) and LISS-IV on ResourceSat-2A (3 bands, 19 Oct)
+# over the Brahmaputra at Dibrugarh. Needs no network.
+# Run:  satviz run jobs/brahmaputra_multispectral.toml --out outputs/brahmaputra_multispectral/
+# Unzip the downloads into ./data first (the Sentinel-2 .SAFE folder and the NRSC product folder).
+
+[scene]
+name = "Brahmaputra"
+region = "Dibrugarh, Assam"
+author = "Sarat (NRSC/ISRO)"
+website = "www.carbform.github.io"
+
+[area]
+center = [27.60279514, 94.87069168]   # lat, lon
+size_km = [29.0, 30.8]
+resolution_m = 10
+
+[[inputs]]
+id = "S2"
+sensor = "sentinel2_safe"
+source = { path = "S2C_MSIL2A_20260929T041551_N0513_R090_T46RFR_20260929T075413.SAFE" }
+
+[[inputs]]
+id = "L4"
+sensor = "liss4"
+source = { path = "RAF19OCT2026051193011300052SSANSTUC00GTDA" }
+
+[[figures]]
+name = "bands"
+template = "multispectral"      # one figure per input
+inputs = ["S2", "L4"]
+theme = "minimal"
+text = { title = "Band by band" }
