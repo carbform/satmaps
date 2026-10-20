@@ -51,7 +51,8 @@ arrangement, and adds what must be said about the combination. A theme never tou
 | SAR + optical | Krishna delta: EOS-04 + LISS-IV | rendered from real data |
 | SAR vs SAR, one sensor in two bands | Dibrugarh: NISAR L + S | rendered |
 | SAR vs SAR, different sensors and bands | Dibrugarh: NISAR + Sentinel-1 GRD | rendered |
-| SAR vs SAR, same band from different sensors | EOS-04 (Krishna) and Sentinel-1 (Dibrugarh), both C | tested with synthetic products only: the scenes do not overlap |
+| SAR vs SAR, same band from different sensors | Dibrugarh: EOS-04 (10 Sep) + Sentinel-1 GRD (25 Sep), both C | rendered; the figure states the 15 days between them |
+| Four radars on one page | Dibrugarh: NISAR L, NISAR S, Sentinel-1, EOS-04 | rendered (`jobs/brahmaputra_all.toml`) |
 | optical vs optical | needs a second optical scene (Sentinel-2 is a network fetch) | tested with synthetic products only |
 
 ## Adding one

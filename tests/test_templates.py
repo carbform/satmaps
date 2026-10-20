@@ -232,3 +232,25 @@ def test_several_optical_inputs_share_one_recipe_when_none_is_named():
     assert pick_recipes({}, {"S2": s2}, ("S2",)) == {"S2": "true_colour"}  # alone it keeps true colour
     mixed = {"E": sar("E", "EOS-04", "C", 5.55), "L4": liss, "S2": s2}
     assert pick_recipes({}, mixed, ("E", "L4", "S2")) == {"E": "sar_fcc", "L4": "nir_fcc", "S2": "nir_fcc"}
+
+
+def test_backscatter_warning_compares_conventions_not_labels():
+    nisar = sar("L", "NISAR", "L", 24.2, backscatter="gamma0, terrain-corrected")
+    eos = sar("E", "EOS-04", "C", 5.55, backscatter="gamma0, terrain-normalised")
+    s1 = sar("S1", "Sentinel-1D", "C", 5.55, backscatter="sigma0, ellipsoid")
+    assert not any("Backscatter" in n for n in relate([nisar, eos]).notes)  # both gamma0: nothing to warn about
+    note = next(n for n in relate([nisar, s1, eos]).notes if "Backscatter" in n)
+    assert note == "Backscatter differs (gamma0 vs sigma0): not directly comparable"
+
+
+def test_a_seven_line_notice_strip_fits_at_the_floor_and_eight_is_refused(scene, tmp_path):
+    from satviz.arrangements import grid
+    from satviz.layout import LayoutError, default_layout
+    from satviz.sensors.nisar_gcov import load as load_product
+
+    prods = {b: load_product(scene, b) for b in "LS"}  # three notices of their own (two NISAR lines and "colours not comparable")
+    extra = tuple(f"Short extra notice number {i}." for i in range(4))
+    ok = grid.render(scene, prods, tmp_path, default_layout("grid"), inputs=("L", "S"), extra_caveats=extra)
+    assert ok[0].exists()
+    with pytest.raises(LayoutError, match="even at the smallest type"):
+        grid.render(scene, prods, tmp_path, default_layout("grid"), inputs=("L", "S"), extra_caveats=(*extra, "One more notice."))

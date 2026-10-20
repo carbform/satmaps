@@ -53,10 +53,12 @@ def _bands(products: list[Product]) -> list[tuple[str, float]]:
 
 
 def _backscatter(products: list[Product]) -> str:
-    kinds = list(dict.fromkeys(p.meta["backscatter"] for p in products if p.meta.get("backscatter")))
-    if len(kinds) < 2:
+    """A warning when the products use different backscatter conventions. Terrain-corrected and terrain-normalised gamma0 are one
+    convention here; gamma0 against sigma0 is the difference that matters."""
+    conventions = list(dict.fromkeys(p.meta["backscatter"].split(",")[0] for p in products if p.meta.get("backscatter")))
+    if len(conventions) < 2:
         return ""
-    return "Backscatter differs (" + " vs ".join(k.split(",")[0] for k in kinds) + "): not directly comparable"
+    return "Backscatter differs (" + " vs ".join(conventions) + "): not directly comparable"
 
 
 def relate(products: list[Product]) -> Relation:

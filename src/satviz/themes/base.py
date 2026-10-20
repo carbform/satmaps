@@ -199,9 +199,9 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
     else:
         notes = [shout(c) for c in caveats or []]
     # The strip is 0.0705 of the page high. A line of type needs about fs / 669.6 of it, so 5 lines fit at full size and
-    # smaller type fits more; 3 lines or fewer keep the standard spacing.
+    # smaller type fits more (7 at 6.5 pt, the floor); 3 lines or fewer keep the standard spacing.
     raw_notes = notes
-    for fs in (9.3, 8.6, 8.0, 7.5, 7.0):
+    for fs in (9.3, 8.6, 8.0, 7.5, 7.0, 6.5):
         notes = wrap_lines(fig, raw_notes, fs)
         if len(notes) <= int(47.2 / fs + 1e-9):
             break
