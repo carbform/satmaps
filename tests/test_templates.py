@@ -280,3 +280,18 @@ def test_the_time_wording_says_span_for_more_than_two_products():
     assert time_gap([a, b]) == "Acquired 20 days apart"
     assert time_gap([a, b, c]) == "Acquisitions span 38 days"
     assert time_gap([a, optical("d", "W")]) == "Acquired in the same pass"
+
+
+def test_radar_and_optical_figures_carry_both_the_backscatter_and_the_reflectance_notes():
+    s1 = sar("S1", "Sentinel-1D", "C", 5.55, backscatter="sigma0, ellipsoid")
+    eos = sar("E", "EOS-04", "C", 5.55, backscatter="gamma0, terrain-normalised")
+    s2 = optical("S2", "Sentinel-2C")
+    s2.meta["reflectance"] = "surface"
+    liss = optical("L4", "ResourceSat-2A", layers=("green", "red", "nir"))
+    liss.meta["reflectance"] = "top-of-atmosphere"
+    notes = " | ".join(relate([s1, eos, s2, liss]).notes)
+    assert "Backscatter differs (sigma0 vs gamma0)" in notes and "Reflectance differs (surface vs top-of-atmosphere)" in notes
+    both = " | ".join(relate([s1, eos, s2]).notes)  # two radars, one optical: only the radar conventions differ
+    assert "Backscatter differs" in both and "Reflectance differs" not in both
+    pair = " | ".join(relate([s1, s2]).notes)  # one radar, one optical: nothing to compare within a kind
+    assert "Backscatter" not in pair and "Reflectance" not in pair

@@ -82,8 +82,9 @@ def relate(products: list[Product]) -> Relation:
     kinds = {p.kind for p in products}
     gap = time_gap(products)
     if kinds == {"sar", "optical"}:
-        note = _reflectance([p for p in products if p.kind == "optical"])
-        return Relation("sar_optical", "RADAR AND OPTICAL", tuple(n for n in (gap, note) if n))
+        optical = _reflectance([p for p in products if p.kind == "optical"])
+        radar = _backscatter([p for p in products if p.kind == "sar"])  # several SAR inputs may use different conventions
+        return Relation("sar_optical", "RADAR AND OPTICAL", tuple(n for n in (gap, optical, radar) if n))
     platforms = list(dict.fromkeys(p.meta["platform"] for p in products))
     same_platform = len(platforms) == 1
     if kinds == {"optical"}:
