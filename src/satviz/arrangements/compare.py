@@ -33,7 +33,7 @@ def panel_text(lay: Layout, key: str, prod) -> str:
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, str] = ("L", "S"),
            recipe: str | dict = "sar_fcc", per_band: bool | None = None, theme: str = "neo_retro", strict: bool = True,
-           stem: str | None = None) -> list[Path]:
+           stem: str | None = None, extra_caveats: tuple[str, ...] = ()) -> list[Path]:
     """`inputs` are the two input ids, left and right of the split. Wording comes from `layout`; facts from the products.
 
     `recipe` is one name for both inputs or ``{input id: name}`` (SAR on one side, optical on the other). `stem` names the file.
@@ -70,6 +70,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     caveats = list(dict.fromkeys(c for r in (rA, rB) for c in r.caveats))
     if per_band and (recA.shared_lims is not None or recB.shared_lims is not None):
         caveats.append("Colours are not comparable between the two inputs (own stretch each).")
+    caveats += [c for c in extra_caveats if c not in caveats]  # what the template says about how the inputs relate
     ext = rB.extent
     H, W = rB.rgba.shape[:2]
     split = W // 2

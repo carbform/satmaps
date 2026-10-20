@@ -59,7 +59,8 @@ def layout_cells(n: int, aspect: float) -> tuple[int, int, float]:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, ...], recipe: str | dict = "sar_fcc",
-           theme: str = "neo_retro", stem: str | None = None, strict: bool = True) -> list[Path]:
+           theme: str = "neo_retro", stem: str | None = None, strict: bool = True,
+           extra_caveats: tuple[str, ...] = ()) -> list[Path]:
     """`inputs` are two to six input ids in reading order (left to right, top to bottom); `recipe` is one name or {id: name}."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -81,6 +82,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     caveats = list(dict.fromkeys(c for k in inputs for c in rendered[k].caveats))
     if any(recs[k].shared_lims is not None for k in inputs):
         caveats.append("Colours are not comparable between panels (own stretch each).")
+    caveats += [c for c in extra_caveats if c not in caveats]
 
     H, W = first.rgba.shape[:2]
     rows, cols, pw = layout_cells(len(inputs), H / W)

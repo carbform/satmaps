@@ -225,6 +225,7 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
         key=spec.key, layers=layers, x=canvas.x, y=canvas.y, epsg=canvas.epsg, valid=valid, kind="sar",
         meta=dict(platform=platform, sensor="IW GRD", label=str(spec.options.get("label", "IW GRD")), start=when, end=when,
                   resolution_m=canvas.res, crs=crs_label(canvas.epsg), **radar_facts(info["freq_ghz"]),
+                  backscatter="sigma0, ellipsoid",
                   attribution=str(spec.options.get("attribution", "Copernicus Sentinel")), credit=credit, items=used),
         facts=SimpleNamespace(date=f"{when.day} {when:%b %Y}", files=folder.name, polarisations="/".join(pols),
                               orbit=info["orbit"], relative_orbit=info["rel_orbit"]),

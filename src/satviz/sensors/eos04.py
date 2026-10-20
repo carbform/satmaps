@@ -131,6 +131,7 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
         kind="sar",
         meta=dict(platform="EOS-04", sensor="SAR", label=str(spec.options.get("label", "SAR")), start=when, end=when,
                   resolution_m=canvas.res, crs=crs_label(canvas.epsg), **_radar(folder),
+                  backscatter="gamma0, " + ("not " if meta.get("RTC_Apply_Flag") == "0" else "") + "terrain-normalised",
                   attribution=str(spec.options.get("attribution", credit)),
                   credit=credit, items=files),
         facts=SimpleNamespace(date=f"{when.day} {when:%b %Y}", files=folder.name, polarisations="/".join(pols),

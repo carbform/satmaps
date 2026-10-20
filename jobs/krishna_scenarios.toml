@@ -1,0 +1,22 @@
+# The scenario templates on the Krishna delta products: radar only, optical only, and radar + optical.
+# Same inputs as krishna_delta.toml. Run:  satviz run jobs/krishna_scenarios.toml --out outputs/krishna_scenarios/
+extends = "krishna_delta.toml"
+
+[[figures]]
+name = "sar_only"
+template = "sar"               # one figure per SAR input
+inputs = ["E"]
+theme = "minimal"
+
+[[figures]]
+name = "optical_only"
+template = "optical"           # LISS-IV has no blue band, so it gets NIR false colour by itself
+inputs = ["L4"]
+theme = "minimal"
+
+[[figures]]
+name = "radar_and_optical"
+template = "optical_sar"       # each SAR input against each optical input, SAR on the left
+inputs = ["E", "L4"]
+theme = "minimal"
+text = { title = "Radar and optical, one coast" }

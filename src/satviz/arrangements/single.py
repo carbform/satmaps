@@ -28,7 +28,8 @@ def _sticker(ax, t, text, xy, xytext, fc) -> None:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str = "S", recipe: str = "sar_fcc",
-           chip_slot: str = "b", theme: str = "neo_retro", stem: str | None = None) -> list[Path]:
+           chip_slot: str = "b", theme: str = "neo_retro", stem: str | None = None,
+           extra_caveats: tuple[str, ...] = ()) -> list[Path]:
     """Wording comes from `layout`; facts come from the product. `chip_slot` ('a' or 'b') picks the theme's chip colour."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -83,7 +84,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
                 a.imshow(comp.img, extent=r.components_extent, origin="upper", aspect="auto", interpolation="nearest")
                 chip(fig, t, px + 0.008, py + ph - 0.01, lay.render(labels[i], f"channels.labels[{i}]"), comp.color, fs=10.5, va="top")
 
-        social_footer(fig, t, lay, legend=r.legend, caveats=r.caveats, required_credits=[(P.meta["attribution"], P.meta["credit"])])
+        social_footer(fig, t, lay, legend=r.legend, caveats=[*r.caveats, *extra_caveats], required_credits=[(P.meta["attribution"], P.meta["credit"])])
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(scene=f"{platforms([P])}_{scene.name}", key=input, tag=t.tag))
         fig.savefig(out, dpi=180, facecolor=t.paper)
         plt.close(fig)

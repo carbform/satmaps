@@ -2,19 +2,16 @@
 from __future__ import annotations
 
 import dataclasses
-import itertools
 import json
 from pathlib import Path
 
 from satviz.area import AreaError
-from satviz.arrangements import compare, grid, single
-from satviz.core import SENSORS, THEMES
+from satviz.arrangements import draw
+from satviz.core import SENSORS, TEMPLATES, THEMES
 from satviz.job import FigureSpec, Job, JobError
 from satviz.layout import LayoutError, apply_text, default_layout, load_layout
 from satviz.registry import load_builtin
-
-DEFAULT_RECIPE = {"sar": "sar_fcc", "optical": "true_colour"}  # by product kind, when a figure names none
-CHIP_SLOT = ("a", "b")
+from satviz.templates import TemplateError
 
 
 def _sensor(spec):
@@ -46,9 +43,9 @@ def resolve_zooms(job: Job, canvas):
     return tuple(out)
 
 
-def _layout(fig: FigureSpec, job: Job, layouts_dir) -> dict:
+def _layout(fig: FigureSpec, job: Job, layouts_dir, arrangement: str, defaults: dict | None = None) -> dict:
     """The figure's wording: its `layout` file (looked up next to the job file, then the working directory, then
-    `layouts_dir`) or the template's built-in one, with the job's `text` overrides applied."""
+    `layouts_dir`) or the arrangement's built-in one. The template's default wording goes in first, then the job's `text`."""
     if fig.layout:
         name = Path(fig.layout).expanduser()
         if name.suffix != ".toml":
@@ -59,26 +56,18 @@ def _layout(fig: FigureSpec, job: Job, layouts_dir) -> dict:
             raise JobError(f"layout {fig.layout!r} not found; looked in: " + ", ".join(str(p.parent) for p in tried))
         data = load_layout(found.parent, found.stem)
     else:
-        data = default_layout(fig.template)
-    return apply_text(data, fig.text)
+        data = default_layout(arrangement)
+    return apply_text(apply_text(data, defaults or {}), fig.text)
 
 
-def combos(fig: FigureSpec) -> list[tuple[str, ...]]:
-    if fig.template == "single":
-        return [(k,) for k in fig.inputs]
-    if fig.template == "compare":
-        if fig.pairs == "all":
-            if len(fig.inputs) < 2:
-                raise JobError("compare with pairs = \"all\" needs at least two inputs")
-            return list(itertools.combinations(fig.inputs, 2))
-        if len(fig.inputs) != 2:
-            raise JobError(f"compare needs exactly 2 inputs (or pairs = \"all\"), got {list(fig.inputs)}")
-        return [tuple(fig.inputs)]
-    if fig.template == "grid":
-        if not 2 <= len(fig.inputs) <= 6:
-            raise JobError(f"grid needs 2 to 6 inputs, got {len(fig.inputs)}")
-        return [tuple(fig.inputs)]
-    raise JobError(f"unknown template {fig.template!r}; available: single, compare, grid")
+def plan_figure(fig: FigureSpec, job: Job) -> list[tuple[str, ...]]:
+    """The input-id tuples of a figure, one figure each: decided by its template (see `satviz.templates`)."""
+    try:
+        return TEMPLATES.get_or_raise(fig.template).plan(fig, job)
+    except KeyError as e:
+        raise JobError(str(e.args[0])) from None
+    except TemplateError as e:
+        raise JobError(f"{job.path}: {e}") from None
 
 
 def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
@@ -86,7 +75,7 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
     load_builtin()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    plan = [(fig, c) for fig in job.figures for c in combos(fig)]
+    plan = [(fig, c) for fig in job.figures for c in plan_figure(fig, job)]
     needed = [k for k in job.inputs if any(k in c for _, c in plan)]
     for fig in job.figures:
         for th in fig.themes:
@@ -101,8 +90,11 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
 
     written = []
     for fig, combo in plan:
-        layout = _layout(fig, job, layouts_dir)
-        recipes = {k: fig.recipes.get(k) or fig.recipes.get("default") or DEFAULT_RECIPE[products[k].kind] for k in combo}
+        try:
+            resolved = TEMPLATES[fig.template].resolve(fig, combo, products, job.scene)
+        except TemplateError as e:
+            raise JobError(f"{job.path}: {e}") from None
+        layout = _layout(fig, job, layouts_dir, resolved.arrangement, resolved.text)
         for theme in fig.themes:
             stem = None
             if fig.name:
@@ -110,18 +102,8 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
                 if len(combo) == 2 and len(plan) > 1:
                     parts.append(f"{combo[0]}vs{combo[1]}")
                 stem = "_".join([*parts, THEMES[theme].tag])
-            if fig.template == "single":
-                k = combo[0]
-                paths = single.render(scene, products, out, layout, input=k, recipe=recipes[k],
-                                      chip_slot=CHIP_SLOT[min(list(job.inputs).index(k), 1)], theme=theme, stem=stem)
-            elif fig.template == "grid":
-                paths = grid.render(scene, products, out, layout, inputs=combo, recipe=recipes, theme=theme, stem=stem,
-                                    strict=fig.strict)
-            else:
-                per_band = None if fig.stretch is None else fig.stretch == "per-band"
-                paths = compare.render(scene, products, out, layout, inputs=combo, recipe=recipes, per_band=per_band,
-                                       theme=theme, strict=fig.strict, stem=stem)
-            written += paths
+            written += draw(resolved, scene=scene, products=products, out_dir=out, layout=layout, combo=combo, theme=theme,
+                            stem=stem, slot=list(job.inputs).index(combo[0]), strict=fig.strict, stretch=fig.stretch)
     _write_lock(job, out, canvas, infos, products, written)
     return written
 
