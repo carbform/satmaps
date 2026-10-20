@@ -22,8 +22,9 @@ arrangement, and adds what must be said about the combination. A theme never tou
 | `sentinel1_grd` | SAR, C band | `.SAFE` folder (local) | `co cross` sigma0 | frequency, orbit, ellipsoid geolocation, noise dropped |
 | `sentinel1_rtc` | SAR, C band | Planetary Computer STAC | `co cross` gamma0 | frequency from the catalogue |
 | `sentinel2_l2a` | optical | Earth Search STAC | `blue green red nir swir16 swir22` | cloud share in the area |
+| `sentinel2_safe` | optical | `.SAFE` folder (local) | all 12 bands `B01`..`B12` + the six roles + `cloud` | surface reflectance, band wavelengths, native resolution, cloud share |
 | `landsat_c2l2` | optical | Planetary Computer STAC | same | cloud share |
-| `liss4` | optical | NRSC folder (local) | `green red nir` (no blue) | TOA, no atmospheric correction |
+| `liss4` | optical | NRSC folder (local), ResourceSat-2 and 2A | `green red nir` (no blue) | top-of-atmosphere; which radiance constant was used |
 | `geotiff` | either | any GeoTIFF | from the job's band map | credit and date from the job |
 
 ## Recipes
@@ -39,7 +40,8 @@ arrangement, and adds what must be said about the combination. A theme never tou
 
 | Template | Inputs | Page | Relation stated |
 |---|---|---|---|
-| `optical` | optical | one per input (or `compare`/`grid`) | optical: same sensor or different, time gap |
+| `multispectral` | optical, one per figure | `bands`: a panel per band (composites opt-in) | nothing: it does not compare |
+| `optical` | optical | one per input (or `compare`/`grid`) | same sensor or different, time gap, reflectance level |
 | `sar` | SAR | one per input (or `compare`/`grid`) | as `sar_vs_sar` when several |
 | `optical_sar` | SAR + optical | split view, SAR left (or `grid`) | days apart |
 | `sar_vs_sar` | SAR + SAR | split view per pair (or `grid`) | same sensor/two bands, same band/two sensors, or both different; wavelengths; time gap; sigma0 vs gamma0 |
@@ -48,17 +50,18 @@ arrangement, and adds what must be said about the combination. A theme never tou
 
 | Combination | Where | Status |
 |---|---|---|
-| SAR + optical | Krishna delta: EOS-04 + LISS-IV | rendered from real data |
 | SAR vs SAR, one sensor in two bands | Dibrugarh: NISAR L + S | rendered |
 | SAR vs SAR, different sensors and bands | Dibrugarh: NISAR + Sentinel-1 GRD | rendered |
 | SAR vs SAR, same band from different sensors | Dibrugarh: EOS-04 (10 Sep) + Sentinel-1 GRD (25 Sep), both C | rendered; the figure states the 15 days between them |
 | Four radars on one page | Dibrugarh: NISAR L, NISAR S, Sentinel-1, EOS-04 | rendered (`jobs/brahmaputra_all.toml`) |
-| optical vs optical | needs a second optical scene (Sentinel-2 is a network fetch) | tested with synthetic products only |
+| optical vs optical | Dibrugarh: Sentinel-2C (29 Sep) + LISS-IV 2A (19 Oct) | rendered; both get NIR false colour; states 20 days apart and surface vs TOA |
+| SAR + optical | Dibrugarh: Sentinel-1 / EOS-04 with Sentinel-2 / LISS-IV | rendered (`jobs/brahmaputra_optical.toml`) |
+| Multispectral | Dibrugarh: Sentinel-2C 12 bands, LISS-IV 3 bands | rendered (`jobs/brahmaputra_multispectral.toml`) |
 
 ## Adding one
 
 - **Sensor**: `sensors/<name>.py` with `describe` and `open` registered by `@sensor`; give every SAR product `radar_band`, `freq_ghz`,
   `wavelength_cm` (`satviz.radar.radar_facts`) and `backscatter`, and put its own caveats in `Product.caveats`.
 - **Recipe**: `recipes/`, with the `needs` it requires.
-- **Template**: subclass `Template` in `templates/scenarios.py`; `plan` returns the input tuples, `resolve` the arrangement, recipes and wording.
+- **Template**: subclass `Template` in `templates/scenarios.py` (or its own module, as `multispectral.py`); `plan` returns the input tuples, `resolve` the arrangement, recipes and wording.
 - **Theme**: `themes/<name>.py`, a `Theme` of tokens; add `chrome` only for another structure, `rc` and `sketch` for a hand-drawn look.

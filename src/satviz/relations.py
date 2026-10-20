@@ -25,9 +25,14 @@ def _mid(p: Product):
 
 
 def time_gap(products: list[Product]) -> str:
-    """'Acquired 12 h 9 min apart', 'Acquired 6 days apart', or '' for one product. Within 5 minutes counts as one pass."""
+    """'Acquired 12 h 9 min apart' for two products, 'Acquisitions span 38 days' for more, '' for one.
+    Within 5 minutes counts as one pass."""
     if len(products) < 2:
         return ""
+
+    def phrase(amount: str) -> str:
+        return f"Acquired {amount} apart" if len(products) == 2 else f"Acquisitions span {amount}"
+
     if all(p.meta.get("time_known", True) for p in products):
         times = [_mid(p) for p in products]
         gap = max(times) - min(times)
@@ -36,13 +41,13 @@ def time_gap(products: list[Product]) -> str:
             return "Acquired in the same pass"
         if mins < 60 * 24:
             h, m = divmod(mins, 60)
-            return f"Acquired {h} h {m} min apart" if h else f"Acquired {m} min apart"
+            return phrase(f"{h} h {m} min" if h else f"{m} min")
         days = round(gap.total_seconds() / 86400)
     else:  # a date without a reliable time: compare days only
         days = (max(p.meta["start"].date() for p in products) - min(p.meta["start"].date() for p in products)).days
         if days == 0:
             return "Acquired on the same day"
-    return f"Acquired {days} day{'s' if days != 1 else ''} apart"
+    return phrase(f"{days} day{'s' if days != 1 else ''}")
 
 
 def _bands(products: list[Product]) -> list[tuple[str, float]]:
@@ -61,6 +66,15 @@ def _backscatter(products: list[Product]) -> str:
     return "Backscatter differs (" + " vs ".join(conventions) + "): not directly comparable"
 
 
+def _reflectance(products: list[Product]) -> str:
+    """A warning when optical products are at different reflectance levels (surface against top-of-atmosphere): atmospheric haze
+    lifts the visible bands of top-of-atmosphere data, so the same ground reads differently."""
+    levels = list(dict.fromkeys(p.meta["reflectance"] for p in products if p.meta.get("reflectance")))
+    if len(levels) < 2:
+        return ""
+    return "Reflectance differs (" + " vs ".join(levels) + "): not directly comparable"
+
+
 def relate(products: list[Product]) -> Relation:
     """Classify the products of one figure and say what a reader must keep in mind."""
     if len(products) < 2:
@@ -68,13 +82,15 @@ def relate(products: list[Product]) -> Relation:
     kinds = {p.kind for p in products}
     gap = time_gap(products)
     if kinds == {"sar", "optical"}:
-        return Relation("sar_optical", "RADAR AND OPTICAL", (gap,) if gap else ())
+        note = _reflectance([p for p in products if p.kind == "optical"])
+        return Relation("sar_optical", "RADAR AND OPTICAL", tuple(n for n in (gap, note) if n))
     platforms = list(dict.fromkeys(p.meta["platform"] for p in products))
     same_platform = len(platforms) == 1
     if kinds == {"optical"}:
+        notes = tuple(n for n in (gap, _reflectance(products)) if n)
         if same_platform:
-            return Relation("optical_same_sensor", f"{platforms[0].upper()} · {len(products)} SCENES", (gap,) if gap else ())
-        return Relation("optical_different_sensors", "OPTICAL · DIFFERENT SENSORS", (gap,) if gap else ())
+            return Relation("optical_same_sensor", f"{platforms[0].upper()} · {len(products)} SCENES", notes)
+        return Relation("optical_different_sensors", "OPTICAL · DIFFERENT SENSORS", notes)
     if untagged := [p for p in products if not p.meta.get("radar_band")]:
         # a band claim needs every product to state its band; otherwise say so instead of guessing
         names = ", ".join(dict.fromkeys(p.meta.get("label") or p.meta["platform"] for p in untagged))

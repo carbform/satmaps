@@ -201,12 +201,23 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
     # The strip is 0.0705 of the page high. A line of type needs about fs / 669.6 of it, so 5 lines fit at full size and
     # smaller type fits more (7 at 6.5 pt, the floor); 3 lines or fewer keep the standard spacing.
     raw_notes = notes
-    for fs in (9.3, 8.6, 8.0, 7.5, 7.0, 6.5):
-        notes = wrap_lines(fig, raw_notes, fs)
-        if len(notes) <= int(47.2 / fs + 1e-9):
-            break
-    else:
-        raise LayoutError(f"{lay.path}: the notices need {len(notes)} lines even at the smallest type; shorten them")
+    ladder = (9.3, 8.6, 8.0, 7.5, 7.0, 6.5)
+
+    def fit(candidates: list[str]) -> tuple[list[str], float] | None:
+        """The largest type at which `candidates`, wrapped to the strip width, fit its height."""
+        for size in ladder:
+            wrapped = wrap_lines(fig, candidates, size)
+            if len(wrapped) <= int(47.2 / size + 1e-9):
+                return wrapped, size
+        return None
+
+    # One notice per line when that fits. Otherwise the notices run together as one paragraph, in order and joined by a middle dot:
+    # no text is dropped, and it only happens where a figure would otherwise be refused.
+    fitted = fit(raw_notes) or (fit([" · ".join(raw_notes)]) if raw_notes else None)
+    if fitted is None:
+        need = len(wrap_lines(fig, [" · ".join(raw_notes)], ladder[-1]))
+        raise LayoutError(f"{lay.path}: the notices need {need} lines even at the smallest type, run together; shorten them")
+    notes, fs = fitted
     pitch = min(0.0235, 0.0705 / max(len(notes), 1))
     note_fs = fs
     bottom = round(0.119 - pitch * len(notes), 4)

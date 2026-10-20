@@ -243,14 +243,40 @@ def test_backscatter_warning_compares_conventions_not_labels():
     assert note == "Backscatter differs (gamma0 vs sigma0): not directly comparable"
 
 
-def test_a_seven_line_notice_strip_fits_at_the_floor_and_eight_is_refused(scene, tmp_path):
+def test_notices_fit_one_per_line_then_run_together_and_only_too_much_text_is_refused(scene, tmp_path):
     from satviz.arrangements import grid
     from satviz.layout import LayoutError, default_layout
     from satviz.sensors.nisar_gcov import load as load_product
 
     prods = {b: load_product(scene, b) for b in "LS"}  # three notices of their own (two NISAR lines and "colours not comparable")
-    extra = tuple(f"Short extra notice number {i}." for i in range(4))
-    ok = grid.render(scene, prods, tmp_path, default_layout("grid"), inputs=("L", "S"), extra_caveats=extra)
-    assert ok[0].exists()
-    with pytest.raises(LayoutError, match="even at the smallest type"):
-        grid.render(scene, prods, tmp_path, default_layout("grid"), inputs=("L", "S"), extra_caveats=(*extra, "One more notice."))
+
+    def render(extra):
+        return grid.render(scene, prods, tmp_path, default_layout("grid"), inputs=("L", "S"), extra_caveats=tuple(extra))[0]
+
+    assert render(f"Short extra notice number {i}." for i in range(4)).exists()  # seven lines: one per line at the 6.5 pt floor
+    assert render(f"Short extra notice number {i}." for i in range(9)).exists()  # twelve notices: run together as a paragraph
+    long = [f"Notice {i}: " + "a fairly long statement about how this scene was processed and what it means. " * 2 for i in range(14)]
+    with pytest.raises(LayoutError, match="run together; shorten them"):  # more text than the strip holds even so: refused, not cut
+        render(long)
+
+
+
+def test_surface_against_top_of_atmosphere_reflectance_is_flagged_in_optical_pairs():
+    s2 = optical("S2", "Sentinel-2C")
+    s2.meta["reflectance"] = "surface"
+    liss = optical("L4", "ResourceSat-2A", when=T0 + timedelta(days=20), layers=("green", "red", "nir"))
+    liss.meta["reflectance"] = "top-of-atmosphere"
+    note = " | ".join(relate([s2, liss]).notes)
+    assert "Acquired 20 days apart" in note and "Reflectance differs (surface vs top-of-atmosphere): not directly comparable" in note
+    assert any("Reflectance differs" in n for n in relate([sar("E", "EOS-04", "C", 5.55), s2, liss]).notes)  # radar + two optical
+    twin = optical("S2b", "Sentinel-2C")
+    twin.meta["reflectance"] = "surface"
+    assert not any("Reflectance" in n for n in relate([s2, twin]).notes)  # same level: nothing to warn about
+    assert not any("Reflectance" in n for n in relate([s2, optical("g", "X")]).notes)  # a level not stated: no claim
+
+
+def test_the_time_wording_says_span_for_more_than_two_products():
+    a, b, c = optical("a", "X"), optical("b", "Y", when=T0 + timedelta(days=20)), optical("c", "Z", when=T0 + timedelta(days=38))
+    assert time_gap([a, b]) == "Acquired 20 days apart"
+    assert time_gap([a, b, c]) == "Acquisitions span 38 days"
+    assert time_gap([a, optical("d", "W")]) == "Acquired in the same pass"

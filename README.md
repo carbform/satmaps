@@ -54,10 +54,11 @@ noise screening) and these cannot be removed.
 |---|---|---|---|
 | `nisar_gcov` | NISAR L2 GCOV (L-SAR, S-SAR) | `{ path = "file or glob" }` | local files; noise-screened false colour |
 | `sentinel2_l2a` | Sentinel-2 surface reflectance | `{ stac = "earth-search", date = "2026-09-25" }` | free, no login |
+| `sentinel2_safe` | Sentinel-2 L2A, all 12 bands, from a `.SAFE` folder | `{ path = "S2C_MSIL2A_….SAFE" }` (unzipped) | local; each band at its native resolution; wavelengths from the metadata |
 | `landsat_c2l2` | Landsat 8/9 Collection 2 Level 2 | `{ stac = "planetary-computer", date = ... }` | free, anonymous token |
 | `eos04` | EOS-04 (RISAT-1A) SAR, Level-2B gamma0 ARD (MRS) | `{ path = "E04_…" }` (unzipped product folder) | local; calibrated per the EOS-04 format document; layover/shadow masked |
 | `sentinel1_grd` | Sentinel-1 IW GRD (VV/VH) from a `.SAFE` folder | `{ path = "S1…SAFE" }` (unzipped) | local; sigma0 with noise subtracted; GCP geolocation, not terrain-flattened |
-| `liss4` | ResourceSat-2 LISS-IV (NRSC/ISRO), green/red/NIR at 5 m | `{ path = "R2F…" }` (unzipped product folder) | local; TOA reflectance from the `.meta`; false colour only |
+| `liss4` | ResourceSat-2 and 2A LISS-IV (NRSC/ISRO), green/red/NIR at 5 m | `{ path = "R2F…" }` (unzipped product folder) | local; TOA reflectance from the `.meta`; false colour only |
 | `sentinel1_rtc` | Sentinel-1 RTC (VV/VH) | `{ stac = "planetary-computer", date = ..., orbit = "ascending" }` | no noise floor published; the figure says so |
 | `geotiff` | anything else: ResourceSat, ALOS PALSAR RTC, PlanetScope, ... | `{ path = "scene.tif" }` | band map in the job file, see [sensors/geotiff.py](src/satviz/sensors/geotiff.py) |
 
@@ -85,12 +86,19 @@ A **template** says what a figure is about. It checks the inputs, picks a recipe
 | `sar` | SAR inputs | one figure per input | noise handling, calibration state |
 | `optical_sar` | at least one SAR and one optical | split view, SAR left | days between the acquisitions |
 | `sar_vs_sar` | two or more SAR | split view per pair | how they relate, below |
+| `multispectral` | one optical product per figure | `bands`: a panel per spectral band | the sensor's own notices; no comparison |
 
 `sar_vs_sar` reads the relation from the products and prints it as the subtitle and one notice line: **same sensor in two
 bands** (NISAR L and S), **same band from different sensors** (EOS-04 and Sentinel-1, both C-band), or **different sensors
 and bands**; with the wavelengths, the time between acquisitions, and a warning when backscatter conventions differ
-(σ⁰ ellipsoid against γ⁰ terrain-corrected: not directly comparable). Bands and wavelengths come from each file's own
+(σ⁰ ellipsoid against γ⁰ terrain-corrected: not directly comparable). Optical pairs get the same treatment for reflectance level (Sentinel-2 L2A is
+surface reflectance, LISS-IV top-of-atmosphere). Bands and wavelengths come from each file's own
 frequency, never from a table.
+
+`multispectral` is separate on purpose: it shows one product band by band (Sentinel-2's 12 bands, LISS-IV's 3), each panel in linear grey on
+one shared stretch so brightness ratios between bands stay real (`stretch = "per-band"` gives each its own, with the limits on its label), labelled
+with the band id, centre wavelength (or nominal range) and native pixel size. `composites = ["true_colour", "nir_fcc"]` appends colour composites; they are
+off by default. It never compares and refuses SAR inputs.
 
 `arrangement = "single" | "compare" | "grid"` overrides the page: `grid` tiles two to six inputs, `compare` splits one
 canvas between two. `single`, `compare` and `grid` also work as templates for older job files: no checks, no relation text.
@@ -211,20 +219,20 @@ building a split view.
 src/satviz/
   core.py         Product, Rendered, registries for sensors, recipes, templates, themes
   registry.py     loads the built-in plugins; `satviz list`
-  sensors/        one module per sensor: nisar_gcov/, eos04, sentinel1_grd, sentinel1 (RTC), sentinel2, landsat, liss4, geotiff
+  sensors/        one module per sensor: nisar_gcov/, eos04, sentinel1_grd, sentinel1 (RTC), sentinel2 (catalogue), sentinel2_safe (local), landsat, liss4, geotiff
                   nrsc.py (shared NRSC metadata parser), stac_optical.py (shared catalogue reader)
-  recipes/        sar_fcc (SAR false colour), optical (true colour, NIR/SWIR false colour, NDVI, NDWI)
-  templates/      scenarios: optical, sar, optical_sar, sar_vs_sar (+ single/compare/grid as bare arrangements)
+  recipes/        sar_fcc (SAR false colour), optical (true colour, NIR/SWIR false colour, NDVI, NDWI), bands (single-band grey panels)
+  templates/      scenarios: optical, sar, multispectral, optical_sar, sar_vs_sar (+ single/compare/grid as bare arrangements)
   relations.py    how the products of a figure relate (band, sensor, time gap, backscatter convention)
   radar.py        radar band and wavelength from a centre frequency
-  arrangements/   single, compare, grid: where products sit on the page; `draw` runs one
+  arrangements/   single, compare, grid, bands: where products sit on the page; `draw` runs one
   themes/         base.py (Theme tokens + chrome), neo_retro, minimal, neo_brutal, newspaper, xkcd
   area.py, grid.py, job.py, run.py, sources.py   area -> canvas grid, resampling, job file, runner, data paths
   config.py, layout.py, geo.py, cog.py            scene dataclasses, wording files + placeholders, projections, GeoTIFF windows
   presets/, layouts/    starter job files and built-in wording (shipped with the package)
   legacy/         the NISAR-only figures behind `satviz render` (clean, publication)
   cli.py          satviz entry point (`nisar-viz` and `python -m nisar_viz` are aliases)
-jobs/             worked job files: Krishna delta (EOS-04, LISS-IV), Dibrugarh (NISAR, Sentinel-1) and their template variants
+jobs/             worked job files: Dibrugarh (NISAR, Sentinel-1, EOS-04, Sentinel-2, LISS-IV) and their template variants; Krishna delta (data removed)
 legacy/           configs/ and layouts/ for `satviz render`
 docs/             architecture, pipelines, processing notes, design language; references/ lists the (git-ignored) PDFs
 tests/            synthetic-data tests (no granules needed)

@@ -233,7 +233,7 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, coll: OpticalCollection, ca
         meta=dict(platform=platform, sensor=coll.label, label=coll.label, start=when, end=max(times),
                   resolution_m=canvas.res, crs=crs_label(canvas.epsg), attribution=coll.attribution,
                   **_radar_meta(props),
-                  **({"backscatter": "gamma0, terrain-corrected"} if coll.kind == "sar" else {}),
+                  **({"backscatter": "gamma0, terrain-corrected"} if coll.kind == "sar" else {"reflectance": "surface"}),
                   credit=coll.credit(when.year, platform), items=assess["ids"]),
         facts=SimpleNamespace(cloud_pct=cloud, coverage_pct=100 * assess["coverage"], items=", ".join(assess["ids"]),
                               date=f"{when.day} {when:%b %Y}", collection=collection, provider=prov,
