@@ -23,7 +23,7 @@ RC = {"font.family": "serif", "font.serif": ["DejaVu Serif", "Liberation Serif"]
 
 def render(scene: Scene, bands: dict, out_dir: Path, layout: dict, k: int = 3) -> list[Path]:
     """Four panels; k x k block means (default 30 m) so speckle does not alias at figure size.
-    The caption and credit come from `layout` (layouts/sband_publication.toml); facts come from the file metadata."""
+    The caption and credit come from `layout` (legacy/layouts/sband_publication.toml); facts come from the file metadata."""
     d = bands["S"]
     s = stats(d)
     lay = Layout(layout, build_context(scene, {"S": d}, {"S": s}, per_band=False, extra={"k": k, "block_m": k * d["meta"].posting_m}))

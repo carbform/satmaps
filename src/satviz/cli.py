@@ -1,4 +1,4 @@
-"""Command line: `satviz render <figure>... --config configs/brahmaputra.toml --data-dir /path/to/granules`."""
+"""Command line: `satviz render <figure>... --config legacy/configs/brahmaputra.toml --data-dir /path/to/granules`."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +13,7 @@ from pathlib import Path
 class Figure:
     module: str
     inputs: tuple[str, ...]  # input ids (scene [[inputs]]) the figure needs
-    layout: str  # layouts/<layout>.toml
+    layout: str  # legacy/layouts/<layout>.toml
     kwargs: dict = field(default_factory=dict)
     themed: bool = False  # accepts --theme; the clean and publication figures are plain on purpose
     products: bool = False  # template modules take generic Products; the older figure modules take NISAR working datasets
@@ -22,9 +22,9 @@ class Figure:
 FIGURES = {
     "ls-social": Figure("satviz.arrangements.compare", ("L", "S"), "ls_social", {"inputs": ("L", "S")}, themed=True,
                         products=True),
-    "ls-publication": Figure("satviz.figures.ls_publication", ("L", "S"), "ls_publication"),
-    "ls-clean": Figure("satviz.figures.ls_clean", ("L", "S"), "ls_clean"),
-    "sband-publication": Figure("satviz.figures.sband_publication", ("S",), "sband_publication"),
+    "ls-publication": Figure("satviz.legacy.ls_publication", ("L", "S"), "ls_publication"),
+    "ls-clean": Figure("satviz.legacy.ls_clean", ("L", "S"), "ls_clean"),
+    "sband-publication": Figure("satviz.legacy.sband_publication", ("S",), "sband_publication"),
     "sband-social": Figure("satviz.arrangements.single", ("S",), "sband_social", {"input": "S", "chip_slot": "b"},
                          themed=True, products=True),
     "lband-social": Figure("satviz.arrangements.single", ("L",), "lband_social", {"input": "L", "chip_slot": "a"},
@@ -68,9 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("render", help="render one or more figures")
     r.add_argument("figures", nargs="+", choices=[*FIGURES, "all"], help="figure name(s), or 'all'")
-    r.add_argument("--config", default="configs/brahmaputra.toml", help="scene TOML (default: %(default)s)")
+    r.add_argument("--config", default="legacy/configs/brahmaputra.toml", help="scene TOML (default: %(default)s)")
     r.add_argument("--data-dir", default=None, help="folder with the .h5 granules (default: $SATVIZ_DATA_DIR, then ./data)")
-    r.add_argument("--layouts-dir", default="layouts", help="folder with the figure wording files (default: %(default)s)")
+    r.add_argument("--layouts-dir", default="legacy/layouts", help="folder with the figure wording files (default: %(default)s)")
     r.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
     r.add_argument("--cache", default="cache", help="ROI cache folder (default: %(default)s)")
     r.add_argument("--no-cache", action="store_true", help="always read the HDF5 files")
@@ -85,7 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
     rn.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")
     rn.add_argument("--no-cache", action="store_true")
-    rn.add_argument("--layouts-dir", default="layouts", help="folder for layouts named without a path (default: %(default)s)")
+    rn.add_argument("--layouts-dir", default="legacy/layouts",
+                    help="folder for layouts named without a path (default: %(default)s)")
     rn.add_argument("-v", "--verbose", action="store_true")
 
     se = sub.add_parser("search", help="list the catalogue scenes a job would use, with cloud cover in your area")
@@ -102,13 +103,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("list", help="list the registered sensors, recipes, themes and figures")
 
     ph = sub.add_parser("placeholders", help="list the {placeholders} available in layout files, with their values")
-    ph.add_argument("--config", default="configs/brahmaputra.toml")
+    ph.add_argument("--config", default="legacy/configs/brahmaputra.toml")
     ph.add_argument("--data-dir", default=None)
     ph.add_argument("--cache", default="cache")
     ph.add_argument("--no-cache", action="store_true")
 
     s = sub.add_parser("stats", help="print noise and backscatter statistics for each band")
-    s.add_argument("--config", default="configs/brahmaputra.toml")
+    s.add_argument("--config", default="legacy/configs/brahmaputra.toml")
     s.add_argument("--data-dir", default=None)
     s.add_argument("--cache", default="cache")
     s.add_argument("--no-cache", action="store_true")

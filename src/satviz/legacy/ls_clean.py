@@ -22,7 +22,7 @@ RC = {"font.family": ["IBM Plex Sans", "DejaVu Sans"], "font.size": 10, "text.co
 
 
 def render(scene: Scene, bands: dict, out_dir: Path, layout: dict) -> list[Path]:
-    """Wording comes from `layout` (layouts/ls_clean.toml); facts come from the file metadata."""
+    """Wording comes from `layout` (legacy/layouts/ls_clean.toml); facts come from the file metadata."""
     S, L = bands["S"], bands["L"]
     sS, sL = stats(S), stats(L)
     lay = Layout(layout, build_context(scene, bands, {"S": sS, "L": sL}, per_band=False))

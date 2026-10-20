@@ -4,7 +4,7 @@ import pytest
 
 from satviz.config import DATA_DIR_ENV, load_scene
 
-CONFIG = Path(__file__).resolve().parents[1] / "configs" / "brahmaputra.toml"
+CONFIG = Path(__file__).resolve().parents[1] / "legacy" / "configs" / "brahmaputra.toml"
 
 
 def test_brahmaputra_config_parses():

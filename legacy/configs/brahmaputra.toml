@@ -1,6 +1,6 @@
 # Brahmaputra scene: NISAR L-SAR and S-SAR GCOV from the same pass.
 # Date, time, track, frame, pass direction, frequency, posting, CRS and processing flags are read from the
-# files; figure wording (titles, notes, credits) is in layouts/*.toml.
+# files; figure wording (titles, notes, credits) is in legacy/layouts/*.toml.
 # `inputs` are listed in priority order: the first is the reference for shared facts (track, frame, CRS, posting).
 # Rows/cols are the ROI in each file's own 10 m UTM 46N grid. The L-band grid is offset by
 # (+360 rows, +72 cols) from the S-band grid, so both ROIs cover the identical ground footprint

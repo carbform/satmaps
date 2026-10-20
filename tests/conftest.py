@@ -104,7 +104,7 @@ def scene(tmp_path) -> Scene:
 
 @pytest.fixture
 def layouts_dir() -> Path:
-    return Path(__file__).resolve().parents[1] / "layouts"
+    return Path(__file__).resolve().parents[1] / "legacy" / "layouts"
 
 
 def inputs_for(scene: Scene, fig) -> dict:

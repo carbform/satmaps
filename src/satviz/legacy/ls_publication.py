@@ -25,7 +25,7 @@ RC = {"font.family": "serif", "font.serif": ["DejaVu Serif", "Liberation Serif"]
 
 def render(scene: Scene, bands: dict, out_dir: Path, layout: dict, k: int = 3) -> list[Path]:
     """Panels use k x k block means of linear power; the colour stretch is pooled over both bands.
-    The caption and credit come from `layout` (layouts/ls_publication.toml); facts come from the file metadata."""
+    The caption and credit come from `layout` (legacy/layouts/ls_publication.toml); facts come from the file metadata."""
     S, L = bands["S"], bands["L"]
     sS, sL = stats(S), stats(L)
     cS, cL = coarsen(S, k), coarsen(L, k)

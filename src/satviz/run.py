@@ -71,7 +71,7 @@ def plan_figure(fig: FigureSpec, job: Job) -> list[tuple[str, ...]]:
 
 
 def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
-            layouts_dir: str | Path = "layouts") -> list[Path]:
+            layouts_dir: str | Path = "legacy/layouts") -> list[Path]:
     load_builtin()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

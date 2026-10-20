@@ -46,10 +46,10 @@ cols = [2000, 2780]
 [[figures]]
 template = "compare"
 inputs = ["L", "S"]                   # left, right
-layout = "../layouts/ls_social.toml"  # your own wording file, relative to this job file; leave out for the built-in one
+layout = "../legacy/layouts/ls_social.toml"  # your own wording file, relative to this job file; leave out for the built-in one
 theme = "neo_retro"                   # or minimal, neo_brutal, or a list of them
 
 [[figures]]
 template = "single"
 inputs = ["S"]
-layout = "../layouts/sband_social.toml"
+layout = "../legacy/layouts/sband_social.toml"

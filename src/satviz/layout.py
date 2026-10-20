@@ -30,7 +30,7 @@ class LayoutError(ValueError):
 def load_layout(layouts_dir: str | Path, name: str) -> dict:
     path = Path(layouts_dir) / f"{name}.toml"
     if not path.exists():
-        raise LayoutError(f"layout file {path} not found (see layouts/ in the repository)")
+        raise LayoutError(f"layout file {path} not found (see legacy/layouts/ in the repository)")
     with open(path, "rb") as f:
         data = tomllib.load(f)
     data["_path"] = str(path)
