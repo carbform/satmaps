@@ -15,6 +15,7 @@ def load_builtin() -> None:
     import satviz.sensors.sentinel1  # noqa: F401
     import satviz.sensors.sentinel1_grd  # noqa: F401
     import satviz.sensors.sentinel2  # noqa: F401
+    import satviz.sensors.sentinel2_safe  # noqa: F401
     import satviz.themes.minimal  # noqa: F401
     import satviz.themes.neo_brutal  # noqa: F401
     import satviz.themes.neo_retro  # noqa: F401

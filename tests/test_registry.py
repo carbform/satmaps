@@ -8,7 +8,7 @@ from satviz.sensors.nisar_gcov.io import load_roi
 
 def test_builtins_registered():
     d = describe()
-    assert d == {"sensors": ["eos04", "geotiff", "landsat_c2l2", "liss4", "nisar_gcov", "sentinel1_grd", "sentinel1_rtc", "sentinel2_l2a"],
+    assert d == {"sensors": ["eos04", "geotiff", "landsat_c2l2", "liss4", "nisar_gcov", "sentinel1_grd", "sentinel1_rtc", "sentinel2_l2a", "sentinel2_safe"],
                  "recipes": ["ndvi", "ndwi", "nir_fcc", "sar_fcc", "swir_fcc", "true_colour"], "themes": ["minimal", "neo_brutal", "neo_retro", "newspaper", "xkcd"],
                  "templates": ["compare", "grid", "optical", "optical_sar", "sar", "sar_vs_sar", "single"]}
 

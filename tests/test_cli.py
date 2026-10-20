@@ -23,7 +23,7 @@ def test_missing_data_gives_actionable_error(tmp_path):
 def test_cli_list(capsys):
     assert main(["list"]) == 0
     out = capsys.readouterr().out
-    assert "sensors: eos04, geotiff, landsat_c2l2, liss4, nisar_gcov, sentinel1_grd, sentinel1_rtc, sentinel2_l2a" in out and "themes: minimal, neo_brutal, neo_retro, newspaper, xkcd" in out and "figures:" in out
+    assert "sensors: eos04, geotiff, landsat_c2l2, liss4, nisar_gcov, sentinel1_grd, sentinel1_rtc, sentinel2_l2a, sentinel2_safe" in out and "themes: minimal, neo_brutal, neo_retro, newspaper, xkcd" in out and "figures:" in out
 
 
 def test_legacy_alias_module_runs_the_same_cli():
