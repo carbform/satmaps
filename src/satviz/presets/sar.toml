@@ -18,7 +18,7 @@ sensor = "nisar_gcov"
 source = { path = "NISAR_*_GCOV_*.h5" }   # a file or a glob, looked up in ./data (or --data-dir)
 
 [[figures]]
-template = "single"
+template = "sar"
 inputs = ["sar"]
-theme = "neo_retro"           # neo_retro, minimal, neo_brutal; a list gives one file per theme
+theme = "neo_retro"           # neo_retro, minimal, neo_brutal, newspaper, xkcd; a list gives one file per theme
 text = { title = "My title", subtitle = "SEEN BY NISAR" }

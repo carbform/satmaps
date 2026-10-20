@@ -23,7 +23,7 @@ sensor = "sentinel2_l2a"
 source = { stac = "earth-search", date = "2026-09-25", window_days = 7, max_cloud = 20 }
 
 [[figures]]
-template = "compare"
+template = "optical_sar"      # radar left, optical right; the figure states the time between acquisitions
 inputs = ["sar", "opt"]               # left, right
 recipes = { sar = "sar_fcc", opt = "true_colour" }
 theme = ["neo_retro", "minimal"]

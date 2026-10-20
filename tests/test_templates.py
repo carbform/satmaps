@@ -172,3 +172,19 @@ def test_template_error_becomes_a_job_error(tmp_path):
     p.write_text(BASE + '\n[[figures]]\ntemplate = "optical_sar"\ninputs = ["L", "S"]\n')
     with pytest.raises(JobError, match="at least one SAR and one optical"):
         run_job(load_job(p), tmp_path / "out")
+
+
+def test_every_shipped_preset_loads_and_plans(tmp_path):
+    """The starter job files (`satviz init <preset>`) must name templates and inputs that fit together."""
+    from importlib.resources import files
+
+    from satviz.run import plan_figure
+
+    found = [p for p in files("satviz").joinpath("presets").iterdir() if p.name.endswith(".toml")]
+    assert len(found) >= 5
+    for preset in found:
+        copy = tmp_path / preset.name
+        copy.write_text(preset.read_text())
+        job = load_job(copy, tmp_path)
+        for f in job.figures:
+            assert f.template in TEMPLATES and plan_figure(f, job), preset.name

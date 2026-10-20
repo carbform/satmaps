@@ -3,17 +3,18 @@
 Goal: quickly produce social, publication and newspaper-style infographics from NISAR, Sentinel-2, Landsat and
 other well-known satellites, with titles, names and credits customisable, in a few visual aesthetics.
 
-## Four independent axes
+## Independent axes
 
-Today these are tangled (`figures/*` hardcode `bands["S"]`/`bands["L"]`, `chrome.py` is typed against one theme,
-`layout.build_context` is NISAR-shaped). They separate as follows. Any combination should work.
+Any combination should work. (Updated Oct 2026: templates are now content scenarios and the old page layouts are *arrangements*;
+see [pipelines.md](pipelines.md).)
 
 | Axis | Question it answers | Examples |
 |---|---|---|
-| **Sensor** (reader) | Where do the pixels and facts come from? | `nisar_gcov`, `sentinel2_l2a`, `landsat_c2l2` |
+| **Sensor** (reader) | Where do the pixels and facts come from? | `nisar_gcov`, `eos04`, `sentinel1_grd`, `sentinel2_l2a`, `liss4` |
 | **Recipe** | How do layers become an image, a legend and caveats? | `sar_fcc`, `true_colour`, `nir_fcc`, `ndvi`, `ndwi` |
-| **Theme** | What does the chrome look like? | `minimal`, `neo_retro`, `neo_brutal`, `editorial` |
-| **Template** | How is the page arranged? | `single`, `compare`, `clean`, `publication`, `newspaper` |
+| **Template** | What is the figure about, and how do its products relate? | `optical`, `sar`, `optical_sar`, `sar_vs_sar` |
+| **Arrangement** | Where do the products sit on the page? | `single`, `compare`, `grid` |
+| **Theme** | What does the chrome look like? | `minimal`, `neo_retro`, `neo_brutal`, `newspaper`, `xkcd` |
 
 Rule carried over from `design-language.md`: **style the chrome, never the data.** Themes never touch data panels,
 and no theme can hide the caveat strip.

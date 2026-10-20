@@ -1,6 +1,6 @@
 # satviz
 
-Social, publication and editorial infographics from satellite data. NISAR is the first supported sensor (noise-aware false-colour composites and figures from NISAR **L-band** and **S-band** L2 GCOV products).
+Social, publication and editorial infographics from satellite data: SAR (NISAR, EOS-04, Sentinel-1) and optical (Sentinel-2, Landsat, ResourceSat LISS-IV), alone or side by side. NISAR was the first sensor (noise-aware false-colour composites from **L-band** and **S-band** L2 GCOV products).
 The first scene is the Brahmaputra near Dibrugarh (Assam), seen by L-SAR and S-SAR on the same pass.
 
 <p align="center">
@@ -32,6 +32,7 @@ Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any num
 
 ```bash
 satviz init                              # list presets (sar, sar-compare, optical, sar-vs-optical, multi-sensor-grid)
+satviz list                              # sensors, recipes, themes and what each template does
 satviz init sar-compare -o job.toml      # write a starter file
 # edit the area, the data files and the wording
 satviz run job.toml --out outputs/
@@ -39,8 +40,8 @@ satviz run job.toml --out outputs/
 
 A job file says where (`[area]`: `center` + `radius_km` or `size_km`, or a `bbox`), which data (`[[inputs]]`: an `id`,
 a `sensor` and a `source` path or glob), optional `[[zooms]]` by place, and which figures (`[[figures]]`: a `template`
-(`single`, `compare` or `grid`), `inputs`, `theme` or a list of themes, `text = { title = "...", subtitle = "..." }`, and
-`pairs = "all"` for every pair of three or more inputs, or `grid` for 2 to 6 panels). Place names, titles and credits are yours to write. A worked
+(see [Templates](#templates)), `inputs`, `theme` or a list of themes, `text = { title = "...", subtitle = "..." }`, and
+optionally an `arrangement`). Place names, titles and credits are yours to write. A worked
 example is [jobs/brahmaputra_l_vs_s.toml](jobs/brahmaputra_l_vs_s.toml), which reproduces the L-vs-S and S-band graphics
 exactly. The area defines one pixel grid and every input is read onto it, so the inputs always line up. Grids that
 already match are copied, others are resampled. A `<job>.lock.json` next to the outputs records the grid, the input files and the catalogue scenes that were chosen
@@ -73,29 +74,52 @@ notice says so.
   <img src="docs/img/grid_four_sensors.jpg" alt="NISAR, Sentinel-1, Landsat 8 and Sentinel-2 on one grid" width="38%">
 </p>
 
-Figures: `single` (one input), `compare` (two inputs split left/right, any recipe on each side), `grid` (2 to 6 inputs).
-Recipes: `sar_fcc` (SAR), `true_colour`, `nir_fcc`, `swir_fcc`, `ndvi`, `ndwi` (optical); `recipes = { sar = "sar_fcc",
-opt = "ndvi" }` picks one per input, otherwise each input gets its kind's default.
+## Templates
+
+A **template** says what a figure is about. It checks the inputs, picks a recipe for each, decides how they sit on the page
+(the **arrangement**) and states how the products relate. A **theme** only styles the chrome around the data.
+
+| `template` | Takes | Default page | What the figure also says |
+|---|---|---|---|
+| `optical` | optical inputs | one figure per input | the sensor's own notices (cloud share, no blue band) |
+| `sar` | SAR inputs | one figure per input | noise handling, calibration state |
+| `optical_sar` | at least one SAR and one optical | split view, SAR left | days between the acquisitions |
+| `sar_vs_sar` | two or more SAR | split view per pair | how they relate, below |
+
+`sar_vs_sar` reads the relation from the products and prints it as the subtitle and one notice line: **same sensor in two
+bands** (NISAR L and S), **same band from different sensors** (EOS-04 and Sentinel-1, both C-band), or **different sensors
+and bands**; with the wavelengths, the time between acquisitions, and a warning when backscatter conventions differ
+(σ⁰ ellipsoid against γ⁰ terrain-corrected: not directly comparable). Bands and wavelengths come from each file's own
+frequency, never from a table.
+
+`arrangement = "single" | "compare" | "grid"` overrides the page: `grid` tiles two to six inputs, `compare` splits one
+canvas between two. `single`, `compare` and `grid` also work as templates for older job files: no checks, no relation text.
+If a figure names no recipe, SAR inputs get `sar_fcc`; optical inputs get `true_colour` when they have a blue band and
+`nir_fcc` when they do not (LISS-IV). Other recipes: `swir_fcc`, `ndvi`, `ndwi`; `recipes = { E = "sar_fcc", L4 = "ndvi" }`
+sets one per input.
+
+<p align="center">
+  <img src="docs/img/scenario_sar_vs_sar.jpg" alt="SAR against SAR: NISAR L-band and Sentinel-1 C-band, relation stated in the subtitle and notices" width="38%">
+</p>
 
 ## Themes
 
-The social graphics (`ls-social`, `sband-social`, `lband-social`) come in several looks. The data panels are identical in
-every theme; only the chrome changes. Clean and publication figures stay plain on purpose.
-
-```bash
-satviz render ls-social --theme minimal
-satviz render ls-social --theme all          # one file per theme, named ..._Social_<Theme>.png
-satviz list                                  # registered sensors, recipes, themes, figures
-```
+Five looks. The data panels are identical in every theme (a test compares the pixels); only the chrome changes.
 
 <p align="center">
-  <img src="docs/img/theme_neoretro.jpg" alt="neo-retro" width="31%">
-  <img src="docs/img/theme_minimal.jpg" alt="minimal" width="31%">
-  <img src="docs/img/theme_neobrutal.jpg" alt="neo-brutal" width="31%">
+  <img src="docs/img/theme_neoretro.jpg" alt="neo-retro" width="18%">
+  <img src="docs/img/theme_minimal.jpg" alt="minimal" width="18%">
+  <img src="docs/img/theme_neobrutal.jpg" alt="neo-brutal" width="18%">
+  <img src="docs/img/theme_newspaper.jpg" alt="newspaper" width="18%">
+  <img src="docs/img/theme_xkcd.jpg" alt="xkcd" width="18%">
 </p>
 
-A theme is a dozen tokens (colours, fonts, outline scale, shadow offset) in `src/satviz/themes/`; copy `minimal.py`
-to add one.
+`neo_retro`, `minimal`, `neo_brutal`, `newspaper` (kicker, headline and dek between rules, serif type, hairline column
+rules; inspired by a printed page, no real masthead) and `xkcd` (hand-drawn chrome in a comic typeface; the sketch effect is
+removed inside every data axes, so scale bars, zoom boxes and the split line stay exact). `theme = ["minimal", "xkcd"]` writes one
+file per theme. A theme is a dozen tokens in `src/satviz/themes/` (copy `minimal.py`); one that needs another structure can
+also supply `chrome` with its own `header` and `block`, as `newspaper.py` does. Text tokens must reach 4.5:1 contrast on their
+backgrounds; a test enforces it. Older `satviz render` figures take `--theme`; the clean and publication figures stay plain on purpose.
 
 ## Install
 
@@ -117,13 +141,15 @@ NISAR_S2_PR_GCOV_031_112_A_016_3700_DHNA_A_20260925T225740_20260925T225816_P0050
 NISAR_L2_PR_GCOV_031_112_A_016_4005_DHDH_A_20260925T225740_20260925T225815_P05023_N_F_J_001.h5   (L-SAR)
 ```
 
+Other local products go in `data/` too, unzipped: the NRSC downloads (EOS-04 `E04_…`, LISS-IV `R2F…`) as folders and the Sentinel-1 `.SAFE` as a folder. The third-party handbooks the readers follow are listed in [docs/references/](docs/references/README.md).
+
 Put them in `data/` (ignored by git), or point the tool elsewhere with `--data-dir /path/to/granules` or
 `export SATVIZ_DATA_DIR=/path/to/granules` (the old `NISAR_DATA_DIR` still works). Lookup order: `--data-dir`, `$SATVIZ_DATA_DIR`, `./data`, the current directory. Reading a slice from these multi-GB files can be slow, so ROIs are cached as `.npz`
 in `cache/` (invalidated automatically if the source file changes; `--no-cache` to disable).
 
 ## Usage
 
-Run from the repository root (the default `--config` is `configs/brahmaputra.toml`).
+`satviz render` is the older NISAR-only path, kept under `legacy/`; new work uses `satviz run` with a job file. Run from the repository root (the default `--config` is `legacy/configs/brahmaputra.toml`).
 
 ```bash
 satviz render all                                       # granules in ./data; writes to outputs/
@@ -135,12 +161,12 @@ python -m satviz render ls-publication                  # same as the console sc
 
 ## Layout files: change the wording without touching code
 
-What is written on each figure lives in `layouts/<figure>.toml` (`sband_social.toml` and `lband_social.toml` for the
+What is written on each figure lives in a wording file, e.g. `legacy/layouts/<figure>.toml` (`sband_social.toml` and `lband_social.toml` for the
 single-band graphics, plus the four L-vs-S and publication files): main title, subtitle, info line, the how-to-read
 legend, the bottom notes, the credits and the publication captions. Edit them freely.
 
 ```toml
-# layouts/ls_social.toml
+# legacy/layouts/ls_social.toml
 [header]
 title = "River Brahmaputra"
 subtitle = "THE {name_upper} AS SEEN BY NISAR"
@@ -172,7 +198,7 @@ uses another set of layout files.
 
 ## Another scene
 
-A scene is one TOML file ([configs/brahmaputra.toml](configs/brahmaputra.toml)): a list of `[[inputs]]` (an `id`, the
+A scene for the older `render` path is one TOML file ([legacy/configs/brahmaputra.toml](legacy/configs/brahmaputra.toml)): a list of `[[inputs]]` (an `id`, the
 `sensor` reader that handles it, the file, and that reader's options; for NISAR the HDF5 group and the ROI rows and
 columns in each file's own grid; the first input is the reference for shared facts such as track and CRS), zoom windows, callouts and the place names (`name`, `reach`, `region`, author,
 website). Date, pass and instrument facts are not in it; they come from the files. Copy it, edit it and pass
@@ -183,29 +209,31 @@ building a split view.
 
 ```
 src/satviz/
-  core.py         Product, Rendered, registries for sensors, recipes, themes
+  core.py         Product, Rendered, registries for sensors, recipes, templates, themes
   registry.py     loads the built-in plugins; `satviz list`
-  sensors/nisar_gcov/   HDF5 ROI reader + cache (io), file metadata, noise statistics (processing), placeholder facts
-  recipes/sar_fcc.py    false-colour composite and pooled stretch
-  themes/         base.py (Theme tokens + chrome: blocks, chips, header, footer), neo_retro, minimal, neo_brutal
-  config.py       scene TOML -> dataclasses
-  layout.py       layout TOML + placeholders filled from metadata and statistics
-  geo.py, drawing.py    extent/projection helpers; theme-independent scale bar
+  sensors/        one module per sensor: nisar_gcov/, eos04, sentinel1_grd, sentinel1 (RTC), sentinel2, landsat, liss4, geotiff
+                  nrsc.py (shared NRSC metadata parser), stac_optical.py (shared catalogue reader)
+  recipes/        sar_fcc (SAR false colour), optical (true colour, NIR/SWIR false colour, NDVI, NDWI)
+  templates/      scenarios: optical, sar, optical_sar, sar_vs_sar (+ single/compare/grid as bare arrangements)
+  relations.py    how the products of a figure relate (band, sensor, time gap, backscatter convention)
+  radar.py        radar band and wavelength from a centre frequency
+  arrangements/   single, compare, grid: where products sit on the page; `draw` runs one
+  themes/         base.py (Theme tokens + chrome), neo_retro, minimal, neo_brutal, newspaper, xkcd
   area.py, grid.py, job.py, run.py, sources.py   area -> canvas grid, resampling, job file, runner, data paths
+  config.py, layout.py, geo.py, cog.py            scene dataclasses, wording files + placeholders, projections, GeoTIFF windows
   presets/, layouts/    starter job files and built-in wording (shipped with the package)
-  templates/      single (one product + its recipe inputs) and compare (split view of two products); take Products and any recipe
-  figures/        the clean and publication figures (still NISAR-specific, take working datasets)
+  legacy/         the NISAR-only figures behind `satviz render` (clean, publication)
   cli.py          satviz entry point (`nisar-viz` and `python -m nisar_viz` are aliases)
-configs/          scene definitions (granules, ROI, zooms, place names)
-layouts/          figure wording: titles, how-to-read, notes, credits, captions
-docs/             processing notes, design language, first assessment (superseded), preview images
+jobs/             worked job files: Krishna delta (EOS-04, LISS-IV), Dibrugarh (NISAR, Sentinel-1) and their template variants
+legacy/           configs/ and layouts/ for `satviz render`
+docs/             architecture, pipelines, processing notes, design language; references/ lists the (git-ignored) PDFs
 tests/            synthetic-data tests (no granules needed)
 archive/          earlier scripts and design explorations, unmaintained
 ```
 
 ## Fonts
 
-Figures use IBM Plex Sans / Mono and Gillius ADF if installed, and fall back to DejaVu otherwise; the layout
+Figures use IBM Plex Sans / Mono and Gillius ADF (neo-retro), Source Serif Pro (newspaper) and Humor Sans or Comic Neue (xkcd) if installed, and fall back to DejaVu otherwise; the layout
 holds either way, but renders are only pixel-identical on a machine with the same fonts.
 
 ## Development

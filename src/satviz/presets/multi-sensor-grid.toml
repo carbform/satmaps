@@ -33,7 +33,8 @@ sensor = "sentinel2_l2a"
 source = { stac = "earth-search", date = "2026-09-25", window_days = 3, max_cloud = 30 }
 
 [[figures]]
-template = "grid"
+template = "optical_sar"
+arrangement = "grid"
 inputs = ["nisar", "s1", "landsat", "s2"]    # reading order: left to right, top to bottom
 theme = ["neo_retro", "neo_brutal"]
 text = { title = "My title", subtitle = "FOUR SATELLITES, ONE DAY" }

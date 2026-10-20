@@ -30,8 +30,8 @@ source = { path = "NISAR_S2_*_GCOV_*.h5" }
 # size_km = [7.8, 3.0]
 
 [[figures]]
-template = "compare"
-inputs = ["L", "S"]           # left, right. For every pair of three or more inputs: pairs = "all"
+template = "sar_vs_sar"       # the figure says how the two relate: same band, different bands, or one sensor in two bands
+inputs = ["L", "S"]           # with three or more, every pair gets its own figure; arrangement = "grid" puts them on one page
 theme = ["neo_retro"]
 stretch = "per-band"          # or "pooled" (same colours in both, comparable)
 text = { title = "My title", subtitle = "L-BAND AND S-BAND, SAME PASS" }

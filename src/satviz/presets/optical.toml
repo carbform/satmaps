@@ -20,7 +20,7 @@ sensor = "sentinel2_l2a"
 source = { stac = "earth-search", date = "2026-09-25", window_days = 7, max_cloud = 20 }
 
 [[figures]]
-template = "single"
+template = "optical"
 inputs = ["opt"]
 recipes = { opt = "true_colour" }      # true_colour, nir_fcc, swir_fcc, ndvi, ndwi
 theme = "neo_retro"

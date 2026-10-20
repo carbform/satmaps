@@ -163,10 +163,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "list":
+        from satviz.core import TEMPLATES
         from satviz.registry import describe
 
         for kind, names in {**describe(), "figures": sorted(FIGURES)}.items():
             print(f"{kind}: {', '.join(names)}")
+        print("\ntemplates:")
+        for name in sorted(TEMPLATES):
+            print(f"  {name:12} {TEMPLATES[name].summary}")
         return 0
 
     from satviz.config import load_scene

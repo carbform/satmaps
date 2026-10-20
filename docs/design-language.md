@@ -43,3 +43,14 @@ See the README section "Layout files".
 - Don't add scanlines, glow, stripes, logos or gradients; don't use neon.
 
 The `ls-clean` and `*-publication` figures use a plain white style on purpose.
+
+## Other themes
+
+All five themes obey the one rule above and share the page geometry; a test compares the data pixels across them.
+
+- **minimal**: white page, hairline rules, no shadow.
+- **neo_brutal**: thick outlines, big offset shadow, flat saturated colour.
+- **newspaper**: kicker, headline and dek between rules; serif type (Source Serif Pro, PT Serif, DejaVu Serif); hairline rules in place of boxes; the notice strip is a tinted band. Inspired by a printed page's structure; it has no masthead, name or branding.
+- **xkcd**: hand-drawn lines and a comic typeface for the chrome. `Theme.finish` takes the sketch off every artist inside a data axes, label boxes included, so scale bars, zoom boxes and the split line are drawn exactly.
+
+Contrast: ink, muted text and chip text must reach 4.5:1 (WCAG 2.2, normal text) on their backgrounds in every theme.
