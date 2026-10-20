@@ -13,7 +13,8 @@ from tests.test_geotiff_sensors import AREA, EPSG, X0, Y0, needs_rasterio, write
 
 load_builtin()
 
-META = """Sensor= L4FX
+META = """SatID= IRS-R2
+Sensor= L4FX
 Path= 103
 Row= 062
 SceneCenterTime= 05-OCT-2026 04:47:22.601994
@@ -103,3 +104,44 @@ def test_raster_epsg_falls_back_for_untagged_utm(tmp_path):
         dst.write(np.ones((4, 4), np.uint16), 1)
     with rasterio.open(path) as src:
         assert raster_epsg(src) == 32644
+
+
+META_R2A = """SatID= IRS-R2A
+Sensor= L4FX
+Path= 113
+Row= 052
+SceneCenterTime= 19-OCT-2026 04:25:42.369583
+SunElevationAtCenter=  49.515075
+B2_Lmax=  52.0000
+B3_Lmax=  47.0000
+B4_Lmax=  31.5000
+"""
+
+
+@needs_rasterio
+def test_resourcesat_2a_with_only_lmax_is_read_and_named_as_2a(tmp_path):
+    folder = product_folder(tmp_path)
+    (folder / "R2F_scene.meta").write_text(META_R2A)
+    canvas = AREA.canvas(phase=(X0 + 5, Y0 - 5))
+    prod = liss4.open_on_canvas(lspec(), canvas, AREA, tmp_path)
+    assert prod.meta["platform"] == "ResourceSat-2A" and prod.meta["credit"] == "ResourceSat-2A LISS-IV data, NRSC/ISRO"
+    assert prod.meta["reflectance"] == "top-of-atmosphere"
+    note = next(c for c in prod.caveats if "top-of-atmosphere" in c)
+    assert "B*_Lmax" in note and "may differ for 2A" in note  # the constant used, and the irradiance caveat, are stated
+    # Lmax (52) not the SaturationRadiance field: the reflectance follows the scale that is there
+    assert liss4.radiance_scale(liss4.nrsc.read_meta(folder, "*.meta"), "green") == (52.0, "B*_Lmax")
+
+
+def test_the_saturation_radiance_field_is_preferred_when_both_exist():
+    meta = {"B2SaturationRadiance": "47.5614", "B2_Lmax": "52"}
+    assert liss4.radiance_scale(meta, "green") == (47.5614, "B*SaturationRadiance")
+    with pytest.raises(SourceError, match="neither"):
+        liss4.radiance_scale({}, "green")
+
+
+@needs_rasterio
+def test_band_table_comes_from_the_handbook_ranges(tmp_path):
+    product_folder(tmp_path)
+    prod = liss4.open_on_canvas(lspec(), AREA.canvas(phase=(X0 + 5, Y0 - 5)), AREA, tmp_path)
+    assert [b.id for b in prod.bands] == ["B2", "B3", "B4"] and [b.layer for b in prod.bands] == ["green", "red", "nir"]
+    assert prod.bands[1].range_nm == (620.0, 680.0) and prod.bands[1].wavelength_nm == 650.0

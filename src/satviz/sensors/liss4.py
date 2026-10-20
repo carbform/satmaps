@@ -27,7 +27,7 @@ import numpy as np
 
 from satviz.area import Area, AreaError, Canvas
 from satviz.cog import _rasterio, raster_epsg, read_window
-from satviz.core import Product, SourceInfo, sensor
+from satviz.core import BandInfo, Product, SourceInfo, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
 from satviz.sensors import nrsc
@@ -38,7 +38,10 @@ BANDS = {"green": 2, "red": 3, "nir": 4}
 # citing ISRO's RE-01 note, prints 181.89 / 156.96 / 110.48). Checked by order of magnitude: median green DN 145 gives ~0.14.
 ESUN = {"green": 181.89, "red": 156.96, "nir": 110.48}
 DN_RANGE = 1024.0
-CREDIT = "ResourceSat-2 LISS-IV data, NRSC/ISRO"
+# Nominal band limits in nm from the NRSC R2 Data User Handbook (LISS-IV table, section 2.3.4):
+# B2 0.52-0.59, B3 0.62-0.68, B4 0.77-0.86 um.
+RANGES_NM = {"green": (520.0, 590.0), "red": (620.0, 680.0), "nir": (770.0, 860.0)}
+PLATFORMS = {"IRS-R2": "ResourceSat-2", "IRS-R2A": "ResourceSat-2A"}
 KEYS = {"label", "credit", "attribution", "note"}
 
 
@@ -59,8 +62,22 @@ def earth_sun_distance(when: datetime) -> float:
     return 1.0 - 0.01672 * math.cos(math.radians(0.9856 * (when.timetuple().tm_yday - 4)))
 
 
+def radiance_scale(meta: dict, band: str) -> tuple[float, str]:
+    """(saturation radiance, name of the metadata field it came from): the product's own `B*SaturationRadiance` when it has one
+    (ResourceSat-2 products), else `B*_Lmax` (ResourceSat-2A products carry only that)."""
+    n = BANDS[band]
+    for field_name in (f"B{n}SaturationRadiance", f"B{n}_Lmax"):
+        if meta.get(field_name):
+            return float(meta[field_name]), field_name.replace(f"B{n}", "B*", 1)
+    raise SourceError(f"LISS-IV product has neither B{n}SaturationRadiance nor B{n}_Lmax in its .meta")
+
+
+def platform_of(meta: dict) -> str:
+    return PLATFORMS.get(meta.get("SatID", ""), meta.get("SatID") or "ResourceSat")
+
+
 def toa_reflectance(dn: np.ndarray, band: str, meta: dict, when: datetime) -> np.ndarray:
-    radiance = dn.astype(np.float32) * float(meta[f"B{BANDS[band]}SaturationRadiance"]) / DN_RANGE
+    radiance = dn.astype(np.float32) * radiance_scale(meta, band)[0] / DN_RANGE
     sin_elev = math.sin(math.radians(float(meta["SunElevationAtCenter"])))
     return math.pi * radiance * earth_sun_distance(when) ** 2 / (ESUN[band] * sin_elev)
 
@@ -99,18 +116,25 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
         layers[name] = to_canvas(refl, x, y, epsg, canvas, "bilinear")
     valid = np.isfinite(layers["red"]) & np.isfinite(layers["green"]) & np.isfinite(layers["nir"])
     caveats = [str(spec.options["note"])] if spec.options.get("note") else []
-    caveats.append("Top-of-atmosphere reflectance from the product's radiometric constants; no atmospheric correction, "
-                   "no cloud screening. No blue band: false colour only.")
+    platform = platform_of(meta)
+    field_used = radiance_scale(meta, "red")[1]
+    irradiance = ("published ResourceSat-2 solar irradiances, which may differ for 2A (none found in docs/)"
+                  if platform.endswith("2A") else "published solar irradiances")
+    caveats.append(f"{platform} LISS-IV top-of-atmosphere reflectance from the product's {field_used} and {irradiance}; "
+                   "no atmospheric correction, no cloud screening. No blue band: false colour only.")
     if native > canvas.res * 1.5:
         caveats.append(f"LISS-IV: {native:g} m pixels are resampled to this figure's {canvas.res:g} m grid.")
-    credit = str(spec.options.get("credit", CREDIT))
+    credit = str(spec.options.get("credit", f"{platform} LISS-IV data, NRSC/ISRO"))
+    bands = tuple(BandInfo(id=f"B{n}", layer=name, name=name, wavelength_nm=sum(RANGES_NM[name]) / 2,
+                           range_nm=RANGES_NM[name], resolution_m=native) for name, n in BANDS.items())
     return Product(
         key=spec.key, layers=layers, x=canvas.x, y=canvas.y, epsg=canvas.epsg, valid=valid, kind="optical",
-        meta=dict(platform="ResourceSat-2", sensor="LISS-IV", label=str(spec.options.get("label", "LISS-IV")), start=when,
-                  end=when, resolution_m=canvas.res, crs=crs_label(canvas.epsg),
+        meta=dict(platform=platform, sensor="LISS-IV", reflectance="top-of-atmosphere",
+                  label=str(spec.options.get("label", "LISS-IV")), start=when, end=when, resolution_m=canvas.res,
+                  crs=crs_label(canvas.epsg),
                   attribution=str(spec.options.get("attribution", credit)), credit=credit, items=files, time_known=True),
         facts=SimpleNamespace(date=f"{when.day} {when:%b %Y}", files=folder.name, path_row=f"{meta['Path']}/{meta['Row']}"),
-        caveats=caveats,
+        caveats=caveats, bands=bands,
     )
 
 

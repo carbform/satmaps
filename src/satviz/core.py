@@ -42,6 +42,21 @@ THEMES = Registry("theme")
 sensor, recipe, theme, template = SENSORS.register, RECIPES.register, THEMES.register, TEMPLATES.register
 
 
+@dataclass(frozen=True)
+class BandInfo:
+    """One spectral band of an optical product, as a multispectral figure labels its panel.
+
+    Everything here is read from the product's own files where they carry it; a field the product does not state stays None
+    (a sensor that gives only a nominal range says so in `range_nm` and leaves `wavelength_nm` as that range's midpoint)."""
+
+    id: str  # the sensor's own name for the band, e.g. "B04" or "B3"
+    layer: str  # key in `Product.layers` that holds its pixels
+    name: str = ""  # common name: "red", "nir", "red edge", ...
+    wavelength_nm: float | None = None  # centre wavelength
+    range_nm: tuple[float, float] | None = None  # nominal or measured band limits
+    resolution_m: float | None = None  # native pixel size, before resampling to the canvas
+
+
 @dataclass
 class Product:
     """One scene from one sensor, as the recipes and templates see it.
@@ -64,6 +79,7 @@ class Product:
     kind: str = "sar"  # layer vocabulary: "sar" or "optical"; a recipe needs one kind
     shared: dict = field(default_factory=dict)  # top-level placeholders this sensor adds (track, frame, ...); inputs must agree
     native: dict | None = None  # the sensor's own working dataset, for recipes that need more than `layers`
+    bands: tuple[BandInfo, ...] = ()  # spectral bands in wavelength order (optical sensors that can state them)
 
 
 @dataclass
