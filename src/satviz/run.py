@@ -19,6 +19,12 @@ def _sensor(spec):
     return SENSORS.get_or_raise(spec.sensor)
 
 
+def _source_name(spec) -> str:
+    """The file or folder name an input reads, as an error message names it."""
+    src = spec.options.get("source") or {}
+    return Path(src.get("path") or spec.file or spec.key).name
+
+
 def resolve_area(job: Job, needed: list[str]) -> Job:
     """The job with its area filled in. A job that names no area gets the largest rectangle inside every needed input's footprint,
     at a pixel size that gives about `target_px` pixels along its longer side (never finer than the finest input)."""
@@ -31,7 +37,8 @@ def resolve_area(job: Job, needed: list[str]) -> Job:
     if missing:
         raise JobError(f"{job.path}: no footprint for input(s) {missing}; give an [area]")
     try:
-        area = common_area({k: i.footprint for k, i in infos.items()})
+        area = common_area({k: i.footprint for k, i in infos.items()},
+                           {k: f"{k} ({_source_name(job.inputs[k])})" for k in infos})
     except AreaError as e:
         raise JobError(f"{job.path}: {e}") from None
     res = job.auto_area.get("resolution_m") or pick_resolution(

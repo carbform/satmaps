@@ -27,7 +27,7 @@ from pyproj import Transformer
 from scipy.ndimage import map_coordinates
 
 from satviz.area import Area, AreaError, Canvas
-from satviz.cog import _rasterio
+from satviz.cog import _rasterio, edge_ring
 from satviz.core import Product, SourceInfo, footprint_or_none, sensor
 from satviz.geo import crs_label
 from satviz.radar import radar_facts
@@ -205,8 +205,8 @@ def data_footprint(measurement: Path, across: int = 600) -> list[tuple[float, fl
     """(lon, lat) ring of where the image has data, from a coarse read of its valid (DN > 0) pixels.
 
     The manifest footprint is the quad around the whole image, but the zero collars at the swath edges lie inside it. The image is
-    stored a row at a time, so reading it about `across` pixels wide touches only every n-th row. Each kept row contributes
-    its first and last valid pixel (valid data is one run per row), placed on the ground by the GCP fit."""
+    stored a row at a time, so reading it about `across` pixels wide touches only every n-th row. The ring of the valid pixels
+    (`satviz.cog.edge_ring`) is placed on the ground by the GCP fit."""
     from rasterio.transform import GCPTransformer
 
     with _rasterio().open(measurement) as src:
@@ -214,13 +214,7 @@ def data_footprint(measurement: Path, across: int = 600) -> list[tuple[float, fl
         dn = src.read(1, out_shape=(max(2, src.height // step), max(2, src.width // step)))
         gcps = src.gcps[0]
         sy, sx = src.height / dn.shape[0], src.width / dn.shape[1]
-    rows = np.flatnonzero((dn > 0).any(axis=1))
-    if not len(rows):
-        raise SourceError(f"{measurement.name}: no valid pixels")
-    first = np.array([np.flatnonzero(dn[r] > 0)[0] for r in rows])
-    last = np.array([np.flatnonzero(dn[r] > 0)[-1] for r in rows])
-    r_img = np.concatenate([rows, rows[::-1]]) + 0.5
-    c_img = np.concatenate([first, last[::-1] + 1.0])
+    r_img, c_img = edge_ring(dn > 0)
     lon, lat = GCPTransformer(gcps, tps=True).xy(r_img * sy, c_img * sx)
     return list(zip(map(float, lon), map(float, lat), strict=True))
 

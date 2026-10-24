@@ -37,16 +37,16 @@ def largest_rectangle(mask: np.ndarray) -> tuple[int, int, int, int] | None:
     return box
 
 
-def common_area(footprints: dict[str, list[tuple[float, float]]]) -> Area:
-    """The largest rectangle inside every footprint (a dict input id -> (lon, lat) ring)."""
+def common_area(footprints: dict[str, list[tuple[float, float]]], labels: dict[str, str] | None = None) -> Area:
+    """The largest rectangle inside every footprint (a dict input id -> (lon, lat) ring); `labels` name the inputs in errors."""
     rings = {k: np.asarray(v, float) for k, v in footprints.items()}
     w = max(r[:, 0].min() for r in rings.values())
     e = min(r[:, 0].max() for r in rings.values())
     s = max(r[:, 1].min() for r in rings.values())
     n = min(r[:, 1].max() for r in rings.values())
-    names = ", ".join(rings)
+    names = " and ".join((labels or {}).get(k, k) for k in rings)
     if not (w < e and s < n):
-        raise AreaError(f"the inputs ({names}) do not overlap: their footprints share no area. {NO_OVERLAP_FIX}")
+        raise AreaError(f"{names} do not overlap: their footprints share no area. {NO_OVERLAP_FIX}")
     lat0, lon0 = (s + n) / 2, (w + e) / 2
     epsg = utm_epsg(lat0, lon0)
     to_utm, to_ll = _tf(4326, epsg), _tf(epsg, 4326)
@@ -63,10 +63,10 @@ def common_area(footprints: dict[str, list[tuple[float, float]]]) -> Area:
     mask = binary_erosion(mask.reshape(rows, cols), iterations=ERODE)
     box = largest_rectangle(mask)
     if box is None:
-        raise AreaError(f"the inputs ({names}) do not overlap: their footprints share no area. {NO_OVERLAP_FIX}")
+        raise AreaError(f"{names} do not overlap: their footprints share no area. {NO_OVERLAP_FIX}")
     r0, r1, c0, c1 = box
     if min(r1 - r0, c1 - c0) * step < MIN_SIDE_KM * 1000:
-        raise AreaError(f"the inputs ({names}) overlap in a sliver under {MIN_SIDE_KM:g} km: nothing to draw. "
+        raise AreaError(f"{names} overlap in a sliver under {MIN_SIDE_KM:g} km: nothing to draw. "
                         + NO_OVERLAP_FIX)
     return Area(epsg, x0 + c0 * step, y1 - r1 * step, x0 + c1 * step, y1 - r0 * step)
 

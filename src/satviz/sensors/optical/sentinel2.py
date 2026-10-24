@@ -28,7 +28,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from satviz.area import Area, AreaError, Canvas
-from satviz.cog import _rasterio, raster_epsg, read_window
+from satviz.cog import _rasterio, raster_epsg, read_converted, read_window
 from satviz.core import BandInfo, Product, SourceInfo, footprint_or_none, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
@@ -141,7 +141,7 @@ def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
 
 def _cloud_layer(img: Path, canvas: Canvas, cache_dir) -> np.ndarray | None:
     path = next(iter(sorted((img / "R20m").glob("*_SCL_20m.jp2"))), None)
-    r = read_window(str(path), canvas, cache_dir) if path is not None else None
+    r = read_window(str(path), canvas, cache_dir, nearest=True) if path is not None else None
     if r is None:
         return None
     scl = to_canvas(r[0], r[1], r[2], r[3], canvas, "nearest", fill=0)
@@ -160,11 +160,12 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
             continue  # a band the metadata lists but the product does not carry (B10)
         if b["offset"] is None:
             raise SourceError(f"{folder.name}: no BOA_ADD_OFFSET for band {code} (band_id {b['band_id']})")
-        r = read_window(str(path), canvas, cache_dir)
+        r = read_converted(str(path), canvas, lambda dn, b=b: to_reflectance(dn, b["offset"], mtd["quantification"]),
+                           f"s2-boa|{b['offset']}|{mtd['quantification']}", cache_dir)
         if r is None:
             raise AreaError(f"input {spec.key!r}: {path.name} does not cover the area")
-        dn, x, y, epsg, _ = r
-        layers[code] = to_canvas(to_reflectance(dn, b["offset"], mtd["quantification"]), x, y, epsg, canvas, "bilinear")
+        refl, x, y, epsg, _ = r
+        layers[code] = to_canvas(refl, x, y, epsg, canvas, "bilinear")
         files.append(str(path))
         infos.append(BandInfo(id=code, layer=code, name=COMMON_NAMES.get(code, ""), wavelength_nm=b["central"],
                               range_nm=(b["min"], b["max"]), resolution_m=float(b["resolution"])))

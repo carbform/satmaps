@@ -26,7 +26,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from satviz.area import Area, AreaError, Canvas
-from satviz.cog import _rasterio, raster_epsg, read_window
+from satviz.cog import _rasterio, raster_epsg, read_converted, valid_ring
 from satviz.core import BandInfo, Product, SourceInfo, footprint_or_none, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
@@ -50,11 +50,9 @@ def read_meta(folder: Path) -> dict[str, str]:
 
 
 def sniff(path) -> bool:
-    """An unzipped LISS-IV folder: `BAND_META.txt` with the BAND2, BAND3 and BAND4 images and no SAR polarisations."""
+    """An unzipped LISS-IV folder: a `.meta` file with the BAND2, BAND3 and BAND4 images."""
     folder = nrsc.product_folder(Path(path))
-    meta = folder / "BAND_META.txt"
-    return (folder.is_dir() and meta.is_file() and all((folder / f"BAND{n}.tif").is_file() for n in BANDS.values())
-            and "TxRxPol1" not in meta.read_text(errors="replace"))
+    return folder.is_dir() and any(folder.glob("*.meta")) and all((folder / f"BAND{n}.tif").is_file() for n in BANDS.values())
 
 
 def _folder(spec, data_dir) -> Path:
@@ -95,6 +93,12 @@ def _check(spec) -> None:
         raise SourceError(f"input {spec.key!r}: unknown key(s) {sorted(unknown)}; allowed: {sorted(KEYS | {'source'})}")
 
 
+def _best_footprint(folder: Path, image: Path):
+    """Where the data is, from the image's non-zero pixels; the corner quad of the metadata when they cannot be read."""
+    return (footprint_or_none(valid_ring, str(image), lambda dn: dn > 0)
+            or footprint_or_none(lambda: nrsc.corners(read_meta(folder))))
+
+
 def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
     _check(spec)
     folder = _folder(spec, data_dir)
@@ -103,7 +107,13 @@ def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
         t = src.transform
         res = abs(t.a)
         return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)],
-                          footprint=footprint_or_none(lambda: nrsc.corners(read_meta(folder))))
+                          footprint=None if area is not None else _best_footprint(folder, path))
+
+
+def _reflectance(dn: np.ndarray, band: str, meta: dict, when: datetime) -> np.ndarray:
+    refl = toa_reflectance(dn, band, meta, when)
+    refl[dn == 0] = np.nan  # DN 0 is outside the scene
+    return refl
 
 
 def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, tag="job") -> Product:
@@ -115,13 +125,11 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     for name, n in BANDS.items():
         path = folder / f"BAND{n}.tif"
         files.append(str(path))
-        r = read_window(str(path), canvas, cache_dir)
+        r = read_converted(str(path), canvas, lambda dn, name=name: _reflectance(dn, name, meta, when),
+                           f"liss4-toa|{name}", cache_dir)
         if r is None:
             raise AreaError(f"input {spec.key!r}: {path.name} does not cover the area")
-        dn, x, y, epsg, _ = r
-        refl = toa_reflectance(dn, name, meta, when)
-        refl[dn == 0] = np.nan  # DN 0 is outside the scene
-        native = abs(float(x[1] - x[0])) if len(x) > 1 else canvas.res
+        refl, x, y, epsg, native = r
         layers[name] = to_canvas(refl, x, y, epsg, canvas, "bilinear")
     valid = np.isfinite(layers["red"]) & np.isfinite(layers["green"]) & np.isfinite(layers["nir"])
     caveats = [str(spec.options["note"])] if spec.options.get("note") else []

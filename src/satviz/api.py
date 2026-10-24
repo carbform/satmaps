@@ -1,0 +1,159 @@
+"""The Python API: `inspect` a product, `render` figures from paths. `satviz quick` is a command line over `render`.
+
+``render`` writes no figure logic of its own. It builds the same tables a job file holds, resolves the automatic parts (sensor,
+area, pixel size), and hands them to `run_job`; ``save_job`` writes those resolved tables, so running the saved file gives the
+same figures. Importing `satviz` stays light: the heavy modules load when a function is called.
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+MAX_TILES = 6
+
+
+def inspect(path: str | os.PathLike) -> dict:
+    """What satviz knows about a product without reading its pixels: sensor, kind, native pixel size, where it has data.
+
+    ``footprint`` is a (lon, lat) ring and ``bbox`` its (west, south, east, north); both are None when the product's metadata does
+    not state where it is."""
+    from satviz.config import InputSpec
+    from satviz.core import SENSORS
+    from satviz.detect import detect
+
+    path = Path(path).expanduser().resolve()
+    name = detect(path)
+    reader = SENSORS[name]
+    info = reader.describe(InputSpec("x", name, "", {"source": {"path": str(path)}}), path.parent, None)
+    ring = info.footprint
+    bbox = None
+    if ring:
+        lons, lats = zip(*ring, strict=True)
+        bbox = (min(lons), min(lats), max(lons), max(lats))
+    return {"path": str(path), "sensor": name, "kind": reader.kind, "resolution_m": info.resolution_m, "epsg": info.epsg,
+            "bbox": bbox, "footprint": ring}
+
+
+def _area_table(area) -> dict:
+    """The `[area]` table for what a caller passed: nothing (automatic), a (w, s, e, n) box, or a table of the job-file keys."""
+    if area is None:
+        return {}
+    if isinstance(area, dict):
+        return dict(area)
+    if len(area) == 4:
+        return {"bbox": [float(v) for v in area]}
+    raise ValueError("area must be a (west, south, east, north) box in degrees "
+                     "or a dict like {'center': [lat, lon], 'size_km': [w, h]}")
+
+
+def _default_arrangement(template: str, kinds: list[str]) -> str:
+    n = len(kinds)
+    if n > MAX_TILES:
+        raise ValueError(f"{n} inputs on one figure is too many (at most {MAX_TILES}); render them in groups")
+    if template == "sar_optical":
+        return "compare" if n == 2 else "grid"
+    return "single" if n == 1 else "compare" if n == 2 else "grid"
+
+
+def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick", title: str | None = None,
+              template: str | None = None, arrangement: str | None = None, bands: bool = False, resolution_m: float | None = None,
+              allow_different_passes: bool = False, data_dir=None):
+    """The `Job` for some paths, with sensors detected, ids chosen, template and arrangement picked from what the inputs are, and
+    the area and pixel size resolved. Also returns the job-file tables that reproduce it."""
+    import dataclasses
+
+    from satviz.detect import detect, input_id
+    from satviz.job import JobError, job_from_dict
+    from satviz.run import resolve_area
+
+    if not paths:
+        raise ValueError("give at least one product path")
+    inputs, taken = [], set()
+    for p in paths:
+        p = Path(p).expanduser().resolve()
+        sensor = detect(p)
+        key = input_id(sensor, p, taken)
+        taken.add(key)
+        inputs.append({"id": key, "sensor": sensor, "source": {"path": str(p)}})
+    ids = [i["id"] for i in inputs]
+    from satviz.core import SENSORS
+    from satviz.registry import load_builtin
+
+    load_builtin()
+    kinds = [SENSORS[i["sensor"]].kind for i in inputs]
+    chosen = template or ("sar_optical" if len(set(kinds)) > 1 else kinds[0])
+    arrangement = "bands" if bands else arrangement or _default_arrangement(chosen, kinds)
+    fig = {"name": "quick" if quality == "quick" else "figure", "template": chosen, "inputs": ids, "theme": theme,
+           "arrangement": arrangement, **({"text": {"title": title}} if title else {}),
+           **({"allow_different_passes": True} if allow_different_passes else {})}
+    table = _area_table(area)
+    if resolution_m:
+        table["resolution_m"] = float(resolution_m)
+    raw = {"quality": quality, "scene": {"name": title or "Satellite view"}, "area": table, "inputs": inputs, "figures": [fig]}
+    root = Path(data_dir) if data_dir else Path.cwd()
+    job = job_from_dict(raw, root / "satviz-quick.toml", root)
+    try:
+        job = resolve_area(job, ids)
+    except JobError as e:
+        raise ValueError(str(e).removeprefix(f"{job.path}: ")) from None
+    raw["area"] = _resolved_area_table(job.area)
+    return dataclasses.replace(job, auto_area={}), raw
+
+
+def _resolved_area_table(area) -> dict:
+    """An `[area]` table that gives back this area: centre and size, written to 8 decimals so the canvas is the same."""
+    from satviz.area import _tf
+
+    lon, lat = _tf(area.epsg, 4326).transform((area.xmin + area.xmax) / 2, (area.ymin + area.ymax) / 2)
+    return {"center": [round(lat, 8), round(lon, 8)], "size_km": [round((area.xmax - area.xmin) / 1000, 8),
+                                                                  round((area.ymax - area.ymin) / 1000, 8)],
+            "crs": f"EPSG:{area.epsg}", "resolution_m": area.resolution_m}
+
+
+def render(paths, *, out: str | os.PathLike = "outputs", cache: str | os.PathLike | None = "cache", save_job=None,
+           **options) -> list[Path]:
+    """Render one figure from product paths and return the PNG paths written (and a PDF beside each for ``"publication"``).
+
+    Options: ``area`` (None: the overlap of the inputs; a (west, south, east, north) box; or a dict of `[area]` keys),
+    ``theme``, ``quality`` ("quick" or "publication"), ``title``, ``template`` and ``arrangement`` (normally picked from the
+    inputs), ``bands`` (optical: one panel per band), ``resolution_m``, ``allow_different_passes``, ``data_dir``.
+    ``save_job`` writes the job file that reproduces the figure."""
+    from satviz.run import run_job
+
+    job, raw = build_job(paths, **options)
+    if save_job:
+        write_job(raw, Path(save_job))
+    return run_job(job, out, cache)
+
+
+def write_job(raw: dict, dest: Path) -> None:
+    """Write job-file tables as TOML (the subset a job uses: strings, numbers, booleans, lists, tables, arrays of tables)."""
+    dest.write_text(_toml(raw))
+
+
+def _value(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return repr(v)
+    if isinstance(v, str):
+        return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(_value(x) for x in v) + "]"
+    if isinstance(v, dict):
+        return "{ " + ", ".join(f"{k} = {_value(x)}" for k, x in v.items()) + " }"
+    raise TypeError(f"cannot write {v!r} as TOML")
+
+
+def _toml(raw: dict) -> str:
+    lines = ["# Written by `satviz quick --save-job`: run it with  satviz run <this file>"]
+    for k, v in raw.items():
+        if not isinstance(v, (dict, list)) or (isinstance(v, list) and not all(isinstance(x, dict) for x in v)):
+            lines.append(f"{k} = {_value(v)}")
+    for k, v in raw.items():
+        if isinstance(v, dict):
+            lines += ["", f"[{k}]", *(f"{a} = {_value(b)}" for a, b in v.items())]
+        elif isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
+            for item in v:
+                lines += ["", f"[[{k}]]", *(f"{a} = {_value(b)}" for a, b in item.items())]
+    return "\n".join(lines) + "\n"

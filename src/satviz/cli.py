@@ -1,4 +1,5 @@
-"""Command line: `satviz run job.toml --out outputs/`. Also `init` (starter job files), `list` and `placeholders`."""
+"""Command line: `satviz quick <products…>` for a figure with no setup, `satviz run job.toml` for a job file. Also `inspect`,
+`init` (starter job files), `list` and `placeholders`."""
 from __future__ import annotations
 
 import argparse
@@ -31,6 +32,29 @@ def _init(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="satviz", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    qk = sub.add_parser("quick", help="render a figure from product paths: sensor, area, template and pixel size are worked out")
+    qk.add_argument("paths", nargs="+", help="products: a NISAR .h5, or an unzipped Sentinel-1/2 .SAFE, EOS-04 or LISS-IV folder")
+    qk.add_argument("--quality", choices=("quick", "publication"), default="quick",
+                    help="quick: a small PNG in seconds; publication: full size, with a PDF (default: %(default)s)")
+    qk.add_argument("--theme", default="minimal", help="neo_retro, minimal, neo_brutal, newspaper or xkcd (default: %(default)s)")
+    qk.add_argument("--title", default=None, help="the figure's title")
+    qk.add_argument("--bbox", nargs=4, type=float, metavar=("W", "S", "E", "N"),
+                    help="draw this box (degrees) instead of the overlap of the inputs")
+    qk.add_argument("--resolution", type=float, default=None, metavar="M", help="pixel size in metres (default: from --quality)")
+    qk.add_argument("--template", choices=("sar", "optical", "sar_optical"), default=None, help="default: from the inputs")
+    qk.add_argument("--arrangement", choices=("single", "compare", "grid", "bands"), default=None,
+                    help="default: one input single, two compare, three to six grid")
+    qk.add_argument("--bands", action="store_true", help="optical: one panel per spectral band (same as --arrangement bands)")
+    qk.add_argument("--allow-different-passes", action="store_true", help="NISAR: lift the same-track-and-frame check")
+    qk.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
+    qk.add_argument("--data-dir", default=None)
+    qk.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")
+    qk.add_argument("--no-cache", action="store_true")
+    qk.add_argument("--save-job", default=None, metavar="FILE", help="also write the job file that reproduces this figure")
+
+    ins = sub.add_parser("inspect", help="say which sensor reads a product and where it has data, without reading pixels")
+    ins.add_argument("paths", nargs="+")
 
     rn = sub.add_parser("run", help="render the figures of a job file")
     rn.add_argument("job", help="job TOML (see `satviz init`)")
@@ -65,6 +89,47 @@ def main(argv: list[str] | None = None) -> int:
     matplotlib.use("Agg")  # headless; set here so importing the library never changes the backend
     if args.cmd == "init":
         return _init(args)
+
+    if args.cmd == "inspect":
+        from satviz.api import inspect
+        from satviz.detect import DetectError
+
+        status = 0
+        for path in args.paths:
+            try:
+                info = inspect(path)
+            except (DetectError, ValueError, FileNotFoundError, ImportError) as e:
+                print(f"error: {e}", file=sys.stderr)
+                status = 2
+                continue
+            box = "unknown" if info["bbox"] is None else "W {:.3f}  S {:.3f}  E {:.3f}  N {:.3f}".format(*info["bbox"])
+            print(f"{Path(path).name}\n  {info['sensor']} ({info['kind']}), {info['resolution_m']:g} m pixels, "
+                  f"EPSG:{info['epsg']}")
+            print(f"  {box}")
+        return status
+
+    if args.cmd == "quick":
+        from satviz.api import render
+        from satviz.area import AreaError
+        from satviz.detect import DetectError
+        from satviz.job import JobError
+        from satviz.layout import LayoutError
+        from satviz.sources import SourceError
+
+        try:
+            paths = render(args.paths, out=args.out, cache=None if args.no_cache else args.cache, save_job=args.save_job,
+                           area=args.bbox, theme=args.theme, quality=args.quality, title=args.title, template=args.template,
+                           arrangement=args.arrangement, bands=args.bands, resolution_m=args.resolution,
+                           allow_different_passes=args.allow_different_passes, data_dir=args.data_dir)
+        except (DetectError, JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError,
+                ImportError) as e:
+            print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)
+            return 2
+        for path in paths:
+            print(path)
+            if path.with_suffix(".pdf").exists():
+                print(path.with_suffix(".pdf"))
+        return 0
 
     if args.cmd == "run":
         from satviz.area import AreaError

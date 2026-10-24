@@ -13,6 +13,36 @@ The S-band product is still unfinished: calibration metadata is unpopulated, noi
 product's noise floor, draws noise-dominated pixels grey instead of as signal, and prints the caveats on every figure.
 Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any number.
 
+## Quick start
+
+Point it at the products; it works out the sensor, the area, the figure type and the pixel size.
+
+```bash
+satviz inspect data/S1D_….SAFE                       # which sensor reads it, its pixel size, where it has data
+satviz quick data/S1D_….SAFE data/E04_…/             # one small PNG in seconds (the overlap of the two products)
+satviz quick data/S2C_….SAFE --bands                 # Sentinel-2 band by band
+satviz quick a.h5 b.SAFE --quality publication       # full size, PNG and PDF, ready to publish
+satviz quick a.h5 b.SAFE --save-job fig.toml         # also write the job file that reproduces it; edit it and `satviz run` it
+```
+
+```python
+import satviz
+satviz.inspect("data/NISAR_L2_….h5")                  # {'sensor': 'nisar', 'kind': 'sar', 'bbox': (…), …}
+satviz.render(["data/NISAR_L2_….h5", "data/S1D_….SAFE"], theme="newspaper", quality="publication", title="Two radars")
+```
+
+What `quick` decides, and how to override it:
+
+| It picks | By | Override |
+|---|---|---|
+| the sensor of each path | looking at the folder or file (a zip is refused: unzip it) | name `sensor` in a job file |
+| the area | the largest rectangle inside the data of **every** input (their footprints are read from the products' own metadata or valid pixels, not their bounding boxes); an error if they share nothing | `--bbox W S E N` |
+| the figure | SAR only: `sar`; optical only: `optical`; both: `sar_optical`. One input: single; two: side by side; three to six: a grid | `--template`, `--arrangement`, `--bands` |
+| the pixel size | the area's size, so a whole NISAR frame still reads in seconds; never finer than the data | `--resolution M` |
+
+`--quality quick` (the default) draws a small PNG; `--quality publication` is the full-size figure and also writes a PDF with
+the text as text. The notices, credits and caveats are on both: a quick figure makes the same claims as a publication one.
+
 ## What it does
 
 You describe a place, point at the data you have, and choose what the figure is about and how it looks. The tool finds the
@@ -47,8 +77,9 @@ satviz init sar -o job.toml              # write one
 satviz run job.toml --out outputs/
 ```
 
-A job file says where (`[area]`: `center` + `radius_km` or `size_km`, or a `bbox`), which data (`[[inputs]]`: an `id`, a
-`sensor` and a `source` path or glob), and which figures (`[[figures]]`: a `template`, `inputs`, `theme` or a list of themes,
+A job file says where (`[area]`: `center` + `radius_km` or `size_km`, or a `bbox`; leave it out for the overlap of the inputs),
+which data (`[[inputs]]`: an `id`, a `source` path or glob, and a `sensor`, which is found from the source when left out),
+`quality = "quick"` or `"publication"` (the default), and which figures (`[[figures]]`: a `template`, `inputs`, `theme` or a list of themes,
 `text = { title = "...", subtitle = "..." }`, and optionally an `arrangement`). The area defines one pixel grid and every
 input is read onto it, so the inputs always line up: grids that already match are copied, others are resampled, and a notice
 says so. A `<job>.lock.json` next to the outputs records the grid and the input files. Sensors add their own attribution and
@@ -136,6 +167,8 @@ a slice of a multi-GB NISAR file can be slow, so it is cached as `.npz` in `cach
 ## Usage
 
 ```bash
+satviz quick <products…>                    # a figure from paths alone (see Quick start)
+satviz inspect <products…>                  # sensor, pixel size and footprint of each
 satviz init                                 # list the starter job files
 satviz init sar -o job.toml                 # write one, then edit the area, the data and the wording
 satviz run job.toml --out outputs/          # render every figure of the job
@@ -203,7 +236,11 @@ src/satviz/
   area.py, grid.py, job.py, run.py, sources.py   area -> canvas grid, resampling, job file, runner, data paths
   config.py, layout.py, geo.py, cog.py            scene dataclasses, wording files + placeholders, projections, GeoTIFF windows
   presets/, layouts/    starter job files (sar, optical, sar-optical) and built-in wording (shipped with the package)
-  cli.py          `satviz run | init | list | placeholders`
+  api.py          `satviz.render` and `satviz.inspect`: what `satviz quick` calls
+  detect.py       which sensor reads a path (each sensor's `sniff`)
+  autoarea.py     the overlap of the inputs' footprints, and the pixel size for a target
+  quality.py      the quick and publication profiles, and the one place figures are saved (PNG, PDF)
+  cli.py          `satviz quick | inspect | run | init | list | placeholders`
 jobs/             brahmaputra.toml (place + inputs) and the four jobs that extend it; layouts/ has two wording-file examples
 docs/             architecture, pipelines, processing notes, design language; references/ lists the (git-ignored) PDFs
 tests/            synthetic-data tests (no granules needed)

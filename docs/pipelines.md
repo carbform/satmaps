@@ -9,6 +9,12 @@ sensor reader --> Product --> recipe --> Rendered --> arrangement (page) --> the
                  caveats
 ```
 
+## Without a job file
+
+`satviz quick <paths>` and `satviz.render(paths)` detect each sensor, pick the template (`sar`, `optical`, `sar_optical`) from what
+the inputs are and the arrangement from how many there are (one: single; two: compare; three to six: grid), take the overlap of the
+inputs as the area and choose a pixel size for the requested quality. `--save-job` writes the result as a job file.
+
 ## SAR
 
 | Sensor | Reads | Layers | Facts the figure states (all read from the files) |

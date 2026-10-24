@@ -24,7 +24,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from satviz.area import Area, AreaError, Canvas
-from satviz.cog import _rasterio, raster_epsg, read_window
+from satviz.cog import _rasterio, raster_epsg, read_converted, read_window, valid_ring
 from satviz.core import Product, SourceInfo, footprint_or_none, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
@@ -114,6 +114,12 @@ def gamma0_linear(dn: np.ndarray, k_beta0_db: float, noise_bias: float) -> np.nd
     return g.astype(np.float32)
 
 
+def _best_footprint(folder: Path):
+    """Where the data is, from the mask's valid pixels; the corner quad of the metadata when they cannot be read."""
+    return (footprint_or_none(valid_ring, str(_mask(folder)), lambda m: m == VALID)
+            or footprint_or_none(lambda: nrsc.corners(nrsc.read_meta(folder, "BAND_META.txt"))))
+
+
 def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
     _check(spec)
     folder = _folder(spec, data_dir)
@@ -122,7 +128,7 @@ def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
         t = src.transform
         res = abs(t.a)
         return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)],
-                          footprint=footprint_or_none(lambda: nrsc.corners(nrsc.read_meta(folder, "BAND_META.txt"))))
+                          footprint=None if area is not None else _best_footprint(folder))
 
 
 def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, tag="job") -> Product:
@@ -131,7 +137,7 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     meta = nrsc.read_meta(folder, "BAND_META.txt")
     pols = _pols(meta)
     when = nrsc.parse_time(meta["SceneCenterTime"])
-    m = read_window(str(_mask(folder)), canvas, cache_dir)
+    m = read_window(str(_mask(folder)), canvas, cache_dir, nearest=True)
     if m is None:
         raise AreaError(f"input {spec.key!r}: {folder.name} does not cover the area")
     mask, mx, my, mepsg, _ = m
@@ -151,17 +157,23 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     for name, pol in zip(("co", "cross"), pols, strict=True):
         path = _imagery(folder, pol)
         files.append(str(path))
-        r = read_window(str(path), canvas, cache_dir)
-        if r is None:
-            raise AreaError(f"input {spec.key!r}: {path.name} does not cover the area")
-        dn, x, y, epsg, _ = r
         # Kcal_dB is the Beta0 constant for Level-2B too (document eq. 10), not the Gamma0 or the bare constant tags
-        g = gamma0_linear(dn, float(meta[f"Calibration_Constant_Beta0_{pol}"]), float(meta[f"Image_Noise_Bias_{pol}"]))
-        if aux:
+        k_db, bias = float(meta[f"Calibration_Constant_Beta0_{pol}"]), float(meta[f"Image_Noise_Bias_{pol}"])
+        if aux:  # sigma0 needs the area and incidence-angle layers pixel for pixel: the window is read whole
+            r = read_window(str(path), canvas, cache_dir)
+            if r is None:
+                raise AreaError(f"input {spec.key!r}: {path.name} does not cover the area")
+            dn, x, y, epsg, _ = r
             if aux["area"].shape != dn.shape or aux["lia"].shape != dn.shape:
                 raise SourceError(f"input {spec.key!r}: the area and incidence-angle layers are not on the imagery's grid")
-            g = to_sigma0(g, aux["area"], aux["lia"])
-        native = abs(float(x[1] - x[0])) if len(x) > 1 else canvas.res
+            g = to_sigma0(gamma0_linear(dn, k_db, bias), aux["area"], aux["lia"])
+            native = abs(float(x[1] - x[0])) if len(x) > 1 else canvas.res
+        else:
+            r = read_converted(str(path), canvas, lambda dn, k=k_db, n=bias: gamma0_linear(dn, k, n),
+                               f"eos04-gamma0|{k_db}|{bias}", cache_dir)
+            if r is None:
+                raise AreaError(f"input {spec.key!r}: {path.name} does not cover the area")
+            g, x, y, epsg, native = r
         layer = to_canvas(g, x, y, epsg, canvas, "bilinear")
         layer[~valid] = np.nan
         layers[name] = layer

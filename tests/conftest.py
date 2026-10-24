@@ -5,6 +5,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 import pytest
+from pyproj import Transformer
 
 from satviz.config import BandSpec, Scene, Zoom
 from satviz.sensors.sar.nisar.io import assemble
@@ -83,6 +84,9 @@ def write_granule(path: Path, group: str, raw: dict, *, instrument: str = "SSAR"
                      ("zeroDopplerEndTime", start[:17] + "59.0")):
             ident[k] = v.encode()
         ident["trackNumber"], ident["frameNumber"], ident["hasInputDataException"] = track, 16, 0
+        x0, x1, y0, y1 = raw["x"][0], raw["x"][-1], raw["y"][-1], raw["y"][0]
+        corners = Transformer.from_crs(raw["epsg"], 4326, always_xy=True).transform([x0, x1, x1, x0, x0], [y1, y1, y0, y0, y1])
+        ident["boundingPolygon"] = ("POLYGON ((" + ",".join(f"{lo} {la} 0" for lo, la in zip(*corners, strict=True)) + "))").encode()
 
 
 @pytest.fixture

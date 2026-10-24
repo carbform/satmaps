@@ -67,6 +67,28 @@ jobs/                brahmaputra.toml (place + all local inputs) and sar, optica
 
 Dependencies: `numpy, scipy, matplotlib, h5py, pyproj` for NISAR; `rasterio` (extra `[rasters]`) for the four GeoTIFF products.
 
+## From paths to a figure
+
+`satviz quick` and `satviz.render` build the same tables a job file holds and hand them to `run_job`, so there is one pipeline:
+
+```
+paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the kinds and the count ─┐
+                                                                                             ├─ job tables ─ run_job ─ PNG (+ PDF)
+ [area] absent ─ footprints (sensor.describe) ─ largest common rectangle ─ pixel size ───────┘
+```
+
+- **Footprints** are rings of where a product has data, from its metadata where that is truthful (NISAR `boundingPolygon`,
+  Sentinel-2 `EXT_POS_LIST`) and from a coarse read of its valid pixels where the metadata is only a bounding quad (Sentinel-1's
+  zero collars, EOS-04 and LISS-IV swaths). The overlap is intersected on a coarse grid; the largest axis-aligned rectangle
+  inside it becomes the area, so no panel has a nodata wedge.
+- **Reads are decimated.** When the canvas is at least twice as coarse as a product, NISAR, Sentinel-1 and the GeoTIFF readers
+  convert and block-average a strip of rows at a time, which gives what reading the whole window and resampling would, in bounded
+  memory (a whole-frame quick figure of two radars: about 7 s and 1 GB, against 28 s and 4.7 GB before).
+- **`--save-job`** writes the resolved tables (sensors, absolute paths, centre and size, pixel size), so running the saved file gives
+  the same figure; a test pins that.
+- **Profiles** (`satviz.quality`): `quick` (800 px along the longer side, 100 dpi, PNG) and `publication` (2000 px, 180 dpi, PNG and a
+  PDF with TrueType text). A job file with its own pixel size keeps it.
+
 ## Principles
 
 1. **One job file.** `[area]`, `[[inputs]]`, `[[figures]]`; `satviz init sar|optical|sar-optical` writes a starter. A job may
