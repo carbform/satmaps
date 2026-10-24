@@ -1,6 +1,7 @@
 """Quality profiles: how large a figure is drawn and what is written for it.
 
-`quick` is for looking: a coarse canvas and a small PNG, in seconds. `publication` is the full-size figure with a PDF next to the
+`quick` is for looking: a coarse canvas and a small PNG, in seconds. `medium` is in between: a finer canvas and a larger PNG
+for checking detail before committing to a full render. `publication` is the full-size figure with a PDF next to the
 PNG (text stays text; the picture panels are embedded at the figure's dpi). Notices and credits are drawn in both: a quick figure
 makes the same claims as a publication one. The canvas size only applies to a job with no pixel size of its own.
 """
@@ -18,7 +19,8 @@ class Profile:
     pdf: bool  # also write a PDF next to the PNG
 
 
-PROFILES = {"quick": Profile("quick", 800, 100, False), "publication": Profile("publication", 2000, 180, True)}
+PROFILES = {"quick": Profile("quick", 800, 100, False), "medium": Profile("medium", 1400, 140, False),
+            "publication": Profile("publication", 2000, 180, True)}
 DEFAULT = PROFILES["publication"]
 
 

@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 MAX_TILES = 6
+MAX_AUTO_KM2 = 15_000  # an automatic area above this (about 120 x 120 km) needs --bbox or --allow-large
 
 
 def inspect(path: str | os.PathLike) -> dict:
@@ -57,7 +58,7 @@ def _default_arrangement(template: str, kinds: list[str]) -> str:
 
 def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick", title: str | None = None,
               template: str | None = None, arrangement: str | None = None, bands: bool = False, resolution_m: float | None = None,
-              allow_different_passes: bool = False, data_dir=None):
+              allow_different_passes: bool = False, allow_large: bool = False, data_dir=None):
     """The `Job` for some paths, with sensors detected, ids chosen, template and arrangement picked from what the inputs are, and
     the area and pixel size resolved. Also returns the job-file tables that reproduce it."""
     import dataclasses
@@ -83,21 +84,47 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
     kinds = [SENSORS[i["sensor"]].kind for i in inputs]
     chosen = template or ("sar_optical" if len(set(kinds)) > 1 else kinds[0])
     arrangement = "bands" if bands else arrangement or _default_arrangement(chosen, kinds)
-    fig = {"name": "quick" if quality == "quick" else "figure", "template": chosen, "inputs": ids, "theme": theme,
+    name = _figure_name([i["sensor"] for i in inputs], quality)
+    fig = {"name": name, "template": chosen, "inputs": ids, "theme": theme,
            "arrangement": arrangement, **({"text": {"title": title}} if title else {}),
            **({"allow_different_passes": True} if allow_different_passes else {})}
     table = _area_table(area)
     if resolution_m:
         table["resolution_m"] = float(resolution_m)
-    raw = {"quality": quality, "scene": {"name": title or "Satellite view"}, "area": table, "inputs": inputs, "figures": [fig]}
+    raw = {"quality": quality, "scene": {"name": title or ""}, "area": table, "inputs": inputs, "figures": [fig]}
     root = Path(data_dir) if data_dir else Path.cwd()
-    job = job_from_dict(raw, root / "satviz-quick.toml", root)
+    job = job_from_dict(raw, root / f"{name}.toml", root)
     try:
         job = resolve_area(job, ids)
     except JobError as e:
         raise ValueError(str(e).removeprefix(f"{job.path}: ")) from None
+    if not allow_large and not ({"center", "bbox"} & set(table)):
+        _check_size(job.area)
     raw["area"] = _resolved_area_table(job.area)
     return dataclasses.replace(job, auto_area={}), raw
+
+
+def _figure_name(sensors: list[str], quality: str) -> str:
+    """The figure's name, and so its files' (`nisar_sentinel1_quick_Minimal.png`, `nisar_sentinel1_quick.lock.json`): the sensors
+    in the order given, then the profile unless it is the full one."""
+    names = list(dict.fromkeys(sensors))
+    base = "_".join(names) if len(names) <= 3 else "overview"
+    return base if quality == "publication" else f"{base}_{quality}"
+
+
+def _check_size(area) -> None:
+    """Refuse an automatic area that is very large: it means reading a whole frame, which is slow. Say how to ask for less."""
+    km2 = (area.xmax - area.xmin) * (area.ymax - area.ymin) / 1e6
+    if km2 <= MAX_AUTO_KM2:
+        return
+    from satviz.area import Area, _tf
+
+    lon, lat = _tf(area.epsg, 4326).transform((area.xmin + area.xmax) / 2, (area.ymin + area.ymax) / 2)
+    w, s, e, n = Area.from_config({"center": [lat, lon], "size_km": [60, 60]}).lonlat_bbox()
+    size = f"{(area.xmax - area.xmin) / 1000:.0f} x {(area.ymax - area.ymin) / 1000:.0f} km ({km2:,.0f} km²)"
+    raise ValueError(f"the overlap of the inputs is {size}, and drawing all of it reads a whole frame: slow. Give the place you "
+                     f"want: --bbox W S E N (for its centre 60 km: --bbox {w:.2f} {s:.2f} {e:.2f} {n:.2f}), "
+                     "or --allow-large to draw it all.")
 
 
 def _resolved_area_table(area) -> dict:
@@ -115,8 +142,9 @@ def render(paths, *, out: str | os.PathLike = "outputs", cache: str | os.PathLik
     """Render one figure from product paths and return the PNG paths written (and a PDF beside each for ``"publication"``).
 
     Options: ``area`` (None: the overlap of the inputs; a (west, south, east, north) box; or a dict of `[area]` keys),
-    ``theme``, ``quality`` ("quick" or "publication"), ``title``, ``template`` and ``arrangement`` (normally picked from the
-    inputs), ``bands`` (optical: one panel per band), ``resolution_m``, ``allow_different_passes``, ``data_dir``.
+    ``theme``, ``quality`` ("quick", "medium" or "publication"), ``title`` (default: what the figure shows), ``template`` and
+    ``arrangement`` (normally picked from the inputs), ``bands`` (optical: one panel per band), ``resolution_m``,
+    ``allow_different_passes``, ``allow_large`` (draw an automatic area above 15,000 km²), ``data_dir``.
     ``save_job`` writes the job file that reproduces the figure."""
     from satviz.run import run_job
 

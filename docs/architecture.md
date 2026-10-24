@@ -84,10 +84,15 @@ paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the ki
 - **Reads are decimated.** When the canvas is at least twice as coarse as a product, NISAR, Sentinel-1 and the GeoTIFF readers
   convert and block-average a strip of rows at a time, which gives what reading the whole window and resampling would, in bounded
   memory (a whole-frame quick figure of two radars: about 7 s and 1 GB, against 28 s and 4.7 GB before).
+- **Stretch.** Optical colour and band stretches are the 2nd to 98th percentiles of the clear pixels: where a product maps cloud,
+  cloud is left out of the limits (it is still drawn, saturated) and the notice strip says so when it is at least 1% of the view.
+- **Titles and names.** A job with no `[scene] name` (every quick figure) gets a title from its products, and its files are named
+  after the sensors and the profile; a job file keeps its own name and its file stem.
+- **Large areas.** An automatic area above 15,000 km² is refused with a suggested `--bbox`; `--allow-large` lifts it.
 - **`--save-job`** writes the resolved tables (sensors, absolute paths, centre and size, pixel size), so running the saved file gives
   the same figure; a test pins that.
-- **Profiles** (`satviz.quality`): `quick` (800 px along the longer side, 100 dpi, PNG) and `publication` (2000 px, 180 dpi, PNG and a
-  PDF with TrueType text). A job file with its own pixel size keeps it.
+- **Profiles** (`satviz.quality`): `quick` (800 px along the longer side, 100 dpi, PNG), `medium` (1400 px, 140 dpi, PNG) and
+  `publication` (2000 px, 180 dpi, PNG and a PDF with TrueType text). A job file with its own pixel size keeps it.
 
 ## Principles
 

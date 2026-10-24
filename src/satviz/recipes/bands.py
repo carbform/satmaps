@@ -23,6 +23,28 @@ def bands_of(product: Product) -> tuple[BandInfo, ...]:
     return tuple(BandInfo(id=role.upper(), layer=role, name=role) for role in ROLE_ORDER if role in product.layers)
 
 
+def usable(product: Product) -> np.ndarray:
+    """The pixels a stretch is set from: valid and, where the product maps cloud, not cloud. Clouds are still drawn (saturated),
+    but they must not set the limits: with a few percent of cloud the upper percentile lands inside it and the land goes
+    dark. When almost nothing is clear the cloud is kept in, rather than stretching on a handful of pixels."""
+    ok = product.valid
+    cloud = product.layers.get("cloud")
+    if cloud is not None:
+        clear = ok & (np.nan_to_num(cloud) < 0.5)
+        if clear.sum() >= max(1000, 0.02 * ok.sum()):
+            return clear
+    return ok
+
+
+STRETCH_NOTE = "Stretch set from the clear pixels; cloud is drawn saturated."
+
+
+def cloud_left_out(product: Product, share: float = 0.01) -> bool:
+    """True when `usable` left at least `share` of the view (cloud) out of the stretch, so the figure should say so. A few stray
+    pixels do not change the stretch and are not worth a notice."""
+    return bool(product.valid.sum() - usable(product).sum() >= share * max(int(product.valid.sum()), 1))
+
+
 def limits(arrays: list[np.ndarray], valid: np.ndarray, plo: float = 2.0, phi: float = 98.0) -> tuple[float, float]:
     """Stretch limits: the plo-phi percentiles of the valid pixels of all `arrays` pooled."""
     vals = [a[::3, ::3][valid[::3, ::3] & np.isfinite(a[::3, ::3])] for a in arrays]

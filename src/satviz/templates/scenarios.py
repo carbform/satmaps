@@ -13,7 +13,7 @@ spectral band in wavelength order, labelled with band id, centre wavelength and 
 from __future__ import annotations
 
 from satviz.recipes.bands import bands_of
-from satviz.templates.base import Resolved, Template, TemplateError, pairs, register
+from satviz.templates.base import Resolved, Template, TemplateError, auto_title, pairs, register
 
 MAX_TILES = 6
 
@@ -69,7 +69,8 @@ class Optical(_OneKind):
         n = len(bands_of(p))
         label = f"{p.meta['platform']} {p.meta.get('label', '')}".strip().upper()
         subtitle = f"{label} · {n} BAND{'S' if n != 1 else ''}" + (f"  ·  {scene.region.upper()}" if scene.region else "")
-        return Resolved("bands", {}, {"subtitle": subtitle}, (), {"composites": tuple(fig.composites)})
+        text = {"subtitle": subtitle, **({"title": auto_title([p])} if not scene.name else {})}
+        return Resolved("bands", {}, text, (), {"composites": tuple(fig.composites)})
 
 
 @register

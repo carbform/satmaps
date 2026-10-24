@@ -35,8 +35,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     qk = sub.add_parser("quick", help="render a figure from product paths: sensor, area, template and pixel size are worked out")
     qk.add_argument("paths", nargs="+", help="products: a NISAR .h5, or an unzipped Sentinel-1/2 .SAFE, EOS-04 or LISS-IV folder")
-    qk.add_argument("--quality", choices=("quick", "publication"), default="quick",
-                    help="quick: a small PNG in seconds; publication: full size, with a PDF (default: %(default)s)")
+    qk.add_argument("--quality", choices=("quick", "medium", "publication"), default="quick",
+                    help="quick: a small PNG in seconds; medium: finer, still no PDF; publication: full size, with a PDF "
+                         "(default: %(default)s)")
     qk.add_argument("--theme", default="minimal", help="neo_retro, minimal, neo_brutal, newspaper or xkcd (default: %(default)s)")
     qk.add_argument("--title", default=None, help="the figure's title")
     qk.add_argument("--bbox", nargs=4, type=float, metavar=("W", "S", "E", "N"),
@@ -46,6 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--arrangement", choices=("single", "compare", "grid", "bands"), default=None,
                     help="default: one input single, two compare, three to six grid")
     qk.add_argument("--bands", action="store_true", help="optical: one panel per spectral band (same as --arrangement bands)")
+    qk.add_argument("--allow-large", action="store_true",
+                    help="draw an automatic area even above 15,000 km2 (a whole frame: slow); the default asks for --bbox")
     qk.add_argument("--allow-different-passes", action="store_true", help="NISAR: lift the same-track-and-frame check")
     qk.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
     qk.add_argument("--data-dir", default=None)
@@ -120,7 +123,8 @@ def main(argv: list[str] | None = None) -> int:
             paths = render(args.paths, out=args.out, cache=None if args.no_cache else args.cache, save_job=args.save_job,
                            area=args.bbox, theme=args.theme, quality=args.quality, title=args.title, template=args.template,
                            arrangement=args.arrangement, bands=args.bands, resolution_m=args.resolution,
-                           allow_different_passes=args.allow_different_passes, data_dir=args.data_dir)
+                           allow_different_passes=args.allow_different_passes, allow_large=args.allow_large,
+                           data_dir=args.data_dir)
         except (DetectError, JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError,
                 ImportError) as e:
             print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)

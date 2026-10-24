@@ -119,7 +119,7 @@ def job_from_dict(raw: dict, path: Path, data_dir: str | os.PathLike | None = No
         raise JobError(f"{path} [scene]: unknown key(s) {sorted(unknown)}; allowed: {list(SCENE_KEYS)}")
     callouts = {k: (float(v["lat"]), float(v["lon"])) for k, v in raw.get("callouts", {}).items()}
     scene = Scene(
-        **{k: str(s.get(k, "")) for k in SCENE_KEYS if k != "name"}, name=str(s.get("name") or path.stem),
+        **{k: str(s.get(k, "")) for k in SCENE_KEYS if k != "name"}, name=str(s["name"]) if "name" in s else path.stem,
         zooms=(), callouts=callouts, data_dir=root, inputs=inputs,
     )
 

@@ -21,6 +21,7 @@ Point it at the products; it works out the sensor, the area, the figure type and
 satviz inspect data/S1D_….SAFE                       # which sensor reads it, its pixel size, where it has data
 satviz quick data/S1D_….SAFE data/E04_…/             # one small PNG in seconds (the overlap of the two products)
 satviz quick data/S2C_….SAFE --bands                 # Sentinel-2 band by band
+satviz quick a.h5 b.SAFE --quality medium            # finer and larger than quick, still no PDF
 satviz quick a.h5 b.SAFE --quality publication       # full size, PNG and PDF, ready to publish
 satviz quick a.h5 b.SAFE --save-job fig.toml         # also write the job file that reproduces it; edit it and `satviz run` it
 ```
@@ -38,10 +39,15 @@ What `quick` decides, and how to override it:
 | the sensor of each path | looking at the folder or file (a zip is refused: unzip it) | name `sensor` in a job file |
 | the area | the largest rectangle inside the data of **every** input (their footprints are read from the products' own metadata or valid pixels, not their bounding boxes); an error if they share nothing | `--bbox W S E N` |
 | the figure | SAR only: `sar`; optical only: `optical`; both: `sar_optical`. One input: single; two: side by side; three to six: a grid | `--template`, `--arrangement`, `--bands` |
-| the pixel size | the area's size, so a whole NISAR frame still reads in seconds; never finer than the data | `--resolution M` |
+| the pixel size | the area's size; never finer than the data | `--resolution M` |
+| the title | what the figure shows: `NISAR L-band · 25 Sep 2026` for one product, `Radar and optical` or `Radar compared` for several | `--title` |
+| the files | named after the sensors and the quality: `nisar_sentinel1_quick_Minimal.png`, `nisar_sentinel1_quick.lock.json` | `--out` |
 
-`--quality quick` (the default) draws a small PNG; `--quality publication` is the full-size figure and also writes a PDF with
-the text as text. The notices, credits and caveats are on both: a quick figure makes the same claims as a publication one.
+An automatic area above 15,000 km² (a whole NISAR frame is about 38,000) is refused with a box to try, because drawing it means
+reading the whole frame: `--bbox W S E N` names the place, `--allow-large` draws it all anyway.
+
+`--quality quick` (the default) draws a small PNG (800 px on the longer side); `medium` is 1400 px with a larger PNG;
+`publication` is the full-size figure (2000 px) and also writes a PDF with the text as text. The notices, credits and caveats are on both: a quick figure makes the same claims as a publication one.
 
 ## What it does
 

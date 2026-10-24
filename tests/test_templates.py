@@ -127,7 +127,7 @@ def test_inputs_that_do_not_fit_are_refused_with_a_pointer(template, ids, kw, ma
 
 def test_sar_states_how_its_products_relate():
     products = {"L": sar("L", "NISAR", "L", 24.2), "S": sar("S", "NISAR", "S", 9.4)}
-    r = TEMPLATES["sar"].resolve(fig("sar", "LS"), ("L", "S"), products, SimpleNamespace(region="Somewhere"))
+    r = TEMPLATES["sar"].resolve(fig("sar", "LS"), ("L", "S"), products, SimpleNamespace(name="Somewhere", region="Somewhere"))
     assert r.text["subtitle"] == "SAME SENSOR · L VS S BAND  ·  SOMEWHERE" and "L-band 24.2 cm" in r.caveats[0]
 
 

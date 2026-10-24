@@ -17,7 +17,7 @@ from satviz.core import RECIPES, THEMES, LegendItem, check_recipe
 from satviz.geo import utm_extent
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.quality import Profile, save
-from satviz.recipes.bands import OUTSIDE_RGB, bands_of, grey_rgba, label_lines, limits
+from satviz.recipes.bands import OUTSIDE_RGB, STRETCH_NOTE, bands_of, cloud_left_out, grey_rgba, label_lines, limits, usable
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
@@ -41,11 +41,12 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
     if not infos:
         raise LayoutError(f"input {input!r} has no spectral bands to show")
     arrays = [P.layers[b.layer] for b in infos]
-    shared = limits(arrays, P.valid) if stretch == "pooled" else None
+    clear = usable(P)  # cloud does not set the stretch; it is drawn, saturated
+    shared = limits(arrays, clear) if stretch == "pooled" else None
 
     panels = []  # (rgba, chip text, chip colour)
     for b, arr in zip(infos, arrays, strict=True):
-        lims = shared or limits([arr], P.valid)
+        lims = shared or limits([arr], clear)
         panels.append((grey_rgba(arr, P.valid, *lims), label_lines(b, None if shared else lims), t.chip_a))
     legend = [LegendItem(GREY, f"ONE STRETCH {shared[0]:.2f}–{shared[1]:.2f} REFLECTANCE" if shared else "OWN STRETCH PER BAND (ON LABEL)"),
               LegendItem(NO_DATA, "NO DATA")]
@@ -58,7 +59,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
         r = rec.render(P)
         panels.append((r.rgba, r.title, t.chip_b))
         legend += [i for i in r.legend if i.color != "noise" and i.text not in {x.text for x in legend}]
-    caveats = [*P.caveats, *extra_caveats]
+    caveats = [*P.caveats, *([STRETCH_NOTE] if cloud_left_out(P) else []), *extra_caveats]
     lay = Layout(layout, build_context_products(scene, {input: P}, True))
     ext = utm_extent(dict(x=P.x, y=P.y))
     H, W = panels[0][0].shape[:2]

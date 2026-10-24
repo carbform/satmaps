@@ -68,6 +68,21 @@ def pick_recipes(named: dict, products: dict, combo: tuple[str, ...]) -> dict[st
             or default_recipe(products[k], k) for k in combo}
 
 
+def product_name(p: Product) -> str:
+    """'NISAR L-band', 'Sentinel-2C L2A', 'EOS-04 SAR': the platform and its label, as the products state them."""
+    return f"{p.meta.get('platform', '')} {p.meta.get('label', '')}".strip()
+
+
+def auto_title(products: list[Product]) -> str:
+    """A title for a figure whose job names none: the product and its date, or what the figure compares."""
+    if len(products) == 1:
+        p = products[0]
+        when = p.meta.get("start")
+        return f"{product_name(p)} · {when.day} {when:%b %Y}" if when else product_name(p)
+    kinds = {p.kind for p in products}
+    return "Radar and optical" if len(kinds) > 1 else "Radar compared" if kinds == {"sar"} else "Optical compared"
+
+
 def pairs(ids: list[str]) -> list[tuple[str, ...]]:
     return list(itertools.combinations(ids, 2))
 
@@ -111,6 +126,8 @@ class Template:
         ps = [products[k] for k in combo]
         rel = relate(ps)
         text = self.text_defaults(ps, scene)
+        if not scene.name:  # no title anywhere in the job (a quick figure): say what the figure shows
+            text.setdefault("title", auto_title(ps))
         if rel.label:
             text.setdefault("subtitle", f"{rel.label}  ·  {scene.region.upper()}" if scene.region else rel.label)
         note = (" · ".join(rel.notes),) if rel.notes else ()  # one line, so the notice strip stays short

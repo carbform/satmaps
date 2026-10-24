@@ -173,7 +173,7 @@ def test_quick_and_inspect_on_the_command_line(scene, tmp_path, capsys):
     out = capsys.readouterr().out
     assert "nisar (sar), 10 m pixels, EPSG:32646" in out and "W " in out
     assert main(["quick", str(scene.data_dir / "L.h5"), "--out", str(tmp_path / "o"), "--no-cache", "--theme", "xkcd"]) == 0
-    assert (tmp_path / "o" / "quick_Xkcd.png").exists()
+    assert (tmp_path / "o" / "nisar_quick_Xkcd.png").exists() and (tmp_path / "o" / "nisar_quick.lock.json").exists()
     assert main(["quick", str(tmp_path / "missing.h5")]) == 2
     assert "no such file" in capsys.readouterr().err
 
@@ -195,3 +195,84 @@ def test_a_figure_states_the_pixel_size_it_is_drawn_at_not_the_files(scene, tmp_
 
     _, _, products = read_products(job, ["L"])
     assert products["L"].meta["resolution_m"] == 30.0
+
+
+# --- the quick-look polish: titles, file names, profiles, size check, cloud-free stretch ----------------------------------------
+
+def test_a_quick_figure_is_titled_by_what_it_shows_and_a_given_title_wins(scene, tmp_path):
+    from satviz.api import build_job
+    from satviz.run import read_products
+    from satviz.templates.base import auto_title
+
+    job, _ = build_job([scene.data_dir / "L.h5", scene.data_dir / "S.h5"], data_dir=scene.data_dir)
+    assert job.scene.name == ""
+    _, _, products = read_products(job, ["L", "S"])
+    assert auto_title([products["L"]]) == "NISAR L-band · 25 Sep 2026"
+    assert auto_title(list(products.values())) == "Radar compared"
+    assert auto_title([products["L"], type("P", (), {"kind": "optical"})()]) == "Radar and optical"
+
+
+def test_a_job_file_with_a_name_keeps_it_as_the_title(scene, tmp_path):
+    job = tmp_path / "named.toml"
+    job.write_text('[scene]\nname = "Mine"\n[[inputs]]\nid = "L"\nsource = { path = "L.h5" }\n')
+    assert load_job(job, scene.data_dir).scene.name == "Mine"
+    job.write_text('[[inputs]]\nid = "L"\nsource = { path = "L.h5" }\n')  # no name at all: the file's stem, as before
+    assert load_job(job, scene.data_dir).scene.name == "named"
+
+
+def test_files_are_named_after_the_figure(scene, tmp_path):
+    (png,) = render([scene.data_dir / "L.h5"], out=tmp_path, cache=None)
+    assert png.name == "nisar_quick_Minimal.png" and (tmp_path / "nisar_quick.lock.json").exists()
+    (png,) = render([scene.data_dir / "L.h5"], out=tmp_path, cache=None, quality="medium")
+    assert png.name == "nisar_medium_Minimal.png" and not png.with_suffix(".pdf").exists()
+
+
+def test_the_medium_profile_sits_between_quick_and_publication():
+    q, m, p = (PROFILES[n] for n in ("quick", "medium", "publication"))
+    assert q.target_px < m.target_px < p.target_px and q.dpi < m.dpi < p.dpi and not m.pdf and p.pdf
+
+
+def test_a_very_large_automatic_area_asks_for_a_bbox(scene, tmp_path):
+    from satviz.api import _check_size, _figure_name
+
+    big = Area(32646, 500000, 3000000, 700000, 3190000)  # 200 x 190 km
+    with pytest.raises(ValueError, match=r"--bbox W S E N .*--bbox \d+\.\d\d \d+\.\d\d \d+\.\d\d \d+\.\d\d.*--allow-large"):
+        _check_size(big)
+    _check_size(Area(32646, 500000, 3000000, 560000, 3060000))  # 60 x 60 km passes
+    assert _figure_name(["nisar", "nisar", "eos04"], "quick") == "nisar_eos04_quick"
+    assert _figure_name(["a", "b", "c", "d"], "publication") == "overview"
+
+
+def test_a_given_box_or_allow_large_skips_the_size_check(scene, monkeypatch):
+    from satviz import api
+
+    monkeypatch.setattr(api, "MAX_AUTO_KM2", 0.5)  # the synthetic scene is about 1.3 km2: "large" for this test
+    with pytest.raises(ValueError, match="slow"):
+        api.build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir)
+    api.build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir, allow_large=True)
+    w, s, e, n = Area.from_config({"center": [27.0, 94.9], "size_km": [1, 1]}).lonlat_bbox()
+    api.build_job([scene.data_dir / "L.h5"], area=(w, s, e, n), data_dir=scene.data_dir)
+
+
+def test_cloud_does_not_set_the_stretch_but_is_still_drawn():
+    from types import SimpleNamespace
+
+    from satviz.recipes.bands import cloud_left_out, usable
+    from satviz.recipes.optical import _pooled_percentiles
+
+    rng = np.random.default_rng(0)
+    land = rng.uniform(0.02, 0.12, (100, 100)).astype(np.float32)
+    cloud = np.zeros((100, 100), np.float32)
+    cloud[:15] = 1  # 15% cloud, bright
+    land[:15] = 0.7
+    p = SimpleNamespace(layers={"red": land, "green": land, "blue": land, "cloud": cloud}, valid=np.ones((100, 100), bool))
+    assert usable(p).sum() == 8500 and cloud_left_out(p)
+    few = SimpleNamespace(layers={"red": land, "cloud": np.where(np.arange(10000).reshape(100, 100) < 30, 1.0, 0.0).astype(np.float32)},
+                          valid=np.ones((100, 100), bool))
+    assert usable(few).sum() == 9970 and not cloud_left_out(few)  # 0.3 % cloud: dropped from the stretch, not worth a notice
+    lo, hi = _pooled_percentiles([p], ("red", "green", "blue"))
+    assert hi < 0.13  # the land sets the limits; with clouds in, the 98th percentile would be 0.7
+    clear = SimpleNamespace(layers={"red": land}, valid=np.ones((100, 100), bool))
+    assert not cloud_left_out(clear) and usable(clear).all()
+    mostly = SimpleNamespace(layers={"red": land, "cloud": np.ones((100, 100), np.float32)}, valid=np.ones((100, 100), bool))
+    assert usable(mostly).all()  # nothing clear: keep the cloud rather than stretch on nothing

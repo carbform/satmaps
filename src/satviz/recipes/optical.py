@@ -11,6 +11,7 @@ import numpy as np
 
 from satviz.core import LegendItem, Product, Recipe, Rendered, recipe
 from satviz.geo import utm_extent
+from satviz.recipes.bands import STRETCH_NOTE, cloud_left_out, usable
 
 OUTSIDE_RGB = (7, 9, 14)
 CHANNEL_HEX = ("#d4574f", "#5fb673", "#6580d6")
@@ -33,7 +34,7 @@ def _pooled_percentiles(products: list[Product], names: tuple[str, ...], plo=2.0
     vals = []
     for p in products:
         a = np.stack([p.layers[n][::3, ::3] for n in names])
-        ok = np.isfinite(a).all(axis=0) & p.valid[::3, ::3]
+        ok = np.isfinite(a).all(axis=0) & usable(p)[::3, ::3]  # cloud is drawn, but does not set the limits
         vals.append(a[:, ok].ravel())
     lo, hi = np.percentile(np.concatenate(vals), [plo, phi])
     return float(lo), float(hi)
@@ -46,8 +47,9 @@ def _rgb_recipe(name: str, channels: tuple[str, str, str], title: str, texts: tu
         img = np.power(np.clip((stack - lo) / (hi - lo + 1e-9), 0, 1), GAMMA)
         legend = [LegendItem(c, t) for c, t in zip(CHANNEL_HEX, texts, strict=True)]
         legend.append(LegendItem("noise", f"STRETCH {lo:.2f}–{hi:.2f} REFLECTANCE"))
+        caveats = [*product.caveats, *([STRETCH_NOTE] if cloud_left_out(product) else [])]
         return Rendered(rgba=_finish(img, product.valid), extent=_extent(product), legend=legend,
-                        caveats=list(product.caveats), lims={"RGB": (lo, hi)}, title=title)
+                        caveats=caveats, lims={"RGB": (lo, hi)}, title=title)
 
     def pooled(products: list[Product]) -> dict:
         return {"RGB": _pooled_percentiles(products, channels)}

@@ -97,7 +97,7 @@ def test_the_template_gives_every_input_its_own_figure_and_refuses_what_it_canno
 
 def test_resolve_says_the_bands_and_nothing_about_comparison():
     r = TEMPLATES["optical"].resolve(FigureSpec("optical", ("S2",), arrangement="bands", composites=("true_colour",)), ("S2",), {"S2": product()},
-                                           SimpleNamespace(region="Dibrugarh, Assam"))
+                                           SimpleNamespace(name="Dibrugarh", region="Dibrugarh, Assam"))
     assert r.arrangement == "bands" and r.recipes == {} and r.caveats == ()  # no relation notes, no recipes per input
     assert r.text["subtitle"] == "SENTINEL-2C L2A · 5 BANDS  ·  DIBRUGARH, ASSAM" and r.options["composites"] == ("true_colour",)
 
