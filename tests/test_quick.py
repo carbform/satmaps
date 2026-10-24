@@ -186,15 +186,16 @@ def test_a_box_you_give_beats_the_overlap(scene, tmp_path):
     assert job.area is not None and raw["area"]["size_km"][0] > 0.5
 
 
-def test_a_figure_states_the_pixel_size_it_is_drawn_at_not_the_files(scene, tmp_path):
+def test_a_box_you_give_gets_a_pixel_size_for_the_profile_too(scene, monkeypatch):
     from satviz.api import build_job
+    from satviz.quality import Profile
 
-    job, _ = build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir, resolution_m=30.0)
+    box = Area.from_config({"center": [27.0, 94.9], "size_km": [1, 1]}).lonlat_bbox()
+    job, _ = build_job([scene.data_dir / "L.h5"], area=box, data_dir=scene.data_dir)
+    assert job.area.resolution_m == 10.0  # a small box: the data's own size, not coarser than it has to be
+    monkeypatch.setitem(PROFILES, "quick", Profile("quick", 40, 100, False))  # about 1 km / 40 px = 25 m -> 30 m
+    job, _ = build_job([scene.data_dir / "L.h5"], area=box, data_dir=scene.data_dir)
     assert job.area.resolution_m == 30.0
-    from satviz.run import read_products
-
-    _, _, products = read_products(job, ["L"])
-    assert products["L"].meta["resolution_m"] == 30.0
 
 
 # --- the quick-look polish: titles, file names, profiles, size check, cloud-free stretch ----------------------------------------
@@ -208,8 +209,35 @@ def test_a_quick_figure_is_titled_by_what_it_shows_and_a_given_title_wins(scene,
     assert job.scene.name == ""
     _, _, products = read_products(job, ["L", "S"])
     assert auto_title([products["L"]]) == "NISAR L-band · 25 Sep 2026"
-    assert auto_title(list(products.values())) == "Radar compared"
-    assert auto_title([products["L"], type("P", (), {"kind": "optical"})()]) == "Radar and optical"
+    assert auto_title(list(products.values())) == "NISAR L-band and NISAR S-band"  # the platform repeats: the label tells them apart
+
+    def fake(kind, platform, label=""):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(kind=kind, meta={"platform": platform, "label": label})
+
+    s1, s2, liss, eos = fake("sar", "Sentinel-1D"), fake("optical", "Sentinel-2C"), fake("optical", "ResourceSat-2A"), fake("sar", "EOS-04")
+    assert auto_title([s1, s2]) == "Sentinel-1D and Sentinel-2C"
+    assert auto_title([eos, s1, products["L"]]) == "EOS-04, Sentinel-1D and NISAR"  # a list, when it fits the header
+    assert auto_title([s1, eos, s2, liss]) == "Radar and optical"  # too long to list
+    assert auto_title([s1, eos, products["L"], products["S"]]) == "Radar compared"
+    assert auto_title([s2, liss, fake("optical", "Landsat 9"), fake("optical", "Planet SkySat")]) == "Optical compared"
+
+
+def test_a_title_that_repeats_the_subtitle_drops_the_subtitle(scene, tmp_path):
+    from types import SimpleNamespace
+
+    from satviz.core import TEMPLATES
+
+    def fake(kind, platform, band):
+        meta = dict(platform=platform, label="", sensor="x", radar_band=band, wavelength_cm=5.0, backscatter="sigma0, ellipsoid",
+                    start=__import__("datetime").datetime(2026, 9, 25), end=__import__("datetime").datetime(2026, 9, 25), resolution_m=10, crs="UTM 46N")
+        return SimpleNamespace(kind=kind, meta=meta, layers={}, caveats=[], shared={}, bands=(), valid=np.ones((2, 2), bool))
+
+    many = {k: fake(kind, f"Platform-{k}-xxxxxxxx", "C") for k, kind in (("a", "sar"), ("b", "sar"), ("c", "optical"))}
+    r = TEMPLATES["sar_optical"].resolve(SimpleNamespace(arrangement="grid", recipes={"default": "sar_fcc"}), ("a", "b", "c"), many,
+                                         SimpleNamespace(name="", region=""))
+    assert r.text["title"] == "Radar and optical" and "subtitle" not in r.text
 
 
 def test_a_job_file_with_a_name_keeps_it_as_the_title(scene, tmp_path):

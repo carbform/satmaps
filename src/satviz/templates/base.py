@@ -73,12 +73,26 @@ def product_name(p: Product) -> str:
     return f"{p.meta.get('platform', '')} {p.meta.get('label', '')}".strip()
 
 
+MAX_TITLE = 32  # characters that fit the header beside the date at the larger size
+
+
+def short_names(products: list[Product]) -> list[str]:
+    """Platform names, with the label added only where the platform repeats (NISAR L-band and NISAR S-band)."""
+    platforms = [p.meta.get("platform", "") for p in products]
+    return [f"{pf} {p.meta.get('label', '')}".strip() if platforms.count(pf) > 1 else pf for pf, p in zip(platforms, products, strict=True)]
+
+
 def auto_title(products: list[Product]) -> str:
-    """A title for a figure whose job names none: the product and its date, or what the figure compares."""
+    """A title for a figure whose job names none: the product and its date; for several, their names when they fit the header
+    ('Sentinel-1D and Sentinel-2C'), else what the figure compares."""
     if len(products) == 1:
         p = products[0]
         when = p.meta.get("start")
         return f"{product_name(p)} · {when.day} {when:%b %Y}" if when else product_name(p)
+    names = short_names(products)
+    joined = " and ".join([", ".join(names[:-1]), names[-1]] if len(names) > 2 else names)
+    if len(joined) <= MAX_TITLE:
+        return joined
     kinds = {p.kind for p in products}
     return "Radar and optical" if len(kinds) > 1 else "Radar compared" if kinds == {"sar"} else "Optical compared"
 
@@ -128,7 +142,7 @@ class Template:
         text = self.text_defaults(ps, scene)
         if not scene.name:  # no title anywhere in the job (a quick figure): say what the figure shows
             text.setdefault("title", auto_title(ps))
-        if rel.label:
+        if rel.label and text.get("title", "").upper() != rel.label.upper():  # not the title said twice
             text.setdefault("subtitle", f"{rel.label}  ·  {scene.region.upper()}" if scene.region else rel.label)
         note = (" · ".join(rel.notes),) if rel.notes else ()  # one line, so the notice strip stays short
         return Resolved(self.arrangement_of(fig), pick_recipes(fig.recipes, products, combo), text, note)

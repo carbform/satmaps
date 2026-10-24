@@ -58,6 +58,8 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
             hh = 0.585
             hw = hh * 15 / 12 * (W / H)
             hx = 0.04 + (0.92 - hw) / 2
+        elif 0.585 - hh > 0.04:  # a clearly landscape scene is much shorter than the box: centre it and its side panels
+            hy += (0.585 - hh) / 2
         ax = img_axes(fig, t, hx, hy, hw, hh)
         ax.imshow(r.rgba, extent=ext, origin="upper", aspect="auto", interpolation="antialiased")
         for i, co in enumerate(lay.get("callouts", [])):

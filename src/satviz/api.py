@@ -96,12 +96,27 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
     job = job_from_dict(raw, root / f"{name}.toml", root)
     try:
         job = resolve_area(job, ids)
+        job = _with_pixel_size(job, ids)
     except JobError as e:
         raise ValueError(str(e).removeprefix(f"{job.path}: ")) from None
     if not allow_large and not ({"center", "bbox"} & set(table)):
         _check_size(job.area)
     raw["area"] = _resolved_area_table(job.area)
     return dataclasses.replace(job, auto_area={}), raw
+
+
+def _with_pixel_size(job, ids: list[str]):
+    """A caller's box has no pixel size yet: pick one for the profile, as an automatic area does."""
+    import dataclasses
+
+    from satviz.autoarea import pick_resolution
+    from satviz.core import SENSORS
+
+    if job.area.resolution_m:
+        return job
+    finest = min(SENSORS[job.inputs[k].sensor].describe(job.inputs[k], job.scene.data_dir, job.area).resolution_m for k in ids)
+    res = pick_resolution(job.area, finest, job.quality.target_px)
+    return dataclasses.replace(job, area=dataclasses.replace(job.area, resolution_m=res))
 
 
 def _figure_name(sensors: list[str], quality: str) -> str:
