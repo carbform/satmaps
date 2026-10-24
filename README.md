@@ -24,6 +24,7 @@ satviz quick data/S2C_….SAFE --bands                 # Sentinel-2 band by band
 satviz quick a.h5 b.SAFE --quality medium            # finer and larger than quick, still no PDF
 satviz quick a.h5 b.SAFE --quality publication       # full size, PNG and PDF, ready to publish
 satviz quick a.h5 b.SAFE --save-job fig.toml         # also write the job file that reproduces it; edit it and `satviz run` it
+satviz quick a.h5 --title T --subtitle S --place P --author A --website W --credit C   # the same wording the app has
 ```
 
 ```python
@@ -39,18 +40,26 @@ pip install -e ".[app]"
 satviz app                     # opens http://localhost:8501 in your browser; --data-dir, --out, --port to change where
 ```
 
-- **Folder:** type it, or press **Browse…** for your system's own folder dialog.
-- **Theme and Layout:** the theme is the look; the layout is how the products sit on the page (one figure each, side by side, all
-  on one page, band by band), offered only where it fits what you chose. The **Layout preview** tab shows an example page in that
-  layout and theme straight away, drawn by the same code as a real figure (with made-up pictures where your data will go).
-- **Area:** the overlap of the products, or a box you type, or one you **draw with the mouse** on the **Area** tab: it shows where
-  each product has data and the dashed overlap, and a drag writes the box to the four fields. A box that misses part of a
-  product is flagged before you draw ("… has data in 8% of this box").
-- **Make the figure**, then download the PNG, the PDF (publication quality) and the job file behind it. A layout that makes several
-  figures gets a tab for each. A very large area is refused with a one-click "Use the suggested box"; a pair that does not overlap
-  gives a message, not a traceback. The app is a thin page over the same
-`build_job` and `run_job` as `satviz quick`, so a figure made in it is the figure `quick` or a saved job would make. It listens
-on localhost only, never uploads anything, and starts Streamlit with its PyPI version check switched off.
+The page goes in the order you work, the same for every sensor:
+
+1. **Products** (the sidebar): type the folder or press **Browse…** for your system's own folder dialog, then choose products.
+2. **Area** comes first once products are chosen: a map shows where each product has data (and the dashed overlap) over an
+   **OpenStreetMap** basemap. Drag to draw the area, wheel to zoom, right-drag or shift-drag to move, **Fit** to see everything,
+   **Clear** to go back to the overlap. The four fields follow the rectangle and can be edited. A box that misses part of a product
+   is flagged ("… has data in 43% of this box"). *The basemap is the one thing that touches the network: your browser fetches tiles
+   from openstreetmap.org, which sees roughly where you look. Untick "Show the OpenStreetMap basemap" and the map is your data
+   alone, with no requests at all.*
+3. **Title and credits:** title, subtitle, place, author, website and one extra credit. The credits the products require
+   (Copernicus, NISAR, NRSC/ISRO…) are always printed on their own DATA line; the extra credit joins the author's line.
+4. **Look:** theme, layout (how the products sit on the page, offered only where it fits: one figure each, side by side, all on one
+   page, band by band) and quality.
+
+The **Figure** pane on the right is one pane for the page and the figure: it shows an example page in your theme, layout and wording
+(made-up pictures where your data goes, drawn by the same code as a real figure) and updates as you change anything. **Make the
+figure** replaces it with the real figure and its downloads (PNG, PDF at publication quality, the job file); change a setting and
+the example page returns, with the figure kept under "made before the change". A layout that makes several figures gets a tab each.
+A very large area is refused with a one-click "Use the suggested box"; a pair that does not overlap gives a message, not a
+traceback.
 
 What `quick` decides, and how to override it:
 

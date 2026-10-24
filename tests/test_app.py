@@ -124,7 +124,7 @@ def test_a_large_area_offers_the_suggested_box(app_env, monkeypatch):
 def test_publication_offers_a_pdf(app_env):
     at = run_app()
     pick(at, "L.h5")
-    at.radio[0].set_value("publication").run()
+    next(r for r in at.radio if r.label == "Quality").set_value("publication").run()
     press(at, "Make the figure")
     assert [b.proto.label for b in at.get("download_button")] == ["Download PNG", "Download PDF", "Download job file"]
 
@@ -213,11 +213,73 @@ def test_the_theme_and_layout_controls(app_env):
 @needs_streamlit
 def test_the_example_page_is_on_show_before_anything_is_made(app_env):
     at = run_app()
-    assert not at.exception and len(at.get("imgs")) >= 2  # the Figure tab's stand-in and the Layout preview tab
-    assert made(at) == []
+    assert not at.exception and len(at.get("imgs")) == 1 and made(at) == []  # one pane, with the example page in it
+    assert not at.get("tab")  # no separate preview pane
+    assert any("page your settings give" in i.value for i in at.info)
     at.selectbox[0].set_value("newspaper").run()
-    assert not at.exception  # another theme draws another example page without making a figure
-    assert made(at) == []
+    assert not at.exception and made(at) == []  # another theme draws another example page without making a figure
+
+
+@needs_streamlit
+def test_the_figure_gives_way_to_the_example_when_settings_change(app_env):
+    at = run_app()
+    pick(at, "L.h5")
+    press(at, "Make the figure")
+    assert len(made(at)) == 1 and len(at.get("imgs")) == 1 and not any("settings have changed" in i.value for i in at.info)
+    at.selectbox[0].set_value("xkcd").run()  # a new theme: the figure on show is out of date
+    assert not at.exception and any("settings have changed" in i.value for i in at.info)
+    assert len(at.get("imgs")) >= 2  # the example page in this theme, and the earlier figure kept under "made before"
+    at.selectbox[0].set_value("minimal").run()  # back to what the figure was made with: it is current again
+    assert not any("settings have changed" in i.value for i in at.info) and len(at.get("imgs")) == 1
+
+
+@needs_streamlit
+def test_the_wording_is_the_same_for_every_sensor_and_reaches_the_job(app_env):
+    at = run_app()
+    pick(at, "L.h5")
+    labels = [t.label for t in at.text_input]
+    assert labels[1:8] == ["Title", "Subtitle", "Place", "Author", "Website", "Extra credit"][:7] or "Title" in labels
+    for label, value in (("Title", "Brahmaputra at Dibrugarh"), ("Subtitle", "Seen by L-band"), ("Place", "Dibrugarh, Assam"),
+                         ("Author", "Tester"), ("Website", "example.org"), ("Extra credit", "Photo {x} by me")):
+        next(t for t in at.text_input if t.label == label).set_value(value)
+    at.run()
+    press(at, "Make the figure")
+    assert not at.exception and not at.error and len(made(at)) == 1
+    toml = made(at)[0]["toml"]
+    for expected in ('name = "Brahmaputra at Dibrugarh"', 'region = "Dibrugarh, Assam"', 'author = "Tester"', 'website = "example.org"',
+                     'subtitle = "Seen by L-band"', '"credits.lines"', "Photo {{x}} by me"):
+        assert expected in toml, expected
+
+
+def test_an_extra_credit_joins_the_author_line_and_never_replaces_the_required_ones():
+    from satviz.api import details
+    from satviz.layout import Layout, apply_text, default_layout
+    from satviz.themes.base import assemble_credits
+
+    required = [("Copernicus", "Contains modified Copernicus Sentinel data 2026")]
+
+    def lines(**words):
+        return assemble_credits(Layout(apply_text(default_layout("compare"), details(**words)[1]), {"byline": "X"}), required)
+
+    both = lines(author="Tester", website="example.org", credits="Photo {x} by me")
+    assert both[0] == "VIZ   TESTER  ·  example.org   ·   Photo {x} by me"  # one line: it costs a page with many notices no room
+    assert len(both) == 2 and both[-1].startswith("DATA") and "COPERNICUS" in both[-1]  # the sensor's credit is still there
+    assert lines(credits="Photo by me")[0] == "Photo by me"  # no author: the credit alone, not labelled as a visualisation credit
+    assert lines() == ["VIZ   X", "DATA  CONTAINS MODIFIED COPERNICUS SENTINEL DATA 2026"]  # nothing typed: the layout's own
+
+
+def test_details_and_the_saved_job(scene, tmp_path):
+    from satviz.api import build_job, details
+    from satviz.job import load_job
+
+    assert details() == ({}, {}) and details("  ", None, "", None, None, " ") == ({}, {})  # blanks are nothing
+    paths = [scene.data_dir / "L.h5"]
+    job, raw = build_job(paths, data_dir=scene.data_dir, title="T", subtitle="S", place="P", author="A", website="w.org",
+                         credits="C {x}")
+    (tmp_path / "j.toml").write_text(__import__("satviz.api", fromlist=["job_toml"]).job_toml(raw))
+    again = load_job(tmp_path / "j.toml", scene.data_dir)  # the saved file reads back to the same wording
+    assert again.scene.name == "T" and again.scene.region == "P" and again.scene.author == "A" and again.scene.website == "w.org"
+    assert again.figures[0].text == job.figures[0].text and again.figures[0].text["credits.lines"] == ["VIZ   A  ·  w.org   ·   C {{x}}"]
 
 
 @needs_streamlit

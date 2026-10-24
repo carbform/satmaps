@@ -4,117 +4,176 @@
 <meta charset="utf-8">
 <title>satviz area map</title>
 <!--
-  A Streamlit custom component with no build step and no network: it draws where the chosen products have data and lets you drag
-  a rectangle for the area. Streamlit's component protocol is three messages: tell the page we are ready, receive "render" with
-  the arguments, and send back a value. Arguments: footprints [{name, kind, ring: [[lon, lat], ...]}], overlap [w, s, e, n] or null
-  (what the app would use on its own), box [w, s, e, n] or null (the rectangle now chosen). Value sent back on every change:
-  {box: [w, s, e, n] or null, n: counter}.
+  A Streamlit custom component with no build step. It draws where the chosen products have data, over an OpenStreetMap basemap when
+  asked, and lets you drag a rectangle for the area. Streamlit's component protocol is three messages: tell the page we are ready,
+  receive "render" with the arguments, and send back a value.
+
+  Arguments: footprints [{name, kind, ring: [[lon, lat], ...]}]; overlap [w, s, e, n] or null (what the app uses on its own);
+  box [w, s, e, n] or null (the rectangle now chosen); basemap true/false; tile_url (default: OpenStreetMap's), with {z}/{x}/{y}.
+  Value sent back on every change of the rectangle: {box: [w, s, e, n] or null, n: counter}.
+
+  The only network use is the browser fetching map tiles, and only when the basemap is on: the tile server sees which tiles
+  (so roughly which place) you look at. Switch the basemap off and the page makes no requests at all.
+
+  Mouse: drag = draw the area · wheel = zoom · right-drag, middle-drag or shift-drag = move the map.
 -->
 <style>
-  :root { --ink: #1c1c1e; --muted: #6b6f76; --line: #d9dbe0; --bg: #fbfbfc; --sar: #2a8f8a; --optical: #d9822b; --box: #e0245e; }
-  @media (prefers-color-scheme: dark) { :root { --ink: #ececf0; --muted: #9aa0a8; --line: #3a3d44; --bg: #16171a; } }
+  :root { --ink: #1c1c1e; --muted: #6b6f76; --line: #d9dbe0; --bg: #f3f4f6; --sar: #1f7a76; --optical: #c46a12; --box: #e0245e; --pill: rgba(255,255,255,.85); }
+  @media (prefers-color-scheme: dark) { :root { --ink: #ececf0; --muted: #9aa0a8; --line: #3a3d44; --bg: #1b1c20; --pill: rgba(20,20,24,.8); } }
   html, body { margin: 0; font: 13px system-ui, sans-serif; color: var(--ink); background: transparent; }
-  #wrap { position: relative; }
   canvas { display: block; width: 100%; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); cursor: crosshair; touch-action: none; }
-  #bar { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 6px 2px 0; color: var(--muted); }
+  canvas.pan { cursor: grabbing; }
+  #bar { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 6px 2px 0; color: var(--muted); flex-wrap: wrap; }
   #readout { font-variant-numeric: tabular-nums; }
   button { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
   button:hover { border-color: var(--box); color: var(--box); }
-  #legend span { margin-right: 12px; } #legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+  #legend span { margin-right: 12px; white-space: nowrap; } #legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
 </style>
 </head>
 <body>
-<div id="wrap">
-  <canvas id="map" height="420"></canvas>
-  <div id="bar"><div id="legend"></div><div><span id="readout">drag on the map to draw the area</span> <button id="clear">Clear</button></div></div>
-</div>
+<canvas id="map" height="460"></canvas>
+<div id="bar"><div id="legend"></div><div><span id="readout"></span> <button id="fit">Fit</button> <button id="clear">Clear</button></div></div>
 <script>
 "use strict";
-const cv = document.getElementById("map"), ctx = cv.getContext("2d");
-const readout = document.getElementById("readout");
-let args = {footprints: [], overlap: null, box: null}, box = null, drag = null, hover = null, counter = 0, view = null;
+const OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const H = 460, cv = document.getElementById("map"), ctx = cv.getContext("2d"), readout = document.getElementById("readout");
+let args = {footprints: [], overlap: null, box: null, basemap: false, tile_url: OSM}, box = null, drag = null, panning = null, hover = null;
+let counter = 0, view = {cx: 0.5, cy: 0.5, z: 1}, fitKey = null, tiles = new Map(), tilesOk = 0, tilesFailed = 0, pending = false;
 
 const send = (type, data) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, data), "*");
-const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const W = () => cv.clientWidth || 640;
 
-function bounds() {
+// Web Mercator: what map tiles use. Parallels and meridians stay straight, so a rectangle drawn on screen is a lon/lat box.
+const mx = lon => (lon + 180) / 360;
+const my = lat => { const s = Math.sin(Math.max(-85.05, Math.min(85.05, lat)) * Math.PI / 180); return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI); };
+const lonOf = x => x * 360 - 180;
+const latOf = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI;
+const S = () => 256 * Math.pow(2, view.z);
+const px = lon => W() / 2 + (mx(lon) - view.cx) * S();
+const py = lat => H / 2 + (my(lat) - view.cy) * S();
+const lonAt = x => lonOf((x - W() / 2) / S() + view.cx);
+const latAt = y => latOf((y - H / 2) / S() + view.cy);
+
+function fit() {
   let w = 1e9, s = 1e9, e = -1e9, n = -1e9;
   const take = (lon, lat) => { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat); };
   args.footprints.forEach(f => f.ring.forEach(p => take(p[0], p[1])));
   if (args.box) { take(args.box[0], args.box[1]); take(args.box[2], args.box[3]); }
-  if (w > e) { w = -180; e = 180; s = -80; n = 80; }
-  const px = Math.max((e - w) * 0.08, 0.05), py = Math.max((n - s) * 0.08, 0.05);
-  return [w - px, s - py, e + px, n + py];
+  if (w > e) { w = 60; e = 100; s = 5; n = 35; }
+  const dx = Math.max(mx(e) - mx(w), 1e-6), dy = Math.max(my(s) - my(n), 1e-6);
+  view.z = Math.max(1, Math.min(17, Math.log2(Math.min(W() / (dx * 256), H / (dy * 256)) * 0.85)));
+  view.cx = (mx(w) + mx(e)) / 2; view.cy = (my(n) + my(s)) / 2;
 }
 
-// equirectangular, scaled by cos(latitude) so a degree of longitude is as long as it is on the ground
-function makeView(b) {
-  const W = cv.clientWidth || 640, H = 420, k = Math.cos((b[1] + b[3]) / 2 * Math.PI / 180);
-  const sx = W / ((b[2] - b[0]) * k), sy = H / (b[3] - b[1]), sc = Math.min(sx, sy);
-  const ox = (W - (b[2] - b[0]) * k * sc) / 2, oy = (H - (b[3] - b[1]) * sc) / 2;
-  return {W, H, k, sc, ox, oy, b,
-    x: lon => ox + (lon - b[0]) * k * sc, y: lat => oy + (b[3] - lat) * sc,
-    lon: px => b[0] + (px - ox) / (k * sc), lat: py => b[3] - (py - oy) / sc};
+function tileLayer() {
+  if (!args.basemap) return;
+  const tz = Math.max(0, Math.min(18, Math.round(view.z))), n = Math.pow(2, tz), size = S() / n;
+  const x0 = Math.max(0, Math.floor((view.cx - W() / 2 / S()) * n)), x1 = Math.min(n - 1, Math.floor((view.cx + W() / 2 / S()) * n));
+  const y0 = Math.max(0, Math.floor((view.cy - H / 2 / S()) * n)), y1 = Math.min(n - 1, Math.floor((view.cy + H / 2 / S()) * n));
+  if ((x1 - x0 + 1) * (y1 - y0 + 1) > 90) return;
+  for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+    const url = (args.tile_url || OSM).replace("{z}", tz).replace("{x}", x).replace("{y}", y);
+    let t = tiles.get(url);
+    if (!t) {
+      t = new Image(); t.state = "loading"; t.referrerPolicy = "strict-origin-when-cross-origin";
+      t.onload = () => { t.state = "ok"; tilesOk += 1; redraw(); };
+      t.onerror = () => { t.state = "failed"; tilesFailed += 1; redraw(); };
+      t.src = url; tiles.set(url, t);
+    }
+    if (t.state === "ok") ctx.drawImage(t, W() / 2 + (x / n - view.cx) * S(), H / 2 + (y / n - view.cy) * S(), size + 0.5, size + 0.5);
+  }
 }
 
-function step(span) { const raw = span / 5, p = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 5, 10].map(m => m * p).find(v => v >= raw); }
+function redraw() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } }
+
+function graticule() {
+  const span = lonAt(W()) - lonAt(0), raw = span / 6, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const g = [1, 2, 5, 10].map(m => m * p).find(v => v >= raw);
+  ctx.strokeStyle = css("--line"); ctx.fillStyle = css("--muted"); ctx.lineWidth = 1; ctx.font = "11px system-ui, sans-serif";
+  for (let lon = Math.ceil(lonAt(0) / g) * g; lon <= lonAt(W()); lon += g) { ctx.beginPath(); ctx.moveTo(px(lon), 0); ctx.lineTo(px(lon), H); ctx.stroke(); ctx.fillText(lon.toFixed(g < 1 ? 1 : 0) + "°E", px(lon) + 3, H - 4); }
+  for (let lat = Math.ceil(latAt(H) / g) * g; lat <= latAt(0); lat += g) { ctx.beginPath(); ctx.moveTo(0, py(lat)); ctx.lineTo(W(), py(lat)); ctx.stroke(); ctx.fillText(lat.toFixed(g < 1 ? 1 : 0) + "°N", 4, py(lat) - 3); }
+}
+
+function halo(text, x, y, col) { ctx.lineWidth = 3; ctx.strokeStyle = css("--pill"); ctx.strokeText(text, x, y); ctx.fillStyle = col; ctx.fillText(text, x, y); }
+function rect(b) { ctx.beginPath(); ctx.rect(px(b[0]), py(b[3]), px(b[2]) - px(b[0]), py(b[1]) - py(b[3])); }
+const ordered = d => [Math.min(d[0], d[2]), Math.min(d[1], d[3]), Math.max(d[0], d[2]), Math.max(d[1], d[3])];
 
 function draw() {
   const dpr = window.devicePixelRatio || 1;
-  cv.width = (cv.clientWidth || 640) * dpr; cv.height = 420 * dpr;
+  cv.width = W() * dpr; cv.height = H * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  view = makeView(bounds());
-  ctx.clearRect(0, 0, view.W, view.H);
-  ctx.font = "11px system-ui, sans-serif"; ctx.lineWidth = 1;
-  const g = step(Math.max(view.b[2] - view.b[0], view.b[3] - view.b[1]));
-  ctx.strokeStyle = css("--line"); ctx.fillStyle = css("--muted");
-  for (let lon = Math.ceil(view.b[0] / g) * g; lon <= view.b[2]; lon += g) { ctx.beginPath(); ctx.moveTo(view.x(lon), 0); ctx.lineTo(view.x(lon), view.H); ctx.stroke(); ctx.fillText(lon.toFixed(g < 1 ? 1 : 0) + "°E", view.x(lon) + 3, view.H - 4); }
-  for (let lat = Math.ceil(view.b[1] / g) * g; lat <= view.b[3]; lat += g) { ctx.beginPath(); ctx.moveTo(0, view.y(lat)); ctx.lineTo(view.W, view.y(lat)); ctx.stroke(); ctx.fillText(lat.toFixed(g < 1 ? 1 : 0) + "°N", 4, view.y(lat) - 3); }
+  ctx.clearRect(0, 0, W(), H);
+  if (args.basemap) tileLayer(); else graticule();
+  ctx.font = "11px system-ui, sans-serif";
   args.footprints.forEach(f => {
     const col = css(f.kind === "optical" ? "--optical" : "--sar");
-    ctx.beginPath(); f.ring.forEach((p, i) => i ? ctx.lineTo(view.x(p[0]), view.y(p[1])) : ctx.moveTo(view.x(p[0]), view.y(p[1]))); ctx.closePath();
-    ctx.globalAlpha = 0.14; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); f.ring.forEach((p, i) => i ? ctx.lineTo(px(p[0]), py(p[1])) : ctx.moveTo(px(p[0]), py(p[1]))); ctx.closePath();
+    ctx.globalAlpha = args.basemap ? 0.22 : 0.14; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
     const c = f.ring.reduce((a, p) => [a[0] + p[0] / f.ring.length, a[1] + p[1] / f.ring.length], [0, 0]);
-    ctx.fillStyle = col; ctx.fillText(f.name, Math.max(4, view.x(c[0]) - ctx.measureText(f.name).width / 2), view.y(c[1]));
+    halo(f.name, Math.max(4, px(c[0]) - ctx.measureText(f.name).width / 2), py(c[1]), col);
   });
-  if (args.overlap) {   // what the app would draw with no box: dashed
-    ctx.setLineDash([5, 4]); ctx.strokeStyle = css("--ink"); ctx.lineWidth = 1.2;
-    rect(args.overlap); ctx.stroke(); ctx.setLineDash([]);
-  }
+  if (args.overlap) { ctx.setLineDash([6, 4]); ctx.strokeStyle = css("--ink"); ctx.lineWidth = 1.6; rect(args.overlap); ctx.stroke(); ctx.setLineDash([]); }
   const shown = drag ? ordered(drag) : box;
-  if (shown) { ctx.strokeStyle = css("--box"); ctx.lineWidth = 2; rect(shown); ctx.globalAlpha = 0.12; ctx.fillStyle = css("--box"); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); }
+  if (shown) { ctx.strokeStyle = css("--box"); ctx.lineWidth = 2.5; rect(shown); ctx.globalAlpha = 0.14; ctx.fillStyle = css("--box"); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); }
+  if (args.basemap) {
+    const note = tilesFailed && !tilesOk ? "Basemap not available (offline?): data only" : "© OpenStreetMap contributors";
+    ctx.font = "10px system-ui, sans-serif"; const w = ctx.measureText(note).width + 10;
+    ctx.fillStyle = css("--pill"); ctx.fillRect(W() - w, H - 17, w, 17); ctx.fillStyle = css("--ink"); ctx.fillText(note, W() - w + 5, H - 5);
+  }
   readout.textContent = shown ? "W " + shown[0].toFixed(3) + "  S " + shown[1].toFixed(3) + "  E " + shown[2].toFixed(3) + "  N " + shown[3].toFixed(3)
     : hover ? hover[0].toFixed(3) + "°E  " + hover[1].toFixed(3) + "°N" : "drag on the map to draw the area";
   const kinds = [...new Set(args.footprints.map(f => f.kind))];
-  document.getElementById("legend").innerHTML = kinds.map(k => '<span><i style="background:' + css(k === "optical" ? "--optical" : "--sar") + '"></i>' + (k === "optical" ? "optical" : "radar") + '</span>').join("")
-    + (args.overlap ? '<span><i style="border:1px dashed ' + css("--ink") + '"></i>overlap (the default)</span>' : "");
+  document.getElementById("legend").innerHTML = kinds.map(k => '<span><i style="background:' + css(k === "optical" ? "--optical" : "--sar") + '"></i>' + (k === "optical" ? "optical" : "radar") + ' data</span>').join("")
+    + (args.overlap ? '<span><i style="border:1.5px dashed ' + css("--ink") + '"></i>overlap (the default)</span>' : "");
   send("streamlit:setFrameHeight", {height: document.documentElement.scrollHeight});
 }
-function rect(b) { ctx.beginPath(); ctx.rect(view.x(b[0]), view.y(b[3]), view.x(b[2]) - view.x(b[0]), view.y(b[1]) - view.y(b[3])); }
-const ordered = d => [Math.min(d[0], d[2]), Math.min(d[1], d[3]), Math.max(d[0], d[2]), Math.max(d[1], d[3])];
-const at = ev => { const r = cv.getBoundingClientRect(); const px = (ev.clientX - r.left) * (view.W / r.width), py = (ev.clientY - r.top) * (view.H / r.height); return [view.lon(px), view.lat(py)]; };
 
-cv.addEventListener("pointerdown", ev => { cv.setPointerCapture(ev.pointerId); const p = at(ev); drag = [p[0], p[1], p[0], p[1]]; });
-cv.addEventListener("pointermove", ev => { hover = at(ev); if (drag) { const p = at(ev); drag[2] = p[0]; drag[3] = p[1]; } draw(); });
+const where = ev => { const r = cv.getBoundingClientRect(); return [(ev.clientX - r.left) * (W() / r.width), (ev.clientY - r.top) * (H / r.height)]; };
+cv.addEventListener("contextmenu", ev => ev.preventDefault());
+cv.addEventListener("pointerdown", ev => {
+  cv.setPointerCapture(ev.pointerId);
+  const [x, y] = where(ev);
+  if (ev.button === 0 && !ev.shiftKey) { drag = [lonAt(x), latAt(y), lonAt(x), latAt(y)]; }
+  else { panning = [x, y]; cv.classList.add("pan"); }
+});
+cv.addEventListener("pointermove", ev => {
+  const [x, y] = where(ev); hover = [lonAt(x), latAt(y)];
+  if (drag) { drag[2] = hover[0]; drag[3] = hover[1]; }
+  if (panning) { view.cx -= (x - panning[0]) / S(); view.cy -= (y - panning[1]) / S(); panning = [x, y]; }
+  redraw();
+});
 cv.addEventListener("pointerup", ev => {
+  if (panning) { panning = null; cv.classList.remove("pan"); redraw(); return; }
   if (!drag) return;
   const b = ordered(drag); drag = null;
-  const tiny = (b[2] - b[0]) * view.k * view.sc < 6 || (b[3] - b[1]) * view.sc < 6;   // a click, not a rectangle
+  const tiny = (px(b[2]) - px(b[0])) < 6 || (py(b[1]) - py(b[3])) < 6;   // a click, not a rectangle
   if (!tiny) { box = b; counter += 1; send("streamlit:setComponentValue", {value: {box: b, n: counter}, dataType: "json"}); }
-  draw();
+  redraw();
 });
-cv.addEventListener("pointerleave", () => { hover = null; if (!drag) draw(); });
-document.getElementById("clear").addEventListener("click", () => { box = null; counter += 1; send("streamlit:setComponentValue", {value: {box: null, n: counter}, dataType: "json"}); draw(); });
-window.addEventListener("resize", draw);
+cv.addEventListener("pointerleave", () => { hover = null; redraw(); });
+cv.addEventListener("wheel", ev => {
+  ev.preventDefault();
+  const [x, y] = where(ev), lon = lonAt(x), lat = latAt(y);
+  view.z = Math.max(1, Math.min(18, view.z - ev.deltaY * 0.0018));
+  view.cx += mx(lon) - (view.cx + (x - W() / 2) / S()); view.cy += my(lat) - (view.cy + (y - H / 2) / S());   // keep the point under the cursor fixed
+  redraw();
+}, {passive: false});
+document.getElementById("fit").addEventListener("click", () => { fit(); redraw(); });
+document.getElementById("clear").addEventListener("click", () => { box = null; counter += 1; send("streamlit:setComponentValue", {value: {box: null, n: counter}, dataType: "json"}); redraw(); });
+window.addEventListener("resize", () => redraw());
 
 window.addEventListener("message", ev => {
   if (!ev.data || ev.data.type !== "streamlit:render") return;
-  args = Object.assign({footprints: [], overlap: null, box: null}, ev.data.args);
+  args = Object.assign({footprints: [], overlap: null, box: null, basemap: false, tile_url: OSM}, ev.data.args);
+  const key = JSON.stringify(args.footprints.map(f => [f.name, f.ring.length, f.ring[0]]));
+  if (key !== fitKey) { fitKey = key; fit(); }          // new products: show them all; otherwise keep the view you made
   if (!drag) box = args.box;
-  draw();
+  redraw();
 });
 send("streamlit:componentReady", {apiVersion: 1});
-draw();
+fit(); redraw();
 </script>
 </body>
 </html>

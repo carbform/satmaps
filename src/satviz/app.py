@@ -1,9 +1,9 @@
-"""The local app: pick products, choose a layout and a theme, see the page, draw the area, make the figure, download it.
+"""The local app: pick products, draw the area on a map, add the wording, choose a theme and layout, make the figure.
 
 Run it with `satviz app` (needs `pip install "satviz[app]"`). It holds no figure logic: it collects choices and calls
-`satviz.api.build_job` and `satviz.run.run_job`, the same path as `satviz quick`; the layout preview is drawn by the same
-arrangements and themes (`satviz.preview`). Everything stays on this machine: the page is served on localhost, nothing is
-uploaded, and nothing is fetched.
+`satviz.api.build_job` and `satviz.run.run_job`, the same path as `satviz quick`; the preview is drawn by the same
+arrangements and themes (`satviz.preview`). The page is served on localhost and nothing is uploaded. The one thing fetched is the
+map's OpenStreetMap tiles, by your browser, and only while "Show the OpenStreetMap basemap" is ticked.
 
 Settings come from the environment, set by `satviz app`: SATVIZ_DATA_DIR (where the products are), SATVIZ_OUT_DIR and
 SATVIZ_CACHE_DIR (absolute, because the script runs from wherever Streamlit was started).
@@ -64,9 +64,9 @@ def footprint_of(path: str, mtime: float) -> dict:
 
 
 @st.cache_data(show_spinner=False)
-def example_page(kinds: tuple, layout: str, theme: str) -> bytes:
-    """The example page for a layout, a theme and the kinds of products chosen."""
-    return render_example(list(kinds), layout, theme)
+def example_page(kinds: tuple, layout: str, theme: str, words: tuple = ()) -> bytes:
+    """The example page for a layout, a theme, the kinds of products chosen and the wording typed so far."""
+    return render_example(list(kinds), layout, theme, **dict(words))
 
 
 def browse() -> None:
@@ -114,21 +114,23 @@ def render(chosen: list[str], options: dict) -> None:
                                     "toml": toml, "name": p.stem} for p in pngs]
 
 
-def show_results(results: list[dict]) -> None:
+def show_results(results: list[dict], key_prefix: str = "", show_job: bool = True) -> None:
     """Each figure with its downloads; several figures (a layout that makes one per product or pair) get a tab each."""
     spots = st.tabs([r["name"] for r in results]) if len(results) > 1 else [st.container()]
     for spot, r in zip(spots, results, strict=True):
         with spot:
             st.image(str(r["png"]), use_column_width=True)
             a, b, c = st.columns(3)
-            a.download_button("Download PNG", r["png"].read_bytes(), f"{r['name']}.png", "image/png", key=f"png_{r['name']}")
+            a.download_button("Download PNG", r["png"].read_bytes(), f"{r['name']}.png", "image/png",
+                              key=f"{key_prefix}png_{r['name']}")
             if r["pdf"]:
                 b.download_button("Download PDF", r["pdf"].read_bytes(), f"{r['name']}.pdf", "application/pdf",
-                                  key=f"pdf_{r['name']}")
-            c.download_button("Download job file", r["toml"], f"{r['name']}.toml", "text/plain", key=f"toml_{r['name']}",
-                              help="Run it again with `satviz run`, or edit it first")
-    with st.expander("The job file behind this figure"):
-        st.code(results[0]["toml"], language="toml")
+                                  key=f"{key_prefix}pdf_{r['name']}")
+            c.download_button("Download job file", r["toml"], f"{r['name']}.toml", "text/plain",
+                              key=f"{key_prefix}toml_{r['name']}", help="Run it again with `satviz run`, or edit it first")
+    if show_job:  # (not inside another expander: Streamlit does not nest them)
+        with st.expander("The job file behind this figure"):
+            st.code(results[0]["toml"], language="toml")
 
 
 def apply_drawn(state, drawn: dict | None) -> bool:
@@ -147,26 +149,101 @@ def apply_drawn(state, drawn: dict | None) -> bool:
     return True
 
 
-def area_tab(chosen_rows: list[dict]) -> None:
-    """Where the products are, with a rectangle to draw: the box you draw is written to the fields on the left."""
+def area_section(chosen_rows: list[dict]) -> tuple[str, tuple | None]:
+    """Step 1: where the products are, on a map you can draw on, and the area that results. Returns (mode, box)."""
+    st.markdown("##### 1 · Area")
     if not chosen_rows:
-        st.info("Choose products on the left to see where they are, and draw the area you want on the map.")
-        return
+        st.info("Choose products in the sidebar: they appear here on a map, and you draw the area you want.")
+        return OVERLAP, None
     prints = [{"name": r["name"][:24], **footprint_of(r["path"], Path(r["path"]).stat().st_mtime)} for r in chosen_rows]
     prints = [p for p in prints if p["ring"]]
     overlap = None
     if prints:
         try:
-            a = common_area({str(i): p["ring"] for i, p in enumerate(prints)}).lonlat_bbox()
-            overlap = [round(v, 4) for v in a]
+            overlap = [round(v, 4) for v in common_area({str(i): p["ring"] for i, p in enumerate(prints)}).lonlat_bbox()]
         except AreaError:
-            st.warning("These products share no ground: they do not overlap, so draw a box over the one you want, or drop one.")
+            st.warning("These products share no ground: they do not overlap. Draw a box over the one you want, or drop one.")
+    st.checkbox("Show the OpenStreetMap basemap", value=True, key="basemap",
+                help="Your browser fetches map tiles from openstreetmap.org, which sees roughly where you look. Untick to keep "
+                     "the map to your data alone: nothing is then fetched.")
     box = [st.session_state[k] for k in BOX_KEYS] if st.session_state["area_mode"] == BOX and all(
         st.session_state[k] for k in BOX_KEYS) else None
     drawn = area_map(footprints=[{"name": p["name"], "kind": p["kind"], "ring": p["ring"]} for p in prints], overlap=overlap,
-                     box=box, key="area_map", default=None)
+                     box=box, basemap=bool(st.session_state.get("basemap", True)), key="area_map", default=None)
     apply_drawn(st.session_state, drawn)
-    st.caption("Drag on the map to draw the area. The dashed rectangle is what is drawn when you draw nothing.")
+    st.caption("Drag to draw the area · wheel to zoom · right-drag or shift-drag to move. The dashed rectangle is what is drawn "
+               "when you draw nothing.")
+    mode = st.radio("Area", [OVERLAP, BOX], key="area_mode", horizontal=True, label_visibility="collapsed")
+    box = None
+    if mode == BOX:
+        cols = st.columns(4)
+        for col, key, name in zip(cols, BOX_KEYS, ("West", "South", "East", "North"), strict=True):
+            col.number_input(name, key=key, format="%.4f", step=0.05)
+        box = tuple(st.session_state[k] for k in BOX_KEYS)
+        for row in chosen_rows:  # say so before drawing: a box that misses a product leaves its panel empty
+            ring = footprint_of(row["path"], Path(row["path"]).stat().st_mtime)["ring"]
+            share = coverage(ring, box) if ring else 1.0
+            if share < 0.95:
+                st.warning(f"{row['name'][:30]} has data in {share:.0%} of this box.")
+    return mode, box
+
+
+def details_section() -> dict:
+    """Step 2: the wording, the same for every sensor. Sensors' own credits are always added; this adds to them."""
+    st.markdown("##### 2 · Title and credits")
+    st.text_input("Title", key="title", placeholder="left empty: says what the figure shows")
+    st.text_input("Subtitle", key="subtitle", placeholder="left empty: says how the products relate")
+    st.text_input("Place", key="place", placeholder="e.g. Dibrugarh, Assam")
+    a, b = st.columns(2)
+    a.text_input("Author", key="author")
+    b.text_input("Website", key="website")
+    st.text_input("Extra credit", key="credits", placeholder="e.g. Field photos by …",
+                  help="One more credit line. The credits the products require (Copernicus, NISAR, NRSC/ISRO…) are always "
+                       "printed.")
+    return {k: st.session_state[k] or None for k in ("title", "subtitle", "place", "author", "website", "credits")}
+
+
+def look_section(kinds: list[str]) -> dict:
+    """Step 3: how it looks and how big."""
+    st.markdown("##### 3 · Look")
+    a, b = st.columns(2)
+    theme = a.selectbox("Theme", sorted(THEMES), index=sorted(THEMES).index("minimal"))
+    choices = layout_choices(kinds)
+    layout_name = b.selectbox("Layout", [AUTOMATIC, *choices.values()],
+                              help="How the products sit on the page. Automatic: one product alone, two side by side, three to "
+                                   "six on one page.")
+    layout = None if layout_name == AUTOMATIC else next(k for k, v in choices.items() if v == layout_name)
+    quality = st.radio("Quality", list(PROFILES), horizontal=True,
+                       help="quick: a small PNG in seconds · medium: finer · publication: full size, with a PDF")
+    with st.expander("More options"):
+        different = st.checkbox("Allow NISAR products from different passes")
+        large = st.checkbox("Draw a very large area anyway (slow)")
+    return dict(theme=theme, layout=layout, quality=quality, allow_different_passes=different, allow_large=large)
+
+
+def figure_pane(kinds: list[str], words: dict, look: dict, signature: tuple) -> None:
+    """The one pane for the page you will get and the figure you made: the example page follows every change you make to the
+    theme, layout or wording; the figure appears when you press the button and gives way to the example when settings change."""
+    results, fresh = st.session_state["results"], st.session_state["made_with"] == signature
+    layout = look["layout"] or (auto_layout(kinds) if kinds else "single")
+    if st.session_state["error"]:
+        st.error(st.session_state["error"])
+        if st.session_state["suggestion"]:
+            st.button("Use the suggested box", on_click=use_suggested_box)
+    if results and fresh:
+        show_results(results)
+        return
+    if results:
+        st.info("The settings have changed since this figure was made. This is the page they give: press **Make the figure** "
+                "to draw it with your data.")
+    elif not st.session_state["error"]:
+        st.info("This is the page your settings give, with made-up pictures where your data will go. Press **Make the figure** "
+                "to draw it with your products.")
+    st.image(example_page(tuple(kinds), layout, look["theme"], tuple(sorted((k, v) for k, v in words.items() if v))),
+             use_column_width=True)
+    if results:
+        with st.expander("The figure made before the change"):
+            show_results(results, key_prefix="old_", show_job=False)
 
 
 def main() -> None:
@@ -175,7 +252,8 @@ def main() -> None:
     st.caption("Quick looks and publication figures from SAR (NISAR, Sentinel-1, EOS-04) and optical (Sentinel-2, LISS-IV) "
                "products. Everything runs on this machine.")
     defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "area_mode": OVERLAP, "last_draw": 0,
-                "folder": os.environ.get("SATVIZ_DATA_DIR", "data"), "folder_note": ""}
+                "folder": os.environ.get("SATVIZ_DATA_DIR", "data"), "folder_note": "", "made_with": None,
+                **dict.fromkeys(("title", "subtitle", "place", "author", "website", "credits"), "")}
     for key, default in {**defaults, **dict.fromkeys(BOX_KEYS, 0.0)}.items():
         st.session_state.setdefault(key, default)
 
@@ -206,61 +284,28 @@ def main() -> None:
         if not products and not zips:
             st.info("No products found in this folder.")
 
-    left, right = st.columns([1, 2])
-    with right:
-        figure_tab, preview_tab, area_tab_ = st.tabs(["Figure", "Layout preview", "Area"])
-    with area_tab_:  # before the fields on the left: a drawn box is written to them
-        area_tab(chosen_rows)
-
+    left, right = st.columns(2)
     kinds = [r["kind"] for r in chosen_rows]
     with left:
-        st.subheader("Figure")
-        theme = st.selectbox("Theme", sorted(THEMES), index=sorted(THEMES).index("minimal"))
-        choices = layout_choices(kinds)
-        names = [AUTOMATIC, *choices.values()]
-        layout_name = st.selectbox("Layout", names, help="How the products sit on the page. Automatic: one product alone, "
-                                   "two side by side, three to six on one page.")
-        layout = None if layout_name == AUTOMATIC else next(k for k, v in choices.items() if v == layout_name)
-        quality = st.radio("Quality", list(PROFILES), horizontal=True,
-                           help="quick: a small PNG in seconds · medium: finer · publication: full size, with a PDF")
-        title = st.text_input("Title", placeholder="left empty: says what the figure shows")
-        mode = st.radio("Area", [OVERLAP, BOX], key="area_mode")
-        box = None
-        if mode == BOX:
-            cols = st.columns(4)
-            for col, key, name in zip(cols, BOX_KEYS, ("West", "South", "East", "North"), strict=True):
-                col.number_input(name, key=key, format="%.4f", step=0.05)
-            box = tuple(st.session_state[k] for k in BOX_KEYS)
-            for row in chosen_rows:  # say so before drawing: a box that misses a product leaves its panel empty
-                ring = footprint_of(row["path"], Path(row["path"]).stat().st_mtime)["ring"]
-                share = coverage(ring, box) if ring else 1.0
-                if share < 0.95:
-                    st.warning(f"{row['name'][:30]} has data in {share:.0%} of this box.")
-        different = st.checkbox("Allow NISAR products from different passes")
-        large = st.checkbox("Draw a very large area anyway (slow)")
+        mode, box = area_section(chosen_rows)
+        st.divider()
+        words = details_section()
+        st.divider()
+        look = look_section(kinds)
         go = st.button("Make the figure", type="primary", disabled=not chosen)
 
+    signature = (tuple(chosen), mode, box, tuple(sorted(words.items(), key=lambda kv: kv[0])), tuple(sorted(
+        (k, str(v)) for k, v in look.items())))
     if go:
-        options = dict(theme=theme, quality=quality, title=title or None, area=box, arrangement=layout,
-                       bands=layout == "bands", allow_different_passes=different, allow_large=large)
+        options = dict(theme=look["theme"], quality=look["quality"], area=box, arrangement=look["layout"],
+                       bands=look["layout"] == "bands", allow_different_passes=look["allow_different_passes"],
+                       allow_large=look["allow_large"], **words)
         with right, st.spinner("Reading the products and drawing…"):
             render(chosen, options)
-
-    shown_layout = layout or (auto_layout(kinds) if kinds else "single")
-    with preview_tab:
-        st.image(example_page(tuple(kinds), shown_layout, theme), use_column_width=True)
-        st.caption("An example page in this layout and theme, with made-up pictures: your products fill the panels, and their "
-                   "own notices and credits appear where the examples are.")
-    with figure_tab:
-        if st.session_state["error"]:
-            st.error(st.session_state["error"])
-            if st.session_state["suggestion"]:
-                st.button("Use the suggested box", on_click=use_suggested_box)
-        if st.session_state["results"]:
-            show_results(st.session_state["results"])
-        elif not st.session_state["error"]:
-            st.info("Choose products, a layout and a theme, then press **Make the figure**. This is the page it will use.")
-            st.image(example_page(tuple(kinds), shown_layout, theme), use_column_width=True)
+        st.session_state["made_with"] = signature
+    with right:
+        st.markdown("##### Figure")
+        figure_pane(kinds, words, look, signature)
 
 
 if __name__ == "__main__":  # Streamlit runs the script as __main__; importing the module (the tests do) draws nothing

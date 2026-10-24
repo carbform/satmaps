@@ -98,6 +98,12 @@ paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the ki
   `preview.render_example`: small stand-in products drawn through the real arrangements, themes and wording, so it cannot drift from
   a real figure. The Area tab is a Streamlit custom component (`app_component/index.html`, no build step, no network): it draws
   the products' footprints and returns the rectangle the mouse draws.
+- **One wording, every sensor.** `api.details` turns the typed title, subtitle, place, author, website and extra credit into scene
+  fields and figure text for any job; the extra credit is written onto the author's credit line (a page with many notices has no
+  room for another line) and the sensors' DATA credit line is always appended. The same function feeds the preview, so the example
+  page shows the wording as it will print.
+- **The map** (`app_component/index.html`) is Web Mercator so OpenStreetMap tiles line up exactly; its only network use is the
+  browser fetching those tiles, and only while the basemap is ticked (`tile_url` can point at a local server, which is how it is tested).
 - **`--save-job`** writes the resolved tables (sensors, absolute paths, centre and size, pixel size), so running the saved file gives
   the same figure; a test pins that.
 - **Profiles** (`satviz.quality`): `quick` (800 px along the longer side, 100 dpi, PNG), `medium` (1400 px, 140 dpi, PNG) and

@@ -120,9 +120,34 @@ def _default_arrangement(template: str, kinds: list[str]) -> str:
     return "single" if n == 1 else "compare" if n == 2 else "grid"
 
 
+def details(title: str | None = None, subtitle: str | None = None, place: str | None = None, author: str | None = None,
+            website: str | None = None, credits: str | None = None) -> tuple[dict, dict]:
+    """The wording a person types, as (scene fields, figure text) for a job: the same for every sensor.
+
+    `credits` is one extra credit. It goes on the author's line (`VIZ  AUTHOR · website · your credit`), or on a line of its own
+    when there is no author, so it takes no extra room on a page with many notices. The credits the sensors require are always
+    appended on their own DATA line, never replaced. Curly braces are written literally, not read as placeholders."""
+    given = (("name", title), ("region", place), ("author", author), ("website", website))
+    scene = {k: v.strip() for k, v in given if v and v.strip()}
+    text = {}
+    if title and title.strip():
+        text["title"] = title.strip()
+    if subtitle and subtitle.strip():
+        text["subtitle"] = subtitle.strip()
+    if credits and credits.strip():
+        def literal(t: str) -> str:
+            return t.replace("{", "{{").replace("}", "}}")
+
+        byline = "  ·  ".join(x for x in ((author or "").strip().upper(), (website or "").strip()) if x)
+        extra = literal(credits.strip())
+        text["credits.lines"] = [f"VIZ   {literal(byline)}   ·   {extra}" if byline else extra]
+    return scene, text
+
+
 def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick", title: str | None = None,
               template: str | None = None, arrangement: str | None = None, bands: bool = False, resolution_m: float | None = None,
-              allow_different_passes: bool = False, allow_large: bool = False, data_dir=None):
+              allow_different_passes: bool = False, allow_large: bool = False, data_dir=None, subtitle: str | None = None,
+              place: str | None = None, author: str | None = None, website: str | None = None, credits: str | None = None):
     """The `Job` for some paths, with sensors detected, ids chosen, template and arrangement picked from what the inputs are, and
     the area and pixel size resolved. Also returns the job-file tables that reproduce it."""
     import dataclasses
@@ -149,13 +174,14 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
     chosen = template or ("sar_optical" if len(set(kinds)) > 1 else kinds[0])
     arrangement = "bands" if bands else arrangement or _default_arrangement(chosen, kinds)
     name = _figure_name([i["sensor"] for i in inputs], quality)
+    scene_fields, typed = details(title, subtitle, place, author, website, credits)
     fig = {"name": name, "template": chosen, "inputs": ids, "theme": theme,
-           "arrangement": arrangement, **({"text": {"title": title}} if title else {}),
+           "arrangement": arrangement, **({"text": typed} if typed else {}),
            **({"allow_different_passes": True} if allow_different_passes else {})}
     table = _area_table(area)
     if resolution_m:
         table["resolution_m"] = float(resolution_m)
-    raw = {"quality": quality, "scene": {"name": title or ""}, "area": table, "inputs": inputs, "figures": [fig]}
+    raw = {"quality": quality, "scene": {"name": "", **scene_fields}, "area": table, "inputs": inputs, "figures": [fig]}
     root = Path(data_dir) if data_dir else Path.cwd()
     job = job_from_dict(raw, root / f"{name}.toml", root)
     try:
@@ -243,6 +269,11 @@ def write_job(raw: dict, dest: Path) -> None:
     dest.write_text(_toml(raw))
 
 
+def _key(k: str) -> str:
+    """A TOML key: bare when it can be, quoted when it has a dot or a space ("credits.lines" must stay one key)."""
+    return k if k and all(c.isalnum() or c in "_-" for c in k) else _value(k)
+
+
 def _value(v) -> str:
     if isinstance(v, bool):
         return "true" if v else "false"
@@ -253,7 +284,7 @@ def _value(v) -> str:
     if isinstance(v, (list, tuple)):
         return "[" + ", ".join(_value(x) for x in v) + "]"
     if isinstance(v, dict):
-        return "{ " + ", ".join(f"{k} = {_value(x)}" for k, x in v.items()) + " }"
+        return "{ " + ", ".join(f"{_key(k)} = {_value(x)}" for k, x in v.items()) + " }"
     raise TypeError(f"cannot write {v!r} as TOML")
 
 
@@ -264,8 +295,8 @@ def _toml(raw: dict) -> str:
             lines.append(f"{k} = {_value(v)}")
     for k, v in raw.items():
         if isinstance(v, dict):
-            lines += ["", f"[{k}]", *(f"{a} = {_value(b)}" for a, b in v.items())]
+            lines += ["", f"[{k}]", *(f"{_key(a)} = {_value(b)}" for a, b in v.items())]
         elif isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
             for item in v:
-                lines += ["", f"[[{k}]]", *(f"{a} = {_value(b)}" for a, b in item.items())]
+                lines += ["", f"[[{k}]]", *(f"{_key(a)} = {_value(b)}" for a, b in item.items())]
     return "\n".join(lines) + "\n"

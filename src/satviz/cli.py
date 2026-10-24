@@ -68,6 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
                          "(default: %(default)s)")
     qk.add_argument("--theme", default="minimal", help="neo_retro, minimal, neo_brutal, newspaper or xkcd (default: %(default)s)")
     qk.add_argument("--title", default=None, help="the figure's title")
+    qk.add_argument("--subtitle", default=None, help="the line under the title")
+    qk.add_argument("--place", default=None, help="the place, e.g. 'Dibrugarh, Assam' (the default subtitle when there is none)")
+    qk.add_argument("--author", default=None, help="your name, for the credit line")
+    qk.add_argument("--website", default=None, help="your website, for the credit line")
+    qk.add_argument("--credit", default=None, help="one extra credit line (the data credits are always added as well)")
     qk.add_argument("--bbox", nargs=4, type=float, metavar=("W", "S", "E", "N"),
                     help="draw this box (degrees) instead of the overlap of the inputs")
     qk.add_argument("--resolution", type=float, default=None, metavar="M", help="pixel size in metres (default: from --quality)")
@@ -162,7 +167,8 @@ def main(argv: list[str] | None = None) -> int:
                            area=args.bbox, theme=args.theme, quality=args.quality, title=args.title, template=args.template,
                            arrangement=args.arrangement, bands=args.bands, resolution_m=args.resolution,
                            allow_different_passes=args.allow_different_passes, allow_large=args.allow_large,
-                           data_dir=args.data_dir)
+                           data_dir=args.data_dir, subtitle=args.subtitle, place=args.place, author=args.author,
+                           website=args.website, credits=args.credit)
         except (DetectError, JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError,
                 ImportError) as e:
             print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)

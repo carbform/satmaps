@@ -68,8 +68,10 @@ def example_product(key: str, kind: str, index: int) -> Product:
     return Product(layers=layers, meta=meta, kind="optical", bands=tuple(infos), **common)
 
 
-def render_example(kinds: list[str] | None, arrangement: str, theme: str) -> bytes:
-    """PNG bytes of an example page: `kinds` ('sar' / 'optical' per product; None for a typical set), the layout, the theme."""
+def render_example(kinds: list[str] | None, arrangement: str, theme: str, **words) -> bytes:
+    """PNG bytes of an example page: `kinds` ('sar' / 'optical' per product; None for a typical set), the layout, the theme.
+    `words` (title, subtitle, place, author, website, credits) are the wording typed so far, shown as it will print."""
+    from satviz.api import details
     from satviz.arrangements import draw
     from satviz.core import TEMPLATES, THEMES
     from satviz.layout import apply_text, default_layout
@@ -87,15 +89,18 @@ def render_example(kinds: list[str] | None, arrangement: str, theme: str) -> byt
     template = "sar_optical" if len(set(kinds)) > 1 else kinds[0]
     ids = [f"{k[:1].upper()}{i + 1}" for i, k in enumerate(kinds)]
     products = {key: example_product(key, kind, i) for i, (key, kind) in enumerate(zip(ids, kinds, strict=True))}
-    scene = Scene(name="Your title", reach="", locality="", region="Your place", callout_caption="", author="", website="",
-                  zooms=(), callouts={}, data_dir=Path("."), inputs={k: InputSpec(k, "", "", {}) for k in ids})
+    fields, typed = details(**words)
+    fields = {"name": "Your title", "region": "Your place", "author": "", "website": "", **fields}
+    scene = Scene(name=fields["name"], reach="", locality="", region=fields["region"], callout_caption="",
+                  author=fields["author"], website=fields["website"], zooms=(), callouts={}, data_dir=Path("."),
+                  inputs={k: InputSpec(k, "", "", {}) for k in ids})
     if arrangement == "compare" and len(ids) > 2:
         combo = (ids[0], ids[-1])  # one pair is enough to show the page
     else:
         combo = tuple(ids)
     fig = FigureSpec(template=template, inputs=combo, arrangement=arrangement, themes=(theme,))
     resolved = TEMPLATES[template].resolve(fig, combo, products, scene)
-    layout = apply_text(default_layout(resolved.arrangement), resolved.text)
+    layout = apply_text(default_layout(resolved.arrangement), {**resolved.text, **typed})
     with tempfile.TemporaryDirectory() as tmp:
         (png,) = draw(resolved, scene=scene, products=products, out_dir=Path(tmp), layout=layout, combo=combo, theme=theme,
                       stem="preview", slot=0, strict=False, profile=PROFILES["quick"])
