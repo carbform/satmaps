@@ -12,6 +12,14 @@ def product_folder(path: Path) -> Path:
     return path if path.is_dir() else path.parent
 
 
+def corners(meta: dict[str, str]) -> list[tuple[float, float]]:
+    """(lon, lat) ring of an NRSC product from its ProdUL/UR/LR/LL corners."""
+    try:
+        return [(float(meta[f"Prod{c}Lon"]), float(meta[f"Prod{c}Lat"])) for c in ("UL", "UR", "LR", "LL")]
+    except (KeyError, ValueError):
+        raise SourceError("the product's metadata has no ProdUL/UR/LR/LL corner coordinates") from None
+
+
 def read_meta(folder: Path, pattern: str) -> dict[str, str]:
     """`key=value` lines of the first file in `folder` matching `pattern` (``*.meta`` or ``BAND_META.txt``)."""
     files = sorted(folder.glob(pattern))

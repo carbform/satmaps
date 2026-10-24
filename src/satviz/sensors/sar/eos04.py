@@ -25,7 +25,7 @@ import numpy as np
 
 from satviz.area import Area, AreaError, Canvas
 from satviz.cog import _rasterio, raster_epsg, read_window
-from satviz.core import Product, SourceInfo, sensor
+from satviz.core import Product, SourceInfo, footprint_or_none, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
 from satviz.radar import radar_facts
@@ -36,6 +36,13 @@ CREDIT = "EOS-04 SAR data, NRSC/ISRO"
 VALID = 128  # mask value for undistorted valid image data (16 layover, 64 shadow, 0 outside)
 KEYS = {"label", "credit", "attribution", "note", "backscatter"}
 CONVENTIONS = ("gamma0", "sigma0")
+
+
+def sniff(path) -> bool:
+    """An unzipped EOS-04 Level-2B folder: `BAND_META.txt` that names two polarisations."""
+    folder = nrsc.product_folder(Path(path))
+    meta = folder / "BAND_META.txt"
+    return folder.is_dir() and meta.is_file() and "TxRxPol1" in meta.read_text(errors="replace")
 
 
 def _folder(spec, data_dir) -> Path:
@@ -114,7 +121,8 @@ def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
     with _rasterio().open(path) as src:
         t = src.transform
         res = abs(t.a)
-        return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)])
+        return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)],
+                          footprint=footprint_or_none(lambda: nrsc.corners(nrsc.read_meta(folder, "BAND_META.txt"))))
 
 
 def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, tag="job") -> Product:
@@ -183,4 +191,4 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     )
 
 
-sensor("eos04")(SimpleNamespace(describe=describe, open=open_on_canvas, kind="sar"))
+sensor("eos04")(SimpleNamespace(describe=describe, open=open_on_canvas, sniff=sniff, kind="sar"))

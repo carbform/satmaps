@@ -16,6 +16,7 @@ from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, LegendItem, check_recipe
 from satviz.geo import utm_extent
 from satviz.layout import Layout, LayoutError, build_context_products
+from satviz.quality import Profile, save
 from satviz.recipes.bands import OUTSIDE_RGB, bands_of, grey_rgba, label_lines, limits
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
@@ -27,7 +28,7 @@ NO_DATA = "#{:02x}{:02x}{:02x}".format(*OUTSIDE_RGB)
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str, composites: tuple[str, ...] = (),
            stretch: str = "pooled", theme: str = "neo_retro", stem: str | None = None,
-           extra_caveats: tuple[str, ...] = ()) -> list[Path]:
+           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None) -> list[Path]:
     """`input` is the one product to show. `stretch` is "pooled" (one set of limits for all bands) or "per-band"."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -85,6 +86,6 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(
             scene=f"{platforms([P])}_{scene.name}", key=input, tag=t.tag))
         t.finish(fig)
-        fig.savefig(out, dpi=180, facecolor=t.paper)
+        save(fig, out, t.paper, profile)
         plt.close(fig)
     return [out]

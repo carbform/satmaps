@@ -24,11 +24,11 @@ from types import SimpleNamespace
 
 import numpy as np
 from pyproj import Transformer
-from scipy.ndimage import map_coordinates, uniform_filter
+from scipy.ndimage import map_coordinates
 
 from satviz.area import Area, AreaError, Canvas
 from satviz.cog import _rasterio
-from satviz.core import Product, SourceInfo, sensor
+from satviz.core import Product, SourceInfo, footprint_or_none, sensor
 from satviz.geo import crs_label
 from satviz.radar import radar_facts
 from satviz.sensors import nrsc
@@ -37,6 +37,7 @@ from satviz.sources import SourceError, resolve_one_file
 CREDIT = "Contains modified Copernicus Sentinel data {year}"
 KEYS = {"label", "credit", "attribution", "note"}
 MARGIN = 8  # pixels kept around the window, for resampling
+STRIP = 48  # output rows per strip of a decimated read
 LATTICE = 16  # the GCP fit is evaluated on every LATTICE-th canvas pixel and interpolated between
 
 
@@ -106,6 +107,29 @@ def sigma0(dn: np.ndarray, row0: int, col0: int, cal, noise_range, noise_az) -> 
     return s0.astype(np.float32), float(below.sum() / max(inside.sum(), 1))
 
 
+def sigma0_decimated(src, r0: int, r1: int, c0: int, c1: int, k: int, cal, noise_range, noise_az) -> tuple[np.ndarray, float]:
+    """Sigma-nought of the window rows r0..r1, columns c0..c1, reduced k x k a strip at a time, and the share of pixels dropped.
+
+    Each strip is calibrated at full resolution and block-averaged as linear power before the next is read, so a coarse canvas
+    over a whole swath never holds the full-resolution window. Block (i, j) is centred on image row r0 + i*k + (k-1)/2."""
+    from rasterio.windows import Window
+
+    n_cols = (c1 - c0) // k * k
+    strips, below, inside = [], 0, 0
+    for a in range(r0, r1 - (r1 - r0) % k, STRIP * k):
+        b = min(a + STRIP * k, r1 - (r1 - r0) % k)
+        dn = src.read(1, window=Window(c0, a, n_cols, b - a))
+        s0, share = sigma0(dn, a, c0, cal, noise_range, noise_az)
+        ok = dn > 0
+        below += int(round(share * ok.sum()))
+        inside += int(ok.sum())
+        block = s0.reshape((b - a) // k, k, n_cols // k, k)
+        n = np.isfinite(block).sum(axis=(1, 3))
+        total = np.where(np.isfinite(block), block, 0.0).sum(axis=(1, 3), dtype=np.float64)
+        strips.append(np.where(n > k * k / 2, total / np.maximum(n, 1), np.nan).astype(np.float32))
+    return np.concatenate(strips), below / max(inside, 1)
+
+
 def canvas_to_image(gcps, canvas: Canvas) -> tuple[np.ndarray, np.ndarray]:
     """(row, col) in the measurement image of every canvas pixel centre, from a thin-plate-spline fit to the GCPs."""
     from rasterio.transform import GCPTransformer
@@ -159,15 +183,60 @@ def _annotation(path: Path) -> dict:
                 res=float(root.findtext(".//rangePixelSpacing")), rel_orbit=root.findtext(".//relativeOrbitNumber", ""))
 
 
+def sniff(path) -> bool:
+    """An unzipped Sentinel-1 IW GRD `.SAFE` folder."""
+    path = Path(path)
+    return path.is_dir() and (path / "manifest.safe").is_file() and (path / "measurement").is_dir() and "_GRD" in path.name
+
+
 def _folder(spec, data_dir) -> Path:
     return nrsc.product_folder(resolve_one_file(spec, data_dir))
 
 
+def _footprint(folder: Path) -> list[tuple[float, float]]:
+    """(lon, lat) ring from the manifest's `lat,lon` pairs."""
+    for e in ET.parse(folder / "manifest.safe").getroot().iter():
+        if e.tag.split("}")[-1] == "coordinates" and e.text:
+            return [(float(lon), float(lat)) for lat, lon in (p.split(",") for p in e.text.split())]
+    raise SourceError(f"{folder.name}: the manifest has no footprint coordinates")
+
+
+def data_footprint(measurement: Path, across: int = 600) -> list[tuple[float, float]]:
+    """(lon, lat) ring of where the image has data, from a coarse read of its valid (DN > 0) pixels.
+
+    The manifest footprint is the quad around the whole image, but the zero collars at the swath edges lie inside it. The image is
+    stored a row at a time, so reading it about `across` pixels wide touches only every n-th row. Each kept row contributes
+    its first and last valid pixel (valid data is one run per row), placed on the ground by the GCP fit."""
+    from rasterio.transform import GCPTransformer
+
+    with _rasterio().open(measurement) as src:
+        step = max(1, src.width // across)
+        dn = src.read(1, out_shape=(max(2, src.height // step), max(2, src.width // step)))
+        gcps = src.gcps[0]
+        sy, sx = src.height / dn.shape[0], src.width / dn.shape[1]
+    rows = np.flatnonzero((dn > 0).any(axis=1))
+    if not len(rows):
+        raise SourceError(f"{measurement.name}: no valid pixels")
+    first = np.array([np.flatnonzero(dn[r] > 0)[0] for r in rows])
+    last = np.array([np.flatnonzero(dn[r] > 0)[-1] for r in rows])
+    r_img = np.concatenate([rows, rows[::-1]]) + 0.5
+    c_img = np.concatenate([first, last[::-1] + 1.0])
+    lon, lat = GCPTransformer(gcps, tps=True).xy(r_img * sy, c_img * sx)
+    return list(zip(map(float, lon), map(float, lat), strict=True))
+
+
+def _best_footprint(folder: Path, measurement: Path):
+    """Where the data is, from the pixels; the manifest quad when they cannot be read."""
+    return footprint_or_none(data_footprint, measurement) or footprint_or_none(_footprint, folder)
+
+
 def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
     _check(spec)
-    files = _files(_folder(spec, data_dir))
+    folder = _folder(spec, data_dir)
+    files = _files(folder)
     co = files[_pols(files)[0]]
-    return SourceInfo(epsg=4326, resolution_m=_annotation(co["annotation"])["res"], phase=None, files=[str(co["measurement"])])
+    return SourceInfo(epsg=4326, resolution_m=_annotation(co["annotation"])["res"], phase=None, files=[str(co["measurement"])],
+                      footprint=None if area is not None else _best_footprint(folder, co["measurement"]))
 
 
 def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, tag="job") -> Product:
@@ -192,18 +261,18 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
                 raise AreaError(f"input {spec.key!r}: {folder.name} does not cover the area")
             from rasterio.windows import Window
 
-            dn = src.read(1, window=Window(c0, r0, c1 - c0 + 1, r1 - r0 + 1))
-        s0, share = sigma0(dn, r0, c0, read_luts(f["calibration"], "calibrationVector", "sigmaNought"),
-                           read_luts(f["noise"], "noiseRangeVector", "noiseRangeLut"), read_azimuth_noise(f["noise"]))
-        coarse = max(1, int(round(canvas.res / info["res"])))
-        if coarse >= 2:  # box-average first, so a coarser canvas does not alias speckle
-            ok = np.isfinite(s0)
-            num = uniform_filter(np.where(ok, s0, 0.0), coarse)
-            den = uniform_filter(ok.astype(np.float32), coarse)
-            s0 = np.where(den > 0.5, num / np.maximum(den, 1e-6), np.nan).astype(np.float32)
+            coarse = max(1, int(round(canvas.res / info["res"])))
+            luts = (read_luts(f["calibration"], "calibrationVector", "sigmaNought"),
+                    read_luts(f["noise"], "noiseRangeVector", "noiseRangeLut"), read_azimuth_noise(f["noise"]))
+            if coarse >= 2:  # box-average first, so a coarser canvas does not alias speckle (and never holds the full window)
+                s0, share = sigma0_decimated(src, r0, r1 + 1, c0, c1 + 1, coarse, *luts)
+                shift = (coarse - 1) / 2
+            else:
+                s0, share = sigma0(src.read(1, window=Window(c0, r0, c1 - c0 + 1, r1 - r0 + 1)), r0, c0, *luts)
+                shift = 0.0
         sample = np.where(np.isfinite(s0), s0, np.nan)
         # NaN-aware bilinear: weight the values by validity so one bad neighbour does not blank a pixel
-        coords = [img_rows - r0, img_cols - c0]
+        coords = [(img_rows - r0 - shift) / coarse, (img_cols - c0 - shift) / coarse]
         val = map_coordinates(np.nan_to_num(sample), coords, order=1, mode="constant", cval=0.0)
         wgt = map_coordinates(np.isfinite(sample).astype(np.float32), coords, order=1, mode="constant", cval=0.0)
         layer = np.where(wgt > 0.99, val / np.maximum(wgt, 1e-6), np.nan).astype(np.float32)
@@ -233,4 +302,4 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     )
 
 
-sensor("sentinel1")(SimpleNamespace(describe=describe, open=open_on_canvas, kind="sar"))
+sensor("sentinel1")(SimpleNamespace(describe=describe, open=open_on_canvas, sniff=sniff, kind="sar"))

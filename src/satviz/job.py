@@ -1,7 +1,8 @@
 """Job file: one TOML that says where, what data, and which figures. `satviz run job.toml` does the rest.
 
-Sections: ``extends`` (a base file), ``[scene]`` (names and wording defaults, all optional), ``[area]``, ``[[inputs]]``,
-``[[zooms]]``, ``[callouts.*]`` and ``[[figures]]``. See docs/architecture.md and the presets (`satviz init`).
+Sections: ``extends`` (a base file), ``quality`` ("quick" or "publication"), ``[scene]`` (names and wording defaults, all
+optional), ``[area]`` (optional: left out, it is the overlap of the inputs), ``[[inputs]]`` (``sensor`` optional: found from
+the path), ``[[zooms]]``, ``[callouts.*]`` and ``[[figures]]``. See docs/architecture.md and the presets (`satviz init`).
 """
 from __future__ import annotations
 
@@ -12,8 +13,10 @@ from pathlib import Path
 
 from satviz.area import Area
 from satviz.config import DATA_DIR_ENV, InputSpec, Scene
+from satviz.quality import DEFAULT, Profile, profile_of
 
-TOP_LEVEL = {"extends", "scene", "area", "inputs", "figures", "zooms", "callouts"}
+TOP_LEVEL = {"extends", "scene", "area", "inputs", "figures", "zooms", "callouts", "quality"}
+AUTO_AREA_KEYS = {"resolution_m", "target_px"}  # an [area] with no center or bbox: the inputs' overlap (`satviz.autoarea`)
 SCENE_KEYS = ("name", "reach", "locality", "region", "callout_caption", "author", "website")
 FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "stretch", "name", "allow_different_passes",
                "arrangement", "composites"}
@@ -42,10 +45,12 @@ class FigureSpec:
 class Job:
     path: Path
     scene: Scene
-    area: Area
+    area: Area | None  # None: worked out from the inputs' footprints when the job runs (`satviz.run.resolve_area`)
     inputs: dict[str, InputSpec]
     figures: tuple[FigureSpec, ...]
     zoom_specs: tuple[dict, ...] = ()
+    auto_area: dict = field(default_factory=dict)  # resolution_m / target_px for an automatic area
+    quality: Profile = DEFAULT  # quick or publication: canvas size, dpi, PDF
 
 
 def _merge(base: dict, over: dict) -> dict:
@@ -75,39 +80,64 @@ def read_toml(path: Path, _seen: tuple = ()) -> dict:
 
 def load_job(path: str | os.PathLike, data_dir: str | os.PathLike | None = None) -> Job:
     path = Path(path)
-    raw = read_toml(path)
+    return job_from_dict(read_toml(path), path, data_dir)
+
+
+def job_from_dict(raw: dict, path: Path, data_dir: str | os.PathLike | None = None) -> Job:
+    """A `Job` from the parsed tables of a job file (or the same tables built in code, as `satviz.render` does)."""
     if unknown := set(raw) - TOP_LEVEL:
         raise JobError(f"{path}: unknown section(s) {sorted(unknown)}; allowed: {sorted(TOP_LEVEL)}")
-    if "area" not in raw:
-        raise JobError(f"{path}: missing [area] (give `center` + `radius_km`, or a `bbox`)")
-    area = Area.from_config(raw["area"])
+    try:
+        quality = profile_of(raw.get("quality"))
+    except ValueError as e:
+        raise JobError(f"{path}: {e}") from None
+    cfg = raw.get("area", {})
+    if {"center", "bbox"} & set(cfg):
+        area, auto = Area.from_config(cfg), {}
+    else:  # no place named: the overlap of the inputs
+        if unknown := set(cfg) - AUTO_AREA_KEYS:
+            raise JobError(f"{path} [area]: with no `center` or `bbox` the area is automatic; unknown key(s) {sorted(unknown)}, "
+                           f"allowed: {sorted(AUTO_AREA_KEYS)}")
+        area, auto = None, dict(cfg)
 
+    s = raw.get("scene", {})
+    env = os.environ.get(DATA_DIR_ENV)
+    root = Path(data_dir or env or (Path("data") if Path("data").is_dir() else path.resolve().parent)).expanduser()
     inputs: dict[str, InputSpec] = {}
     for i, spec in enumerate(raw.get("inputs", []), 1):
-        if "id" not in spec or "sensor" not in spec:
-            raise JobError(f"{path} [[inputs]] #{i}: needs `id` and `sensor`")
+        if "id" not in spec:
+            raise JobError(f"{path} [[inputs]] #{i}: needs an `id`")
         if spec["id"] in inputs:
             raise JobError(f"{path}: input id {spec['id']!r} appears twice")
         opts = {k: v for k, v in spec.items() if k not in ("id", "sensor", "file")}
-        inputs[spec["id"]] = InputSpec(spec["id"], spec["sensor"], spec.get("file", ""), opts)
+        sensor = spec.get("sensor") or _detect_sensor(path, i, InputSpec(spec["id"], "", spec.get("file", ""), opts), root)
+        inputs[spec["id"]] = InputSpec(spec["id"], sensor, spec.get("file", ""), opts)
     if not inputs:
         raise JobError(f"{path}: no [[inputs]]")
 
-    s = raw.get("scene", {})
     if unknown := set(s) - set(SCENE_KEYS):
         raise JobError(f"{path} [scene]: unknown key(s) {sorted(unknown)}; allowed: {list(SCENE_KEYS)}")
     callouts = {k: (float(v["lat"]), float(v["lon"])) for k, v in raw.get("callouts", {}).items()}
-    env = os.environ.get(DATA_DIR_ENV)
-    root = data_dir or env or (Path("data") if Path("data").is_dir() else path.resolve().parent)
     scene = Scene(
         **{k: str(s.get(k, "")) for k in SCENE_KEYS if k != "name"}, name=str(s.get("name") or path.stem),
-        zooms=(), callouts=callouts, data_dir=Path(root).expanduser(), inputs=inputs,
+        zooms=(), callouts=callouts, data_dir=root, inputs=inputs,
     )
 
     figures = []
     for i, f in enumerate(raw.get("figures") or [_default_figure(inputs)], 1):
         figures.append(_figure(path, i, f, inputs))
-    return Job(path, scene, area, inputs, tuple(figures), tuple(raw.get("zooms", [])))
+    return Job(path, scene, area, inputs, tuple(figures), tuple(raw.get("zooms", [])), auto, quality)
+
+
+def _detect_sensor(path: Path, i: int, spec: InputSpec, root: Path) -> str:
+    """The sensor of an input that names none: found by looking at its source path (see `satviz.detect`)."""
+    from satviz.detect import DetectError, detect
+    from satviz.sources import SourceError, resolve_one_file
+
+    try:
+        return detect(resolve_one_file(spec, root))
+    except (DetectError, SourceError, FileNotFoundError) as e:
+        raise JobError(f"{path} [[inputs]] #{i} ({spec.key!r}): no `sensor`, and none found from the source: {e}") from None
 
 
 def _default_figure(inputs: dict) -> dict:

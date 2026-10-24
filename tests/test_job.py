@@ -53,7 +53,7 @@ def test_job_defaults_to_a_figure_for_the_inputs(job_file, scene):
 
 @pytest.mark.parametrize("edit, msg", [
     (lambda t: t.replace("[area]", "[aera]"), "unknown section"),
-    (lambda t: t[:t.index("[area]")] + t[t.index("[[inputs]]"):], "missing \\[area\\]"),
+    (lambda t: t.replace("center = [", "colour = 1\n# [").replace("size_km", "# size_km"), "area is automatic"),
     (lambda t: t + '\n[[figures]]\ntemplate = "sar"\ninputs = ["nope"]\n', "unknown input"),
     (lambda t: t + '\n[[figures]]\ninputs = ["L"]\n', "needs `template`"),
     (lambda t: t + '\n[[figures]]\ntemplate = "sar"\ncolour = "red"\n', "unknown key"),

@@ -15,6 +15,7 @@ from satviz.arrangements.compare import panel_text, platforms
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, LegendItem, check_recipe
 from satviz.layout import Layout, LayoutError, build_context_products
+from satviz.quality import Profile, save
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
@@ -60,7 +61,7 @@ def layout_cells(n: int, aspect: float) -> tuple[int, int, float]:
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, ...], recipe: str | dict = "sar_fcc",
            theme: str = "neo_retro", stem: str | None = None, strict: bool = True,
-           extra_caveats: tuple[str, ...] = ()) -> list[Path]:
+           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None) -> list[Path]:
     """`inputs` are two to six input ids in reading order (left to right, top to bottom); `recipe` is one name or {id: name}."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -110,6 +111,6 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(
             scene=f"{platforms([products[k] for k in inputs])}_{scene.name}", n=len(inputs), tag=t.tag))
         t.finish(fig)
-        fig.savefig(out, dpi=180, facecolor=t.paper)
+        save(fig, out, t.paper, profile)
         plt.close(fig)
     return [out]

@@ -27,7 +27,7 @@ import numpy as np
 
 from satviz.area import Area, AreaError, Canvas
 from satviz.cog import _rasterio, raster_epsg, read_window
-from satviz.core import BandInfo, Product, SourceInfo, sensor
+from satviz.core import BandInfo, Product, SourceInfo, footprint_or_none, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
 from satviz.sensors import nrsc
@@ -47,6 +47,14 @@ KEYS = {"label", "credit", "attribution", "note"}
 
 def read_meta(folder: Path) -> dict[str, str]:
     return nrsc.read_meta(folder, "*.meta")
+
+
+def sniff(path) -> bool:
+    """An unzipped LISS-IV folder: `BAND_META.txt` with the BAND2, BAND3 and BAND4 images and no SAR polarisations."""
+    folder = nrsc.product_folder(Path(path))
+    meta = folder / "BAND_META.txt"
+    return (folder.is_dir() and meta.is_file() and all((folder / f"BAND{n}.tif").is_file() for n in BANDS.values())
+            and "TxRxPol1" not in meta.read_text(errors="replace"))
 
 
 def _folder(spec, data_dir) -> Path:
@@ -94,7 +102,8 @@ def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
     with _rasterio().open(path) as src:
         t = src.transform
         res = abs(t.a)
-        return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)])
+        return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)],
+                          footprint=footprint_or_none(lambda: nrsc.corners(read_meta(folder))))
 
 
 def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, tag="job") -> Product:
@@ -138,4 +147,4 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     )
 
 
-sensor("liss4")(SimpleNamespace(describe=describe, open=open_on_canvas, kind="optical"))
+sensor("liss4")(SimpleNamespace(describe=describe, open=open_on_canvas, sniff=sniff, kind="optical"))

@@ -14,6 +14,7 @@ from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, check_recipe
 from satviz.geo import project
 from satviz.layout import Layout, LayoutError, build_context_products
+from satviz.quality import Profile, save
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
@@ -29,7 +30,7 @@ def _sticker(ax, t, text, xy, xytext, fc) -> None:
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str = "S", recipe: str = "sar_fcc",
            chip_slot: str = "b", theme: str = "neo_retro", stem: str | None = None,
-           extra_caveats: tuple[str, ...] = ()) -> list[Path]:
+           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None) -> list[Path]:
     """Wording comes from `layout`; facts come from the product. `chip_slot` ('a' or 'b') picks the theme's chip colour."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -87,6 +88,6 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
         social_footer(fig, t, lay, legend=r.legend, caveats=[*r.caveats, *extra_caveats], required_credits=[(P.meta["attribution"], P.meta["credit"])])
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(scene=f"{platforms([P])}_{scene.name}", key=input, tag=t.tag))
         t.finish(fig)
-        fig.savefig(out, dpi=180, facecolor=t.paper)
+        save(fig, out, t.paper, profile)
         plt.close(fig)
     return [out]

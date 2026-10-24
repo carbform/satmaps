@@ -82,6 +82,14 @@ class Product:
     bands: tuple[BandInfo, ...] = ()  # spectral bands in wavelength order (optical sensors that can state them)
 
 
+def footprint_or_none(read: Callable, *args):
+    """A reader's footprint ring, or None when the product's metadata does not carry one (the figure then needs an [area])."""
+    try:
+        return read(*args)
+    except (KeyError, ValueError, OSError, SyntaxError, IndexError):  # SourceError is a ValueError; ET.ParseError a SyntaxError
+        return None
+
+
 @dataclass
 class SourceInfo:
     """What a reader knows about an input before reading pixels: used to choose the canvas."""
@@ -90,6 +98,7 @@ class SourceInfo:
     resolution_m: float
     phase: tuple[float, float] | None = None  # (x, y) of one pixel centre: the canvas aligns to it
     files: list = field(default_factory=list)  # what will be read (for the lock file and messages)
+    footprint: list[tuple[float, float]] | None = None  # (lon, lat) ring of where the product has data, from its own metadata
 
 
 @dataclass

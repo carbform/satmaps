@@ -5,12 +5,13 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from satviz.core import Product, SourceInfo, sensor
 from satviz.radar import radar_facts
+from satviz.sensors.sar.nisar.canvas import decimation, find_group, raw_on_canvas, window
 from satviz.sensors.sar.nisar.canvas import describe as describe_file
-from satviz.sensors.sar.nisar.canvas import find_group, raw_on_canvas, window
 from satviz.sensors.sar.nisar.facts import band_facts
 from satviz.sensors.sar.nisar.io import assemble, load_raw, load_roi
 from satviz.sensors.sar.nisar.metadata import read_band_metadata
@@ -42,6 +43,18 @@ def load(scene, key: str, cache_dir=None) -> Product:
     return to_product(load_roi(scene, key, cache_dir))
 
 
+def sniff(path) -> bool:
+    """A NISAR L2 GCOV HDF5 file (it has a science/*/GCOV group)."""
+    path = Path(path)
+    if not path.is_file() or path.suffix.lower() != ".h5":
+        return False
+    try:
+        find_group(path)
+    except (ValueError, OSError):
+        return False
+    return True
+
+
 def describe(spec, data_dir, area=None) -> SourceInfo:
     """Grid of the input's file, read from its coordinate arrays, to choose the canvas before reading pixels."""
     return describe_file(resolve_one_file(spec, data_dir))
@@ -52,11 +65,11 @@ def open_on_canvas(spec, canvas, area, data_dir, cache_dir=None, tag: str = "job
     path = resolve_one_file(spec, data_dir)
     group = find_group(path)
     win = window(path, group, canvas)
-    raw = load_raw(path, win, cache_dir, f"{tag}_{path.stem[-28:]}")
+    raw = load_raw(path, win, cache_dir, f"{tag}_{path.stem[-28:]}", decimation(path, group, canvas))
     d = assemble(raw_on_canvas(raw, canvas), spec.key)
     d["meta"] = read_band_metadata(path, win)
     return to_product(d)
 
 
 NISAR_GCOV = sensor("nisar")(SimpleNamespace(
-    load=load, load_dataset=load_roi, to_product=to_product, describe=describe, open=open_on_canvas, kind="sar"))
+    load=load, load_dataset=load_roi, to_product=to_product, describe=describe, open=open_on_canvas, sniff=sniff, kind="sar"))

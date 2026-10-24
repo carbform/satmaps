@@ -10,30 +10,58 @@ from pyproj import Transformer
 from scipy.interpolate import RegularGridInterpolator
 
 from satviz.config import BandSpec, Scene
+from satviz.grid import _block_mean
 from satviz.sensors.sar.nisar.metadata import read_band_metadata
 from satviz.sensors.sar.nisar.processing import derive
 
 log = logging.getLogger(__name__)
 
 
-def read_roi(path: Path, spec: BandSpec) -> dict:
-    """Raw ROI arrays straight from the file, with the noise layer interpolated onto the 10 m grid."""
+STRIP = 64  # output rows per strip when a read is decimated: bounds the memory of a whole-frame read
+
+
+def _strips(ds, r0: int, r1: int, c0: int, c1: int, k: int, mean: bool) -> np.ndarray:
+    """The window of `ds` reduced k x k, a strip of rows at a time: block mean over finite values (continuous layers) or
+    the centre pixel of each block (masks and classes). Row and column counts are multiples of k."""
+    out = []
+    for a in range(r0, r1, STRIP * k):
+        b = min(a + STRIP * k, r1)
+        block = ds[a:b, c0:c1]
+        out.append(_block_mean(block, k) if mean else block[k // 2::k, k // 2::k])
+    return np.concatenate(out)
+
+
+def read_roi(path: Path, spec: BandSpec, k: int = 1) -> dict:
+    """Raw ROI arrays straight from the file, with the noise layer interpolated onto the grid. With `k` > 1 every layer is
+    reduced k x k while it is read (a coarse canvas never needs the full-resolution window in memory)."""
     if not path.exists():
         raise FileNotFoundError(
             f"{path} not found. Put the granule there, pass --data-dir, or set SATVIZ_DATA_DIR/NISAR_DATA_DIR (README, 'Data')."
         )
     (r0, r1), (c0, c1) = spec.rows, spec.cols
+    if k > 1:
+        r1, c1 = r1 - (r1 - r0) % k, c1 - (c1 - c0) % k
     with h5py.File(path, "r") as f:
         g = f[f"{spec.group}/grids/frequencyA"]
-        sl = (slice(r0, r1), slice(c0, c1))
         x = g["xCoordinates"][c0:c1]
         y = g["yCoordinates"][r0:r1]
-        out = dict(
-            x=x, y=y, epsg=int(g["projection"][()]),
-            hh=g["HHHH"][sl].astype(np.float32), hv=g["HVHV"][sl].astype(np.float32),
-            mask=g["mask"][sl], exc=g["inputDataExceptionMask"][sl],
-            eta=g["rtcGammaToSigmaFactor"][sl].astype(np.float32),
-        )
+        if k == 1:
+            sl = (slice(r0, r1), slice(c0, c1))
+            out = dict(
+                x=x, y=y, epsg=int(g["projection"][()]),
+                hh=g["HHHH"][sl].astype(np.float32), hv=g["HVHV"][sl].astype(np.float32),
+                mask=g["mask"][sl], exc=g["inputDataExceptionMask"][sl],
+                eta=g["rtcGammaToSigmaFactor"][sl].astype(np.float32),
+            )
+        else:
+            x, y = x.reshape(-1, k).mean(1), y.reshape(-1, k).mean(1)
+            out = dict(
+                x=x, y=y, epsg=int(g["projection"][()]),
+                hh=_strips(g["HHHH"], r0, r1, c0, c1, k, True), hv=_strips(g["HVHV"], r0, r1, c0, c1, k, True),
+                mask=_strips(g["mask"], r0, r1, c0, c1, k, False),
+                exc=_strips(g["inputDataExceptionMask"], r0, r1, c0, c1, k, False),
+                eta=_strips(g["rtcGammaToSigmaFactor"], r0, r1, c0, c1, k, True),
+            )
         nb = f[f"{spec.group}/metadata/calibrationInformation/frequencyA/noiseEquivalentBackscatter"]
         nx, ny = nb["xCoordinates"][:], nb["yCoordinates"][:]
         nhh, nhv = nb["HH"][:].astype(np.float64), nb["HV"][:].astype(np.float64)
@@ -70,19 +98,19 @@ def assemble(raw: dict, band: str) -> dict:
     return derive(d)
 
 
-def _cache_file(cache_dir: Path, tag: str, spec: BandSpec) -> Path:
+def _cache_file(cache_dir: Path, tag: str, spec: BandSpec, k: int = 1) -> Path:
     (r0, r1), (c0, c1) = spec.rows, spec.cols
-    return cache_dir / f"{tag.lower()}_{spec.key}_{r0}-{r1}_{c0}-{c1}.npz"
+    return cache_dir / f"{tag.lower()}_{spec.key}_{r0}-{r1}_{c0}-{c1}{f'_x{k}' if k > 1 else ''}.npz"
 
 
-def load_raw(path: Path, spec: BandSpec, cache_dir: str | Path | None = None, tag: str = "scene") -> dict:
+def load_raw(path: Path, spec: BandSpec, cache_dir: str | Path | None = None, tag: str = "scene", k: int = 1) -> dict:
     """Raw ROI arrays, optionally through an .npz cache (reading the multi-GB HDF5 is slow)."""
     raw = None
     cf = None
     if cache_dir is not None:
         cache_dir = Path(cache_dir)
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cf = _cache_file(cache_dir, tag, spec)
+        cf = _cache_file(cache_dir, tag, spec, k)
         if cf.exists() and path.exists():
             st = path.stat()
             with np.load(cf) as z:
@@ -92,7 +120,7 @@ def load_raw(path: Path, spec: BandSpec, cache_dir: str | Path | None = None, ta
                     log.info("cache hit: %s", cf.name)
     if raw is None:
         log.info("reading %s", path.name)
-        raw = read_roi(path, spec)
+        raw = read_roi(path, spec, k)
         if cf is not None:
             st = path.stat()
             np.savez(cf, _size=st.st_size, _mtime_ns=st.st_mtime_ns, **raw)

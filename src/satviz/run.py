@@ -19,6 +19,26 @@ def _sensor(spec):
     return SENSORS.get_or_raise(spec.sensor)
 
 
+def resolve_area(job: Job, needed: list[str]) -> Job:
+    """The job with its area filled in. A job that names no area gets the largest rectangle inside every needed input's footprint,
+    at a pixel size that gives about `target_px` pixels along its longer side (never finer than the finest input)."""
+    if job.area is not None:
+        return job
+    from satviz.autoarea import common_area, pick_resolution
+
+    infos = {k: _sensor(job.inputs[k]).describe(job.inputs[k], job.scene.data_dir, None) for k in needed}
+    missing = [k for k, i in infos.items() if not i.footprint]
+    if missing:
+        raise JobError(f"{job.path}: no footprint for input(s) {missing}; give an [area]")
+    try:
+        area = common_area({k: i.footprint for k, i in infos.items()})
+    except AreaError as e:
+        raise JobError(f"{job.path}: {e}") from None
+    res = job.auto_area.get("resolution_m") or pick_resolution(
+        area, min(i.resolution_m for i in infos.values()), int(job.auto_area.get("target_px", job.quality.target_px)))
+    return dataclasses.replace(job, area=dataclasses.replace(area, resolution_m=float(res)))
+
+
 def choose_canvas(job: Job, needed: list[str]):
     """Canvas for the job: pixel size from [area] or the finest input; aligned to an input grid when one fits."""
     infos = {k: _sensor(job.inputs[k]).describe(job.inputs[k], job.scene.data_dir, job.area) for k in needed}
@@ -88,6 +108,7 @@ def placeholders_job(job: Job, cache_dir: str | Path | None = None) -> dict:
     from satviz.layout import build_context_products
 
     load_builtin()
+    job = resolve_area(job, list(job.inputs))
     canvas, _, products = read_products(job, list(job.inputs), cache_dir)
     scene = dataclasses.replace(job.scene, zooms=resolve_zooms(job, canvas))
     return build_context_products(scene, products, per_band=True, strict=False)
@@ -104,6 +125,7 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
         for th in fig.themes:
             THEMES.get_or_raise(th)
 
+    job = resolve_area(job, needed)
     canvas, infos, products = read_products(job, needed, cache_dir)
     scene = dataclasses.replace(job.scene, zooms=resolve_zooms(job, canvas))
 
@@ -125,7 +147,8 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
                     parts.append(combo[0])
                 stem = "_".join([*parts, THEMES[theme].tag])
             written += draw(resolved, scene=scene, products=products, out_dir=out, layout=layout, combo=combo, theme=theme,
-                            stem=stem, slot=list(job.inputs).index(combo[0]), strict=fig.strict, stretch=fig.stretch)
+                            stem=stem, slot=list(job.inputs).index(combo[0]), strict=fig.strict, stretch=fig.stretch,
+                            profile=job.quality)
     _write_lock(job, out, canvas, infos, products, written)
     return written
 
@@ -135,6 +158,8 @@ def _write_lock(job: Job, out: Path, canvas, infos: dict, products: dict, writte
     lock = {
         "job": str(job.path),
         "canvas": dataclasses.asdict(canvas),
+        "quality": job.quality.name,
+        "inputs_detected": {k: s.sensor for k, s in job.inputs.items()},
         "area_lonlat_bbox": [round(v, 6) for v in canvas.lonlat_bbox()],
         "inputs": {k: {"sensor": job.inputs[k].sensor, "files": i.files, "native_resolution_m": i.resolution_m}
                    for k, i in infos.items()},

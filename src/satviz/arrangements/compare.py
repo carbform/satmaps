@@ -13,6 +13,7 @@ from matplotlib.patches import Rectangle
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, check_recipe
 from satviz.layout import Layout, LayoutError, acquisition_label, build_context_products
+from satviz.quality import Profile, save
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
 
@@ -33,7 +34,7 @@ def panel_text(lay: Layout, key: str, prod) -> str:
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, str] = ("L", "S"),
            recipe: str | dict = "sar_fcc", per_band: bool | None = None, theme: str = "neo_retro", strict: bool = True,
-           stem: str | None = None, extra_caveats: tuple[str, ...] = ()) -> list[Path]:
+           stem: str | None = None, extra_caveats: tuple[str, ...] = (), profile: Profile | None = None) -> list[Path]:
     """`inputs` are the two input ids, left and right of the split. Wording comes from `layout`; facts from the products.
 
     `recipe` is one name for both inputs or ``{input id: name}`` (SAR on one side, optical on the other). `stem` names the file.
@@ -131,6 +132,6 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
 
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(scene=f"{platforms([A, B])}_{scene.name}", a=a, b=b, tag=t.tag))
         t.finish(fig)
-        fig.savefig(out, dpi=180, facecolor=t.paper)
+        save(fig, out, t.paper, profile)
         plt.close(fig)
     return [out]

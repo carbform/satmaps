@@ -9,11 +9,12 @@ from pathlib import Path
 
 
 def draw(resolved, *, scene, products: dict, out_dir: Path, layout: dict, combo: tuple[str, ...], theme: str,
-         stem: str | None = None, slot: int = 0, strict: bool = True, stretch: str | None = None) -> list[Path]:
+         stem: str | None = None, slot: int = 0, strict: bool = True, stretch: str | None = None,
+         profile=None) -> list[Path]:
     """Draw one figure from a template's `Resolved` decisions. `slot` is the input's position in the job (chip colour)."""
     from satviz.arrangements import bands, compare, grid, single
 
-    common = dict(theme=theme, stem=stem, extra_caveats=resolved.caveats)
+    common = dict(theme=theme, stem=stem, extra_caveats=resolved.caveats, profile=profile)
     if resolved.arrangement == "bands":
         return bands.render(scene, products, out_dir, layout, input=combo[0], composites=tuple(resolved.options.get("composites", ())),
                             stretch=stretch or "pooled", **common)

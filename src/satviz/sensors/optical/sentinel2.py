@@ -29,7 +29,7 @@ import numpy as np
 
 from satviz.area import Area, AreaError, Canvas
 from satviz.cog import _rasterio, raster_epsg, read_window
-from satviz.core import BandInfo, Product, SourceInfo, sensor
+from satviz.core import BandInfo, Product, SourceInfo, footprint_or_none, sensor
 from satviz.geo import crs_label
 from satviz.grid import to_canvas
 from satviz.sensors import nrsc
@@ -101,6 +101,12 @@ def to_reflectance(dn: np.ndarray, offset: float, quantification: float) -> np.n
     return refl
 
 
+def sniff(path) -> bool:
+    """An unzipped Sentinel-2 L2A `.SAFE` folder."""
+    path = Path(path)
+    return path.is_dir() and (path / "MTD_MSIL2A.xml").is_file()
+
+
 def _folder(spec, data_dir) -> Path:
     return nrsc.product_folder(resolve_one_file(spec, data_dir))
 
@@ -108,6 +114,15 @@ def _folder(spec, data_dir) -> Path:
 def _check(spec) -> None:
     if unknown := set(spec.options) - KEYS - {"source"}:
         raise SourceError(f"input {spec.key!r}: unknown key(s) {sorted(unknown)}; allowed: {sorted(KEYS | {'source'})}")
+
+
+def _footprint(folder: Path) -> list[tuple[float, float]]:
+    """(lon, lat) ring of the product's data from `EXT_POS_LIST` (lat lon pairs) in the product metadata."""
+    for e in ET.parse(folder / "MTD_MSIL2A.xml").getroot().iter():
+        if e.tag.split("}")[-1] == "EXT_POS_LIST" and (e.text or "").strip():
+            v = [float(x) for x in e.text.split()]
+            return [(v[i + 1], v[i]) for i in range(0, len(v), 2)]
+    raise SourceError(f"{folder.name}: MTD_MSIL2A.xml has no footprint (EXT_POS_LIST)")
 
 
 def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
@@ -120,7 +135,8 @@ def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
     with _rasterio().open(path) as src:
         t = src.transform
         res = abs(t.a)
-        return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)])
+        return SourceInfo(epsg=raster_epsg(src), resolution_m=res, phase=(t.c + res / 2, t.f - res / 2), files=[str(path)],
+                          footprint=footprint_or_none(_footprint, folder))
 
 
 def _cloud_layer(img: Path, canvas: Canvas, cache_dir) -> np.ndarray | None:
@@ -185,4 +201,4 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     )
 
 
-sensor("sentinel2")(SimpleNamespace(describe=describe, open=open_on_canvas, kind="optical"))
+sensor("sentinel2")(SimpleNamespace(describe=describe, open=open_on_canvas, sniff=sniff, kind="optical"))
