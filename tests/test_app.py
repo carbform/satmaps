@@ -73,6 +73,11 @@ def pick(at, *names):
     return at
 
 
+def made(at) -> list:
+    """The figures the app has made so far (not the example page, which is always on show)."""
+    return at.session_state["results"] or []
+
+
 def press(at, label):
     next(b for b in at.button if b.label == label).click().run()
     return at
@@ -86,7 +91,7 @@ def test_the_app_lists_the_products_and_makes_a_figure(app_env):
     assert next(b for b in at.button if b.label == "Make the figure").disabled  # nothing chosen yet
     pick(at, "L.h5", "S.h5")
     press(at, "Make the figure")
-    assert not at.exception and not at.error and len(at.get("imgs")) == 1
+    assert not at.exception and not at.error and len(made(at)) == 1
     assert [b.proto.label for b in at.get("download_button")] == ["Download PNG", "Download job file"]  # quick: no PDF
 
 
@@ -98,7 +103,7 @@ def test_the_app_shows_a_missing_overlap_as_a_message_not_a_traceback(app_env, t
     at = run_app()
     pick(at, "L.h5", "F.h5")
     press(at, "Make the figure")
-    assert not at.exception and any("do not overlap" in e.value for e in at.error) and not at.get("imgs")
+    assert not at.exception and any("do not overlap" in e.value for e in at.error) and not made(at)
 
 
 @needs_streamlit
@@ -112,7 +117,7 @@ def test_a_large_area_offers_the_suggested_box(app_env, monkeypatch):
     assert at.radio(key="area_mode").value == "A box I choose"
     assert all(at.number_input(key=k).value != 0.0 for k in ("box_w", "box_s", "box_e", "box_n"))
     press(at, "Make the figure")  # the suggested box is now given, so the size check no longer applies
-    assert not at.exception and not at.error and len(at.get("imgs")) == 1
+    assert not at.exception and not at.error and len(made(at)) == 1
 
 
 @needs_streamlit
@@ -145,3 +150,132 @@ def test_the_launcher_makes_no_outside_connection_for_the_version_check():
     assert out.stdout.strip().endswith("attempts []"), out.stdout + out.stderr
     leaky = run(head + tail)  # the check left on does try to connect, so the probe above can fail
     assert "443" in leaky.stdout, leaky.stdout + leaky.stderr  # connections to PyPI's https port
+
+
+# --- the controls: theme, layout, the layout preview, the folder button, the area map ---------------------------------------------
+
+def test_layout_choices_follow_what_is_chosen():
+    from satviz.api import auto_layout, layout_choices
+
+    assert list(layout_choices([])) == ["single", "compare", "grid", "bands"]  # nothing chosen yet: every layout
+    assert list(layout_choices(["sar"])) == ["single"]
+    assert list(layout_choices(["sar", "sar"])) == ["single", "compare", "grid"]
+    assert list(layout_choices(["optical"])) == ["single", "bands"]
+    assert list(layout_choices(["optical", "optical"])) == ["single", "compare", "grid", "bands"]
+    assert list(layout_choices(["sar", "optical"])) == ["compare", "grid"]  # mixed kinds are never one figure each
+    assert "grid" not in layout_choices(["sar"] * 7) and "grid" in layout_choices(["sar"] * 6)
+    assert [auto_layout(k) for k in (["sar"], ["sar", "optical"], ["sar"] * 3)] == ["single", "compare", "grid"]
+
+
+@pytest.mark.parametrize("theme", ["minimal", "neo_retro", "neo_brutal", "newspaper", "xkcd"])
+@pytest.mark.parametrize("layout", ["single", "compare", "grid", "bands"])
+def test_every_layout_and_theme_draws_an_example_page(layout, theme):
+    import io
+
+    from PIL import Image
+
+    from satviz.preview import render_example
+
+    page = Image.open(io.BytesIO(render_example(None, layout, theme)))
+    assert page.size == (1200, 1500) and page.getbbox() is not None
+
+
+def test_the_example_page_follows_the_kinds_chosen_and_says_it_is_an_example():
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from satviz.preview import render_example
+
+    sar = np.asarray(Image.open(io.BytesIO(render_example(["sar", "sar"], "compare", "minimal"))).convert("RGB"))
+    mixed = np.asarray(Image.open(io.BytesIO(render_example(["sar", "optical"], "compare", "minimal"))).convert("RGB"))
+    assert (sar != mixed).any()  # the right-hand panel is optical when an optical product is chosen
+    from satviz.preview import example_product
+
+    p = example_product("A1", "sar", 0)
+    assert "Example notice" in p.caveats[0] and p.meta["label"] == "product A" and p.meta["platform"].startswith("Example")
+
+
+@needs_streamlit
+def test_the_theme_and_layout_controls(app_env):
+    at = run_app()
+    assert [s.label for s in at.selectbox] == ["Theme", "Layout"]
+    assert at.selectbox[0].value == "minimal" and "xkcd" in at.selectbox[0].options
+    assert at.selectbox[1].options[0] == "Automatic" and len(at.selectbox[1].options) == 5  # Automatic + the four layouts
+    pick(at, "L.h5", "S.h5")
+    assert at.selectbox[1].options == ["Automatic", "One figure per product", "Side by side (every pair)", "All on one page"]
+    at.selectbox[1].set_value("One figure per product").run()
+    press(at, "Make the figure")
+    assert not at.exception and not at.error and len(made(at)) == 2  # a figure for each product
+
+
+@needs_streamlit
+def test_the_example_page_is_on_show_before_anything_is_made(app_env):
+    at = run_app()
+    assert not at.exception and len(at.get("imgs")) >= 2  # the Figure tab's stand-in and the Layout preview tab
+    assert made(at) == []
+    at.selectbox[0].set_value("newspaper").run()
+    assert not at.exception  # another theme draws another example page without making a figure
+    assert made(at) == []
+
+
+@needs_streamlit
+def test_the_browse_button_sets_the_folder_from_the_system_dialog(app_env, tmp_path, monkeypatch):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    write_granule(other / "X.h5", "science/LSAR/GCOV", make_raw(seed=9), instrument="LSAR", freq_hz=1.239e9)
+    monkeypatch.setattr("satviz.desktop.choose_folder", lambda start, title="": str(other))
+    at = run_app()
+    press(at, "Browse…")
+    assert at.sidebar.text_input[0].value == str(other)
+    assert [o.split("  ·  ")[1] for o in at.sidebar.multiselect[0].options] == ["X.h5"]
+
+
+@needs_streamlit
+def test_the_browse_button_says_what_to_do_when_no_dialog_can_open(app_env, monkeypatch):
+    from satviz.desktop import DesktopError
+
+    def no_desktop(start, title=""):
+        raise DesktopError("could not open a folder dialog here (no display); type the folder's path instead")
+
+    monkeypatch.setattr("satviz.desktop.choose_folder", no_desktop)
+    at = run_app()
+    press(at, "Browse…")
+    assert not at.exception and any("type the folder's path" in c.value for c in at.sidebar.caption)
+    assert at.sidebar.text_input[0].value == str(app_env.data_dir)  # unchanged
+
+
+def test_choose_folder_runs_the_dialog_in_its_own_process(monkeypatch, tmp_path):
+    import subprocess
+
+    from satviz import desktop
+
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout=f"{tmp_path}\n", stderr="")
+
+    monkeypatch.setattr(desktop.subprocess, "run", fake_run)
+    assert desktop.choose_folder(tmp_path) == str(tmp_path) and calls[0][-2] == str(tmp_path)
+    monkeypatch.setattr(desktop.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="\n", stderr=""))
+    assert desktop.choose_folder(tmp_path) is None  # cancelled
+    monkeypatch.setattr(desktop.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(
+        cmd, 1, stdout="", stderr="_tkinter.TclError: no display name and no $DISPLAY environment variable"))
+    with pytest.raises(desktop.DesktopError, match="type the folder's path"):
+        desktop.choose_folder(tmp_path)
+
+
+def test_a_drawn_box_fills_the_fields_and_clear_goes_back_to_the_overlap():
+    pytest.importorskip("streamlit")
+    from satviz.app import BOX, BOX_KEYS, OVERLAP, apply_drawn
+
+    state = {"last_draw": 0, "area_mode": OVERLAP, **dict.fromkeys(BOX_KEYS, 0.0)}
+    assert not apply_drawn(state, None) and state["area_mode"] == OVERLAP  # the map has sent nothing yet
+    assert apply_drawn(state, {"box": [94.12345678, 27.2, 94.3, 27.4], "n": 1})
+    assert [state[k] for k in BOX_KEYS] == [94.1235, 27.2, 94.3, 27.4] and state["area_mode"] == BOX
+    state["box_w"] = 90.0  # the person edits a field by hand...
+    assert not apply_drawn(state, {"box": [94.12345678, 27.2, 94.3, 27.4], "n": 1})  # ...and the map's old value does not undo it
+    assert state["box_w"] == 90.0
+    assert apply_drawn(state, {"box": None, "n": 2}) and state["area_mode"] == OVERLAP  # Clear

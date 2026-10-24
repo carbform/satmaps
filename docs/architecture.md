@@ -94,6 +94,10 @@ paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the ki
   and a `TooLarge` error carries the suggested box so the page can fill it in. `satviz app` serves on localhost, sets the folders by
   environment, and starts Streamlit through a line that turns off its PyPI version check (the one outbound call it makes; a test
   proves none is attempted).
+- **Layout and preview.** The layouts offered depend on the kinds chosen (`api.layout_choices`); the Layout preview is
+  `preview.render_example`: small stand-in products drawn through the real arrangements, themes and wording, so it cannot drift from
+  a real figure. The Area tab is a Streamlit custom component (`app_component/index.html`, no build step, no network): it draws
+  the products' footprints and returns the rectangle the mouse draws.
 - **`--save-job`** writes the resolved tables (sensors, absolute paths, centre and size, pixel size), so running the saved file gives
   the same figure; a test pins that.
 - **Profiles** (`satviz.quality`): `quick` (800 px along the longer side, 100 dpi, PNG), `medium` (1400 px, 140 dpi, PNG) and

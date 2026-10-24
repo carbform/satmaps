@@ -304,3 +304,13 @@ def test_cloud_does_not_set_the_stretch_but_is_still_drawn():
     assert not cloud_left_out(clear) and usable(clear).all()
     mostly = SimpleNamespace(layers={"red": land, "cloud": np.ones((100, 100), np.float32)}, valid=np.ones((100, 100), bool))
     assert usable(mostly).all()  # nothing clear: keep the cloud rather than stretch on nothing
+
+
+def test_coverage_is_the_share_of_a_box_inside_a_footprint():
+    from satviz.autoarea import coverage
+
+    ring = [(0, 0), (2, 0), (2, 2), (0, 2), (0, 0)]
+    assert coverage(ring, (0.5, 0.5, 1.5, 1.5)) == 1.0  # inside
+    assert coverage(ring, (3, 3, 4, 4)) == 0.0  # outside
+    assert 0.45 < coverage(ring, (1, 0, 3, 2)) < 0.55  # half in
+    assert coverage(ring, (2, 2, 1, 1)) == 0.0  # not a box

@@ -71,6 +71,16 @@ def common_area(footprints: dict[str, list[tuple[float, float]]], labels: dict[s
     return Area(epsg, x0 + c0 * step, y1 - r1 * step, x0 + c1 * step, y1 - r0 * step)
 
 
+def coverage(ring: list[tuple[float, float]], box: tuple[float, float, float, float], n: int = 40) -> float:
+    """The share (0..1) of a (west, south, east, north) box that lies inside a footprint ring, sampled on an n x n grid."""
+    w, s, e, nn = box
+    if not (w < e and s < nn):
+        return 0.0
+    lon, lat = np.meshgrid(np.linspace(w, e, n), np.linspace(s, nn, n))
+    inside = Ring(np.asarray(ring, float)).contains_points(np.column_stack([lon.ravel(), lat.ravel()]))
+    return float(inside.mean())
+
+
 def pick_resolution(area: Area, finest_native_m: float, target_px: int) -> float:
     """Pixel size for an auto area: fine enough for `target_px` along the longer side, never finer than the data, rounded up
     to a round number of metres."""

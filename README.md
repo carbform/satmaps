@@ -39,9 +39,16 @@ pip install -e ".[app]"
 satviz app                     # opens http://localhost:8501 in your browser; --data-dir, --out, --port to change where
 ```
 
-Pick products from a folder, choose the look and quality, optionally give a box or a title, press **Make the figure**, and preview
-it. Download the PNG, the PDF (publication quality) and the job file behind it. A very large area is refused with a one-click
-"Use the suggested box"; a pair that does not overlap gives a message, not a traceback. The app is a thin page over the same
+- **Folder:** type it, or press **Browse…** for your system's own folder dialog.
+- **Theme and Layout:** the theme is the look; the layout is how the products sit on the page (one figure each, side by side, all
+  on one page, band by band), offered only where it fits what you chose. The **Layout preview** tab shows an example page in that
+  layout and theme straight away, drawn by the same code as a real figure (with made-up pictures where your data will go).
+- **Area:** the overlap of the products, or a box you type, or one you **draw with the mouse** on the **Area** tab: it shows where
+  each product has data and the dashed overlap, and a drag writes the box to the four fields. A box that misses part of a
+  product is flagged before you draw ("… has data in 8% of this box").
+- **Make the figure**, then download the PNG, the PDF (publication quality) and the job file behind it. A layout that makes several
+  figures gets a tab for each. A very large area is refused with a one-click "Use the suggested box"; a pair that does not overlap
+  gives a message, not a traceback. The app is a thin page over the same
 `build_job` and `run_job` as `satviz quick`, so a figure made in it is the figure `quick` or a saved job would make. It listens
 on localhost only, never uploads anything, and starts Streamlit with its PyPI version check switched off.
 
@@ -260,7 +267,9 @@ src/satviz/
   detect.py       which sensor reads a path (each sensor's `sniff`)
   autoarea.py     the overlap of the inputs' footprints, and the pixel size for a target
   quality.py      the quick and publication profiles, and the one place figures are saved (PNG, PDF)
-  app.py          the local app (Streamlit): `satviz app`
+  app.py          the local app (Streamlit): `satviz app`; app_component/ is its draw-a-rectangle map (plain HTML and JS, no network)
+  preview.py      the example page of a layout and theme (stand-in products through the real arrangements)
+  desktop.py      the system folder dialog (Tk, in its own process)
   cli.py          `satviz quick | app | inspect | run | init | list | placeholders`
 jobs/             brahmaputra.toml (place + inputs) and the four jobs that extend it; layouts/ has two wording-file examples
 docs/             architecture, pipelines, processing notes, design language; references/ lists the (git-ignored) PDFs

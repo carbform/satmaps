@@ -70,6 +70,30 @@ def scan(folder: str | os.PathLike) -> list[dict]:
     return rows
 
 
+LAYOUT_NAMES = {"single": "One figure per product", "compare": "Side by side", "grid": "All on one page",
+                "bands": "Band by band"}
+
+
+def layout_choices(kinds: list[str]) -> dict[str, str]:
+    """The page layouts that fit products of these kinds ('sar', 'optical'), as {arrangement: what to call it}.
+
+    One kind of product can be shown on its own, side by side (every pair), or tiled on one page; optical products can also be
+    shown band by band. SAR and optical together are shown side by side (each radar against each optical) or tiled. With
+    nothing chosen yet, every layout is offered."""
+    kinds = list(kinds)
+    if not kinds:
+        return dict(LAYOUT_NAMES)
+    n, mixed = len(kinds), len(set(kinds)) > 1
+    out = {} if mixed else {"single": LAYOUT_NAMES["single"] if n > 1 else "One figure"}
+    if n >= 2:
+        out["compare"] = "Side by side (each radar against each optical)" if mixed else "Side by side (every pair)"
+    if 2 <= n <= MAX_TILES:
+        out["grid"] = LAYOUT_NAMES["grid"]
+    if set(kinds) == {"optical"}:
+        out["bands"] = LAYOUT_NAMES["bands"]
+    return out
+
+
 def _area_table(area) -> dict:
     """The `[area]` table for what a caller passed: nothing (automatic), a (w, s, e, n) box, or a table of the job-file keys."""
     if area is None:
@@ -80,6 +104,11 @@ def _area_table(area) -> dict:
         return {"bbox": [float(v) for v in area]}
     raise ValueError("area must be a (west, south, east, north) box in degrees "
                      "or a dict like {'center': [lat, lon], 'size_km': [w, h]}")
+
+
+def auto_layout(kinds: list[str]) -> str:
+    """The layout `render` picks when none is asked for: one product single, two side by side, three to six tiled."""
+    return _default_arrangement("sar_optical" if len(set(kinds)) > 1 else "x", list(kinds))
 
 
 def _default_arrangement(template: str, kinds: list[str]) -> str:
