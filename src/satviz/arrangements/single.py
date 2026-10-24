@@ -12,11 +12,12 @@ import matplotlib.pyplot as plt
 from satviz.arrangements.compare import platforms
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, check_recipe
+from satviz.furniture import DEFAULT, Furniture, decorate
 from satviz.geo import project
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.quality import Profile, save
 from satviz.registry import load_builtin
-from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
+from satviz.themes.base import chip, img_axes, social_footer, social_header
 
 FILENAME = "{scene}_{key}band_Social_{tag}.png"
 
@@ -30,7 +31,7 @@ def _sticker(ax, t, text, xy, xytext, fc) -> None:
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str = "S", recipe: str = "sar_fcc",
            chip_slot: str = "b", theme: str = "neo_retro", stem: str | None = None,
-           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None) -> list[Path]:
+           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """Wording comes from `layout`; facts come from the product. `chip_slot` ('a' or 'b') picks the theme's chip colour."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -68,7 +69,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
             xy = project(P.epsg, *scene.callouts[co["key"]])
             _sticker(ax, t, lay.render(co["text"], f"callouts[{i}]"), xy, (co.get("dx", -60), co.get("dy", 60)),
                      t.card if co.get("fill", "card") == "card" else chip_color)
-        scalebar_blocks(ax, t, ext)
+        decorate(ax, t, ext, P.epsg, furniture, first=True)
         chip(fig, t, hx + 0.012, hy + hh - 0.014, (lay.text("panels.band") if lay.get("panels.band") is not None else f"{P.meta['platform']} {P.meta['label']}".upper()), chip_color, va="top", ha="left")
         chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, (lay.text("panels.composite") if lay.get("panels.composite") is not None else r.title), t.card, va="top", ha="right")
 

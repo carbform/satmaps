@@ -73,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--author", default=None, help="your name, for the credit line")
     qk.add_argument("--website", default=None, help="your website, for the credit line")
     qk.add_argument("--credit", default=None, help="one extra credit line (the data credits are always added as well)")
+    qk.add_argument("--grid", action="store_true", help="draw a lat/lon grid with its labels on every panel")
+    qk.add_argument("--north", action="store_true", help="draw a north arrow")
+    qk.add_argument("--no-scale", action="store_true", help="leave the scale bar out")
     qk.add_argument("--bbox", nargs=4, type=float, metavar=("W", "S", "E", "N"),
                     help="draw this box (degrees) instead of the overlap of the inputs")
     qk.add_argument("--resolution", type=float, default=None, metavar="M", help="pixel size in metres (default: from --quality)")
@@ -168,7 +171,8 @@ def main(argv: list[str] | None = None) -> int:
                            arrangement=args.arrangement, bands=args.bands, resolution_m=args.resolution,
                            allow_different_passes=args.allow_different_passes, allow_large=args.allow_large,
                            data_dir=args.data_dir, subtitle=args.subtitle, place=args.place, author=args.author,
-                           website=args.website, credits=args.credit)
+                           website=args.website, credits=args.credit, grid=args.grid, north=args.north,
+                           scalebar=not args.no_scale)
         except (DetectError, JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError,
                 ImportError) as e:
             print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)

@@ -245,12 +245,13 @@ def nice_km(width_m: float) -> float:
     return max([k for k in NICE_KM if k <= limit] or [NICE_KM[0]])
 
 
-def scalebar_blocks(ax, t: Theme, ext) -> None:
-    """Five alternating blocks with a label, lower left of a map in metre coordinates; the length adapts to the map."""
+def scalebar_blocks(ax, t: Theme, ext, lift: float = 0.0) -> None:
+    """Five alternating blocks with a label, lower left of a map in metre coordinates; the length adapts to the map.
+    `lift` raises it by that share of the map's height (to clear the grid's labels)."""
     km = nice_km(ext[1] - ext[0])
     cell = km * 1000 / 5
     x0 = ext[0] + 0.05 * (ext[1] - ext[0])
-    y0 = ext[2] + 0.05 * (ext[3] - ext[2])
+    y0 = ext[2] + (0.05 + lift) * (ext[3] - ext[2])
     for i in range(5):
         ax.add_patch(Rectangle((x0 + i * cell, y0), cell, 0.7 * cell, fc=t.ink if i % 2 == 0 else t.card, ec=t.ink,
                                lw=t.lw(1.0), zorder=14))

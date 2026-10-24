@@ -19,7 +19,7 @@ TOP_LEVEL = {"extends", "scene", "area", "inputs", "figures", "zooms", "callouts
 AUTO_AREA_KEYS = {"resolution_m", "target_px"}  # an [area] with no center or bbox: the inputs' overlap (`satviz.autoarea`)
 SCENE_KEYS = ("name", "reach", "locality", "region", "callout_caption", "author", "website")
 FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "stretch", "name", "allow_different_passes",
-               "arrangement", "composites"}
+               "arrangement", "composites", "grid", "north", "scalebar"}
 
 
 class JobError(ValueError):
@@ -38,6 +38,9 @@ class FigureSpec:
     name: str | None = None  # output filename stem
     composites: tuple[str, ...] = ()  # optical, bands: recipes added after the band panels
     arrangement: str | None = None  # single, compare, grid (or bands, optical only); default: single for one input, else compare
+    grid: bool = False  # lat/lon grid with labels on every panel
+    north: bool = False  # north arrow (true north) on the first panel
+    scalebar: bool = True  # scale bar on the first panel
     strict: bool = True  # inputs must share a pass (NISAR track/frame); allow_different_passes = true lifts it
 
 
@@ -168,4 +171,5 @@ def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
                       layout=f.get("layout"), text=dict(f.get("text", {})),
                       stretch=f.get("stretch"), name=f.get("name"), arrangement=f.get("arrangement"),
                       composites=tuple(f.get("composites", ())),
+                      grid=bool(f.get("grid", False)), north=bool(f.get("north", False)), scalebar=bool(f.get("scalebar", True)),
                       strict=not f.get("allow_different_passes", False))

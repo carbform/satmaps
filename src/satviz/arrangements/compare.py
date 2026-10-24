@@ -12,10 +12,11 @@ from matplotlib.patches import Rectangle
 
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, check_recipe
+from satviz.furniture import DEFAULT, Furniture, decorate
 from satviz.layout import Layout, LayoutError, acquisition_label, build_context_products
 from satviz.quality import Profile, save
 from satviz.registry import load_builtin
-from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
+from satviz.themes.base import chip, img_axes, social_footer, social_header
 
 FILENAME = "{scene}_{a}vs{b}_Social_{tag}.png"
 
@@ -34,7 +35,7 @@ def panel_text(lay: Layout, key: str, prod) -> str:
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, str] = ("L", "S"),
            recipe: str | dict = "sar_fcc", per_band: bool | None = None, theme: str = "neo_retro", strict: bool = True,
-           stem: str | None = None, extra_caveats: tuple[str, ...] = (), profile: Profile | None = None) -> list[Path]:
+           stem: str | None = None, extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """`inputs` are the two input ids, left and right of the split. Wording comes from `layout`; facts from the products.
 
     `recipe` is one name for both inputs or ``{input id: name}`` (SAR on one side, optical on the other). `stem` names the file.
@@ -109,7 +110,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
             ax.add_patch(Rectangle((xx0(c0), yy0(r1)), xx0(c1) - xx0(c0), yy0(r0) - yy0(r1), fc="none", ec=t.card, lw=t.lw(1.4), zorder=11))
             ax.text(xx0(c0), yy0(r0) + 0.006 * (ext[3] - ext[2]), z.key, ha="left", va="bottom", fontsize=10.5, color=t.ink, zorder=13,
                     bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=t.lw(1.0)))
-        scalebar_blocks(ax, t, ext)
+        decorate(ax, t, ext, A.epsg, furniture, first=True)
         chip(fig, t, hx + 0.012, hy + hh - 0.014, panel_text(lay, a, A), t.chip_a, va="top", ha="left")
         chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, panel_text(lay, b, B), t.chip_b, va="top", ha="right")
 

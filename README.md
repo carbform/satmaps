@@ -25,6 +25,7 @@ satviz quick a.h5 b.SAFE --quality medium            # finer and larger than qui
 satviz quick a.h5 b.SAFE --quality publication       # full size, PNG and PDF, ready to publish
 satviz quick a.h5 b.SAFE --save-job fig.toml         # also write the job file that reproduces it; edit it and `satviz run` it
 satviz quick a.h5 --title T --subtitle S --place P --author A --website W --credit C   # the same wording the app has
+satviz quick a.h5 b.SAFE --grid --north               # lat/lon grid with labels, north arrow (the scale bar is on; --no-scale drops it)
 ```
 
 ```python
@@ -52,7 +53,7 @@ The page goes in the order you work, the same for every sensor:
 3. **Title and credits:** title, subtitle, place, author, website and one extra credit. The credits the products require
    (Copernicus, NISAR, NRSC/ISRO…) are always printed on their own DATA line; the extra credit joins the author's line.
 4. **Look:** theme, layout (how the products sit on the page, offered only where it fits: one figure each, side by side, all on one
-   page, band by band) and quality.
+   page, band by band), quality, and the **map furniture**: a lat/lon grid with its labels, a north arrow and the scale bar.
 
 The **Figure** pane on the right is one pane for the page and the figure: it shows an example page in your theme, layout and wording
 (made-up pictures where your data goes, drawn by the same code as a real figure) and updates as you change anything. **Make the
@@ -111,6 +112,11 @@ satviz init sar -o job.toml              # write one
 # edit the area, the data files and the wording
 satviz run job.toml --out outputs/
 ```
+
+A figure can carry map furniture: `grid = true` draws a lat/lon grid with its labels on every panel (longitudes along the bottom,
+latitudes down the left, where each line meets the panel's edge; the lines are the projection's own, so they tilt slightly in a UTM
+map), `north = true` a north arrow pointing at true north, and `scalebar = false` drops the scale bar (on by default). Grid and
+arrow are off unless asked for, so earlier figures are unchanged.
 
 A job file says where (`[area]`: `center` + `radius_km` or `size_km`, or a `bbox`; leave it out for the overlap of the inputs),
 which data (`[[inputs]]`: an `id`, a `source` path or glob, and a `sensor`, which is found from the source when left out),

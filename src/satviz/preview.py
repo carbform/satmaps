@@ -68,7 +68,7 @@ def example_product(key: str, kind: str, index: int) -> Product:
     return Product(layers=layers, meta=meta, kind="optical", bands=tuple(infos), **common)
 
 
-def render_example(kinds: list[str] | None, arrangement: str, theme: str, **words) -> bytes:
+def render_example(kinds: list[str] | None, arrangement: str, theme: str, furniture=None, **words) -> bytes:
     """PNG bytes of an example page: `kinds` ('sar' / 'optical' per product; None for a typical set), the layout, the theme.
     `words` (title, subtitle, place, author, website, credits) are the wording typed so far, shown as it will print."""
     from satviz.api import details
@@ -103,5 +103,5 @@ def render_example(kinds: list[str] | None, arrangement: str, theme: str, **word
     layout = apply_text(default_layout(resolved.arrangement), {**resolved.text, **typed})
     with tempfile.TemporaryDirectory() as tmp:
         (png,) = draw(resolved, scene=scene, products=products, out_dir=Path(tmp), layout=layout, combo=combo, theme=theme,
-                      stem="preview", slot=0, strict=False, profile=PROFILES["quick"])
+                      stem="preview", slot=0, strict=False, profile=PROFILES["quick"], furniture=furniture)
         return png.read_bytes()

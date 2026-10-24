@@ -104,6 +104,10 @@ paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the ki
   page shows the wording as it will print.
 - **The map** (`app_component/index.html`) is Web Mercator so OpenStreetMap tiles line up exactly; its only network use is the
   browser fetching those tiles, and only while the basemap is ticked (`tile_url` can point at a local server, which is how it is tested).
+- **Map furniture** (`satviz.furniture`): `decorate` is the one call every arrangement makes per panel. The grid is meridians and
+  parallels transformed into the panel's UTM zone and cut at its edge, each labelled where it meets the edge; the arrow is measured
+  from the projection (true north, not grid north); the scale bar is the one that was always there. Defaults reproduce earlier
+  figures pixel for pixel (checked on all 26 job-file figures).
 - **`--save-job`** writes the resolved tables (sensors, absolute paths, centre and size, pixel size), so running the saved file gives
   the same figure; a test pins that.
 - **Profiles** (`satviz.quality`): `quick` (800 px along the longer side, 100 dpi, PNG), `medium` (1400 px, 140 dpi, PNG) and

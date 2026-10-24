@@ -147,7 +147,8 @@ def details(title: str | None = None, subtitle: str | None = None, place: str | 
 def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick", title: str | None = None,
               template: str | None = None, arrangement: str | None = None, bands: bool = False, resolution_m: float | None = None,
               allow_different_passes: bool = False, allow_large: bool = False, data_dir=None, subtitle: str | None = None,
-              place: str | None = None, author: str | None = None, website: str | None = None, credits: str | None = None):
+              place: str | None = None, author: str | None = None, website: str | None = None, credits: str | None = None,
+              grid: bool = False, north: bool = False, scalebar: bool = True):
     """The `Job` for some paths, with sensors detected, ids chosen, template and arrangement picked from what the inputs are, and
     the area and pixel size resolved. Also returns the job-file tables that reproduce it."""
     import dataclasses
@@ -177,7 +178,9 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
     scene_fields, typed = details(title, subtitle, place, author, website, credits)
     fig = {"name": name, "template": chosen, "inputs": ids, "theme": theme,
            "arrangement": arrangement, **({"text": typed} if typed else {}),
-           **({"allow_different_passes": True} if allow_different_passes else {})}
+           **({"allow_different_passes": True} if allow_different_passes else {}),
+           **({"grid": True} if grid else {}), **({"north": True} if north else {}),
+           **({"scalebar": False} if not scalebar else {})}
     table = _area_table(area)
     if resolution_m:
         table["resolution_m"] = float(resolution_m)

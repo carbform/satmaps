@@ -14,10 +14,11 @@ import matplotlib.pyplot as plt
 from satviz.arrangements.compare import panel_text, platforms
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, LegendItem, check_recipe
+from satviz.furniture import DEFAULT, Furniture, decorate
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.quality import Profile, save
 from satviz.registry import load_builtin
-from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
+from satviz.themes.base import chip, img_axes, social_footer, social_header
 
 FILENAME = "{scene}_grid{n}_Social_{tag}.png"
 AREA_BOX = (0.04, 0.255, 0.92, 0.585)  # x, y, width, height in figure fractions (the page is 12 x 15 inches)
@@ -61,7 +62,7 @@ def layout_cells(n: int, aspect: float) -> tuple[int, int, float]:
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, ...], recipe: str | dict = "sar_fcc",
            theme: str = "neo_retro", stem: str | None = None, strict: bool = True,
-           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None) -> list[Path]:
+           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """`inputs` are two to six input ids in reading order (left to right, top to bottom); `recipe` is one name or {id: name}."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -103,8 +104,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
             ax = img_axes(fig, t, x, y, pw, ph)
             rd = rendered[k]
             ax.imshow(rd.rgba, extent=rd.extent, origin="upper", aspect="auto", interpolation="antialiased")
-            if i == 0:
-                scalebar_blocks(ax, t, rd.extent)
+            decorate(ax, t, rd.extent, products[k].epsg, furniture, first=i == 0)
             chip(fig, t, x + 0.008, y + ph - 0.008, panel_text(lay, k, products[k]), (t.chip_a, t.chip_b)[i % 2], fs=10, va="top")
         social_footer(fig, t, lay, legend=legend, caveats=caveats,
                       required_credits=[(products[k].meta["attribution"], products[k].meta["credit"]) for k in inputs])

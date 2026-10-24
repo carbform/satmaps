@@ -25,8 +25,9 @@ from satviz.api import TooLarge, auto_layout, build_job, inspect, job_toml, layo
 from satviz.area import AreaError  # noqa: E402
 from satviz.autoarea import common_area, coverage  # noqa: E402
 from satviz.core import THEMES  # noqa: E402
-from satviz.desktop import DesktopError, choose_folder  # noqa: E402
+from satviz.desktop import DesktopError, choose_folder
 from satviz.detect import DetectError  # noqa: E402
+from satviz.furniture import Furniture  # noqa: E402
 from satviz.job import JobError  # noqa: E402
 from satviz.layout import LayoutError  # noqa: E402
 from satviz.preview import render_example  # noqa: E402
@@ -64,9 +65,10 @@ def footprint_of(path: str, mtime: float) -> dict:
 
 
 @st.cache_data(show_spinner=False)
-def example_page(kinds: tuple, layout: str, theme: str, words: tuple = ()) -> bytes:
-    """The example page for a layout, a theme, the kinds of products chosen and the wording typed so far."""
-    return render_example(list(kinds), layout, theme, **dict(words))
+def example_page(kinds: tuple, layout: str, theme: str, words: tuple = (), furniture: tuple = (True, False, False)) -> bytes:
+    """The example page for a layout, a theme, the kinds of products chosen, the wording typed so far and the map furniture."""
+    scale, north, grid = furniture
+    return render_example(list(kinds), layout, theme, furniture=Furniture(scale=scale, north=north, grid=grid), **dict(words))
 
 
 def browse() -> None:
@@ -215,10 +217,16 @@ def look_section(kinds: list[str]) -> dict:
     layout = None if layout_name == AUTOMATIC else next(k for k, v in choices.items() if v == layout_name)
     quality = st.radio("Quality", list(PROFILES), horizontal=True,
                        help="quick: a small PNG in seconds · medium: finer · publication: full size, with a PDF")
+    st.markdown("**Map furniture**")
+    f1, f2, f3 = st.columns(3)
+    grid = f1.checkbox("Lat/lon grid", value=False, help="Grid lines with latitude and longitude labels on every panel.")
+    north = f2.checkbox("North arrow", value=False, help="Points at true north.")
+    scalebar = f3.checkbox("Scale bar", value=True)
     with st.expander("More options"):
         different = st.checkbox("Allow NISAR products from different passes")
         large = st.checkbox("Draw a very large area anyway (slow)")
-    return dict(theme=theme, layout=layout, quality=quality, allow_different_passes=different, allow_large=large)
+    return dict(theme=theme, layout=layout, quality=quality, allow_different_passes=different, allow_large=large, grid=grid,
+                north=north, scalebar=scalebar)
 
 
 def figure_pane(kinds: list[str], words: dict, look: dict, signature: tuple) -> None:
@@ -239,8 +247,8 @@ def figure_pane(kinds: list[str], words: dict, look: dict, signature: tuple) -> 
     elif not st.session_state["error"]:
         st.info("This is the page your settings give, with made-up pictures where your data will go. Press **Make the figure** "
                 "to draw it with your products.")
-    st.image(example_page(tuple(kinds), layout, look["theme"], tuple(sorted((k, v) for k, v in words.items() if v))),
-             use_column_width=True)
+    st.image(example_page(tuple(kinds), layout, look["theme"], tuple(sorted((k, v) for k, v in words.items() if v)),
+                          (look["scalebar"], look["north"], look["grid"])), use_column_width=True)
     if results:
         with st.expander("The figure made before the change"):
             show_results(results, key_prefix="old_", show_job=False)
@@ -299,7 +307,8 @@ def main() -> None:
     if go:
         options = dict(theme=look["theme"], quality=look["quality"], area=box, arrangement=look["layout"],
                        bands=look["layout"] == "bands", allow_different_passes=look["allow_different_passes"],
-                       allow_large=look["allow_large"], **words)
+                       allow_large=look["allow_large"], grid=look["grid"], north=look["north"], scalebar=look["scalebar"],
+                       **words)
         with right, st.spinner("Reading the products and drawing…"):
             render(chosen, options)
         st.session_state["made_with"] = signature

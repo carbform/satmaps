@@ -9,6 +9,7 @@ from pathlib import Path
 from satviz.area import AreaError
 from satviz.arrangements import draw
 from satviz.core import SENSORS, TEMPLATES, THEMES
+from satviz.furniture import Furniture
 from satviz.job import FigureSpec, Job, JobError
 from satviz.layout import LayoutError, apply_text, default_layout, load_layout
 from satviz.registry import load_builtin
@@ -155,7 +156,7 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
                 stem = "_".join([*parts, THEMES[theme].tag])
             written += draw(resolved, scene=scene, products=products, out_dir=out, layout=layout, combo=combo, theme=theme,
                             stem=stem, slot=list(job.inputs).index(combo[0]), strict=fig.strict, stretch=fig.stretch,
-                            profile=job.quality)
+                            profile=job.quality, furniture=Furniture(scale=fig.scalebar, north=fig.north, grid=fig.grid))
     _write_lock(job, out, canvas, infos, products, written)
     return written
 

@@ -14,12 +14,13 @@ from satviz.arrangements.compare import platforms
 from satviz.arrangements.grid import AREA_BOX, FIG_H, FIG_W, layout_cells
 from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, LegendItem, check_recipe
+from satviz.furniture import DEFAULT, Furniture, decorate
 from satviz.geo import utm_extent
 from satviz.layout import Layout, LayoutError, build_context_products
 from satviz.quality import Profile, save
 from satviz.recipes.bands import OUTSIDE_RGB, STRETCH_NOTE, bands_of, cloud_left_out, grey_rgba, label_lines, limits, usable
 from satviz.registry import load_builtin
-from satviz.themes.base import chip, img_axes, scalebar_blocks, social_footer, social_header
+from satviz.themes.base import chip, img_axes, social_footer, social_header
 
 FILENAME = "{scene}_{key}_Bands_{tag}.png"
 GREY = "#8a8a8a"
@@ -28,7 +29,7 @@ NO_DATA = "#{:02x}{:02x}{:02x}".format(*OUTSIDE_RGB)
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str, composites: tuple[str, ...] = (),
            stretch: str = "pooled", theme: str = "neo_retro", stem: str | None = None,
-           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None) -> list[Path]:
+           extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """`input` is the one product to show. `stretch` is "pooled" (one set of limits for all bands) or "per-band"."""
     load_builtin()
     t = THEMES.get_or_raise(theme)
@@ -79,8 +80,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
             y = ytop - (r + 1) * ph - r * gap * FIG_W / FIG_H
             ax = img_axes(fig, t, x, y, pw, ph)
             ax.imshow(rgba, extent=ext, origin="upper", aspect="auto", interpolation="antialiased")
-            if i == 0:
-                scalebar_blocks(ax, t, ext)
+            decorate(ax, t, ext, P.epsg, furniture, first=i == 0)
             chip(fig, t, x + 0.006, y + ph - 0.006, text, colour, fs=8.5 if "\n" in text else 9.5, va="top", ha="left")
         social_footer(fig, t, lay, legend=legend[:6], caveats=caveats,
                       required_credits=[(P.meta["attribution"], P.meta["credit"])])
