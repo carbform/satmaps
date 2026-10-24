@@ -68,7 +68,9 @@ def open_on_canvas(spec, canvas, area, data_dir, cache_dir=None, tag: str = "job
     raw = load_raw(path, win, cache_dir, f"{tag}_{path.stem[-28:]}", decimation(path, group, canvas))
     d = assemble(raw_on_canvas(raw, canvas), spec.key)
     d["meta"] = read_band_metadata(path, win)
-    return to_product(d)
+    product = to_product(d)
+    product.meta["resolution_m"] = canvas.res  # the size the figure is drawn at, as the other readers state it
+    return product
 
 
 NISAR_GCOV = sensor("nisar")(SimpleNamespace(

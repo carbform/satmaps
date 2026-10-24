@@ -184,3 +184,14 @@ def test_a_box_you_give_beats_the_overlap(scene, tmp_path):
 
     job, raw = build_job([scene.data_dir / "L.h5"], area=(w, s, e, n), data_dir=scene.data_dir)
     assert job.area is not None and raw["area"]["size_km"][0] > 0.5
+
+
+def test_a_figure_states_the_pixel_size_it_is_drawn_at_not_the_files(scene, tmp_path):
+    from satviz.api import build_job
+
+    job, _ = build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir, resolution_m=30.0)
+    assert job.area.resolution_m == 30.0
+    from satviz.run import read_products
+
+    _, _, products = read_products(job, ["L"])
+    assert products["L"].meta["resolution_m"] == 30.0
