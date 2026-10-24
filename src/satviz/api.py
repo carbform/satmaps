@@ -9,6 +9,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+
+class TooLarge(ValueError):
+    """An automatic area is too large to draw quickly. `suggestion` is a (west, south, east, north) box around its centre."""
+
+    def __init__(self, message: str, suggestion: tuple[float, float, float, float]):
+        super().__init__(message)
+        self.suggestion = suggestion
+
+
 MAX_TILES = 6
 MAX_AUTO_KM2 = 15_000  # an automatic area above this (about 120 x 120 km) needs --bbox or --allow-large
 
@@ -33,6 +42,32 @@ def inspect(path: str | os.PathLike) -> dict:
         bbox = (min(lons), min(lats), max(lons), max(lats))
     return {"path": str(path), "sensor": name, "kind": reader.kind, "resolution_m": info.resolution_m, "epsg": info.epsg,
             "bbox": bbox, "footprint": ring}
+
+
+def scan(folder: str | os.PathLike) -> list[dict]:
+    """The products directly inside a folder: ``{"path", "name", "sensor", "kind", "note"}`` for each one a sensor reads, and
+    ``{"path", "name", "sensor": None, "kind": None, "note": "unzip it"}`` for a zip. Anything else is skipped.
+
+    It looks at names and a few files, not pixels, so it is quick on a slow disk; `inspect` reads a product's footprint."""
+    from satviz.core import SENSORS
+    from satviz.detect import DetectError, detect
+
+    root = Path(folder).expanduser()
+    if not root.is_dir():
+        raise ValueError(f"{root}: not a folder")
+    rows = []
+    for p in sorted(root.iterdir(), key=lambda q: q.name.lower()):
+        if p.name.startswith("."):
+            continue
+        if p.suffix.lower() == ".zip":
+            rows.append({"path": str(p), "name": p.name, "sensor": None, "kind": None, "note": "unzip it"})
+            continue
+        try:
+            name = detect(p)
+        except DetectError:
+            continue
+        rows.append({"path": str(p), "name": p.name, "sensor": name, "kind": SENSORS[name].kind, "note": ""})
+    return rows
 
 
 def _area_table(area) -> dict:
@@ -137,9 +172,9 @@ def _check_size(area) -> None:
     lon, lat = _tf(area.epsg, 4326).transform((area.xmin + area.xmax) / 2, (area.ymin + area.ymax) / 2)
     w, s, e, n = Area.from_config({"center": [lat, lon], "size_km": [60, 60]}).lonlat_bbox()
     size = f"{(area.xmax - area.xmin) / 1000:.0f} x {(area.ymax - area.ymin) / 1000:.0f} km ({km2:,.0f} km²)"
-    raise ValueError(f"the overlap of the inputs is {size}, and drawing all of it reads a whole frame: slow. Give the place you "
-                     f"want: --bbox W S E N (for its centre 60 km: --bbox {w:.2f} {s:.2f} {e:.2f} {n:.2f}), "
-                     "or --allow-large to draw it all.")
+    raise TooLarge(f"the overlap of the inputs is {size}, and drawing all of it reads a whole frame: slow. Give the place you "
+                   f"want: --bbox W S E N (for its centre 60 km: --bbox {w:.2f} {s:.2f} {e:.2f} {n:.2f}), "
+                   "or --allow-large to draw it all.", (round(w, 2), round(s, 2), round(e, 2), round(n, 2)))
 
 
 def _resolved_area_table(area) -> dict:
@@ -169,8 +204,13 @@ def render(paths, *, out: str | os.PathLike = "outputs", cache: str | os.PathLik
     return run_job(job, out, cache)
 
 
+def job_toml(raw: dict) -> str:
+    """Job-file tables as TOML text (the subset a job uses: strings, numbers, booleans, lists, tables, arrays of tables)."""
+    return _toml(raw)
+
+
 def write_job(raw: dict, dest: Path) -> None:
-    """Write job-file tables as TOML (the subset a job uses: strings, numbers, booleans, lists, tables, arrays of tables)."""
+    """Write job-file tables as a TOML file."""
     dest.write_text(_toml(raw))
 
 

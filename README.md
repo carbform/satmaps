@@ -32,6 +32,19 @@ satviz.inspect("data/NISAR_L2_….h5")                  # {'sensor': 'nisar', 'k
 satviz.render(["data/NISAR_L2_….h5", "data/S1D_….SAFE"], theme="newspaper", quality="publication", title="Two radars")
 ```
 
+### The local app
+
+```bash
+pip install -e ".[app]"
+satviz app                     # opens http://localhost:8501 in your browser; --data-dir, --out, --port to change where
+```
+
+Pick products from a folder, choose the look and quality, optionally give a box or a title, press **Make the figure**, and preview
+it. Download the PNG, the PDF (publication quality) and the job file behind it. A very large area is refused with a one-click
+"Use the suggested box"; a pair that does not overlap gives a message, not a traceback. The app is a thin page over the same
+`build_job` and `run_job` as `satviz quick`, so a figure made in it is the figure `quick` or a saved job would make. It listens
+on localhost only, never uploads anything, and starts Streamlit with its PyPI version check switched off.
+
 What `quick` decides, and how to override it:
 
 | It picks | By | Override |
@@ -175,6 +188,7 @@ a slice of a multi-GB NISAR file can be slow, so it is cached as `.npz` in `cach
 ```bash
 satviz quick <products…>                    # a figure from paths alone (see Quick start)
 satviz inspect <products…>                  # sensor, pixel size and footprint of each
+satviz app                                  # the local app in your browser
 satviz init                                 # list the starter job files
 satviz init sar -o job.toml                 # write one, then edit the area, the data and the wording
 satviz run job.toml --out outputs/          # render every figure of the job
@@ -246,7 +260,8 @@ src/satviz/
   detect.py       which sensor reads a path (each sensor's `sniff`)
   autoarea.py     the overlap of the inputs' footprints, and the pixel size for a target
   quality.py      the quick and publication profiles, and the one place figures are saved (PNG, PDF)
-  cli.py          `satviz quick | inspect | run | init | list | placeholders`
+  app.py          the local app (Streamlit): `satviz app`
+  cli.py          `satviz quick | app | inspect | run | init | list | placeholders`
 jobs/             brahmaputra.toml (place + inputs) and the four jobs that extend it; layouts/ has two wording-file examples
 docs/             architecture, pipelines, processing notes, design language; references/ lists the (git-ignored) PDFs
 tests/            synthetic-data tests (no granules needed)

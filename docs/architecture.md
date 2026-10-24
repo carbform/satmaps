@@ -89,6 +89,11 @@ paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the ki
 - **Titles and names.** A job with no `[scene] name` (every quick figure) gets a title from its products, and its files are named
   after the sensors and the profile; a job file keeps its own name and its file stem.
 - **Large areas.** An automatic area above 15,000 km² is refused with a suggested `--bbox`; `--allow-large` lifts it.
+- **The app** (`satviz.app`, Streamlit) only collects choices and calls `build_job` and `run_job`; `api.scan` lists a folder's products
+  from their names and a few files, never their pixels. Renders run on a button press, one at a time (matplotlib is global state),
+  and a `TooLarge` error carries the suggested box so the page can fill it in. `satviz app` serves on localhost, sets the folders by
+  environment, and starts Streamlit through a line that turns off its PyPI version check (the one outbound call it makes; a test
+  proves none is attempted).
 - **`--save-job`** writes the resolved tables (sensors, absolute paths, centre and size, pixel size), so running the saved file gives
   the same figure; a test pins that.
 - **Profiles** (`satviz.quality`): `quick` (800 px along the longer side, 100 dpi, PNG), `medium` (1400 px, 140 dpi, PNG) and

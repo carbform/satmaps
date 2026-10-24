@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 rasters = ["rasterio>=1.3"]  # every product but NISAR is GeoTIFF: Sentinel-1, EOS-04, Sentinel-2, LISS-IV
+app = ["streamlit>=1.32"]  # `satviz app`: the local app
 dev = ["pytest>=7", "ruff>=0.4", "pillow>=10"]
 
 [project.scripts]

@@ -29,6 +29,34 @@ def _init(args) -> int:
     return 0
 
 
+# Streamlit looks up its latest version on PyPI at start-up (one launch in ten) and has no setting to stop it. satviz is local
+# only, so it starts Streamlit through this line, which turns that check off first.
+STREAMLIT_LAUNCH = ("import sys, streamlit.version as v; v.should_show_new_version_notice = lambda: False; "
+                    "from streamlit.web.cli import main; sys.exit(main())")
+
+
+def _app(args) -> int:
+    """Start Streamlit on localhost with the app script. Settings go by environment: the script has no command line of its own."""
+    import importlib.util
+    import os
+    import subprocess
+
+    if importlib.util.find_spec("streamlit") is None:
+        print('error: the app needs Streamlit: pip install "satviz[app]"', file=sys.stderr)
+        return 2
+    script = Path(importlib.util.find_spec("satviz.app").origin)  # found, not imported: importing it would run the app
+
+    def absolute(p) -> str:
+        return str(Path(p).expanduser().resolve())
+
+    env = dict(os.environ, SATVIZ_DATA_DIR=absolute(args.data_dir or os.environ.get("SATVIZ_DATA_DIR") or "data"),
+               SATVIZ_OUT_DIR=absolute(args.out), SATVIZ_CACHE_DIR=absolute(args.cache))
+    cmd = [sys.executable, "-c", STREAMLIT_LAUNCH, "run", str(script), "--server.address", "localhost",
+           "--server.port", str(args.port), "--browser.gatherUsageStats", "false",
+           "--server.headless", str(args.no_browser).lower()]
+    return subprocess.call(cmd, env=env)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="satviz", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -55,6 +83,13 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")
     qk.add_argument("--no-cache", action="store_true")
     qk.add_argument("--save-job", default=None, metavar="FILE", help="also write the job file that reproduces this figure")
+
+    ap = sub.add_parser("app", help="open the local app in your browser to pick products, preview and download (satviz[app])")
+    ap.add_argument("--data-dir", default=None, help="folder with the products (default: $SATVIZ_DATA_DIR, then ./data)")
+    ap.add_argument("--out", default="outputs", help="where figures are written (default: %(default)s)")
+    ap.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")
+    ap.add_argument("--port", type=int, default=8501, help="port on localhost (default: %(default)s)")
+    ap.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
 
     ins = sub.add_parser("inspect", help="say which sensor reads a product and where it has data, without reading pixels")
     ins.add_argument("paths", nargs="+")
@@ -92,6 +127,9 @@ def main(argv: list[str] | None = None) -> int:
     matplotlib.use("Agg")  # headless; set here so importing the library never changes the backend
     if args.cmd == "init":
         return _init(args)
+
+    if args.cmd == "app":
+        return _app(args)
 
     if args.cmd == "inspect":
         from satviz.api import inspect
