@@ -22,12 +22,12 @@ size_km = [1.0, 1.0]
 
 [[inputs]]
 id = "L"
-sensor = "nisar_gcov"
+sensor = "nisar"
 source = {{ path = "L.h5" }}
 
 [[inputs]]
 id = "S"
-sensor = "nisar_gcov"
+sensor = "nisar"
 source = {{ path = "S.h5" }}
 
 [[zooms]]
@@ -47,16 +47,16 @@ def job_file(scene, tmp_path):
 
 def test_job_defaults_to_a_figure_for_the_inputs(job_file, scene):
     job = load_job(job_file, scene.data_dir)
-    assert [f.template for f in job.figures] == ["compare"] and job.figures[0].inputs == ("L", "S")
+    assert [f.template for f in job.figures] == ["sar"] and job.figures[0].inputs == ("L", "S")
     assert job.scene.name == "Testland" and list(job.inputs) == ["L", "S"]
 
 
 @pytest.mark.parametrize("edit, msg", [
     (lambda t: t.replace("[area]", "[aera]"), "unknown section"),
     (lambda t: t[:t.index("[area]")] + t[t.index("[[inputs]]"):], "missing \\[area\\]"),
-    (lambda t: t + '\n[[figures]]\ntemplate = "single"\ninputs = ["nope"]\n', "unknown input"),
+    (lambda t: t + '\n[[figures]]\ntemplate = "sar"\ninputs = ["nope"]\n', "unknown input"),
     (lambda t: t + '\n[[figures]]\ninputs = ["L"]\n', "needs `template`"),
-    (lambda t: t + '\n[[figures]]\ntemplate = "single"\ncolour = "red"\n', "unknown key"),
+    (lambda t: t + '\n[[figures]]\ntemplate = "sar"\ncolour = "red"\n', "unknown key"),
     (lambda t: t.replace('id = "S"', 'id = "L"'), "appears twice"),
 ])
 def test_bad_jobs_are_explained(tmp_path, edit, msg):
@@ -77,13 +77,13 @@ def test_nisar_on_a_canvas_equals_the_source_where_grids_align(job_file, scene, 
     from satviz.core import SENSORS
     from satviz.registry import load_builtin
     from satviz.run import choose_canvas
-    from satviz.sensors.nisar_gcov.io import read_roi
+    from satviz.sensors.sar.nisar.io import read_roi
 
     load_builtin()
     job = load_job(job_file, scene.data_dir)
     canvas, infos = choose_canvas(job, ["S"])
     assert canvas.res == 10 and infos["S"].epsg == 32646
-    prod = SENSORS["nisar_gcov"].open(job.inputs["S"], canvas, job.area, scene.data_dir)
+    prod = SENSORS["nisar"].open(job.inputs["S"], canvas, job.area, scene.data_dir)
     assert prod.layers["hh"].shape == (canvas.height, canvas.width)
     raw = read_roi(scene.data_dir / "S.h5", scene.bands["S"])
     # canvas pixel -> source pixel by coordinates; compare every canvas pixel that lies inside the file
@@ -108,17 +108,16 @@ def test_run_writes_figures_and_lock_file(job_file, scene, tmp_path):
     assert lock["canvas"]["epsg"] == 32646 and set(lock["inputs"]) == {"L", "S"}
 
 
-def test_pairs_all_and_per_figure_themes_and_text(scene, tmp_path):
+def test_every_pair_and_per_figure_themes_and_text(scene, tmp_path):
     text = JOB + '''
 [[inputs]]
 id = "X"
-sensor = "nisar_gcov"
+sensor = "nisar"
 source = { path = "S.h5" }
 
 [[figures]]
-template = "compare"
+template = "sar"
 inputs = ["L", "S", "X"]
-pairs = "all"
 theme = ["minimal", "neo_brutal"]
 text = { title = "A CUSTOM TITLE" }
 '''
@@ -131,7 +130,7 @@ text = { title = "A CUSTOM TITLE" }
 
 def test_single_figure_with_stem(scene, tmp_path):
     p = tmp_path / "j.toml"
-    p.write_text(JOB + '\n[[figures]]\ntemplate = "single"\ninputs = ["S"]\nname = "my_fig"\n')
+    p.write_text(JOB + '\n[[figures]]\ntemplate = "sar"\ninputs = ["S"]\nname = "my_fig"\n')
     paths = run_job(load_job(p, scene.data_dir), tmp_path / "out")
     assert [x.name for x in paths] == ["my_fig_NeoRetro.png"]
 
@@ -153,8 +152,8 @@ def test_cli_run_and_errors(job_file, scene, tmp_path, capsys):
 def test_init_lists_and_writes_presets_that_parse(tmp_path, capsys):
     assert main(["init"]) == 0
     listed = capsys.readouterr().out
-    assert all(n in listed for n in ("sar", "sar-compare", "optical", "sar-vs-optical"))
-    for name in ("sar", "sar-compare", "optical", "sar-vs-optical", "multi-sensor-grid"):
+    assert all(n in listed for n in ("sar", "optical", "sar-optical"))
+    for name in ("sar", "optical", "sar-optical"):
         dest = tmp_path / f"{name}.toml"
         assert main(["init", name, "-o", str(dest)]) == 0
         load_job(dest, tmp_path)  # every preset is a valid job
@@ -179,11 +178,12 @@ def test_grid_template_renders_in_a_job(scene, tmp_path):
     text = JOB + '''
 [[inputs]]
 id = "X"
-sensor = "nisar_gcov"
+sensor = "nisar"
 source = { path = "S.h5" }
 
 [[figures]]
-template = "grid"
+template = "sar"
+arrangement = "grid"
 inputs = ["L", "S", "X"]
 theme = "minimal"
 '''
@@ -193,7 +193,7 @@ theme = "minimal"
     assert [x.name for x in paths] == ["NISAR_Testland_grid3_Social_Minimal.png"]
     bad = tmp_path / "k.toml"
     bad.write_text(text.replace('inputs = ["L", "S", "X"]', 'inputs = ["L"]'))
-    with pytest.raises(JobError, match="2 to 6"):
+    with pytest.raises(JobError, match="at least two"):
         run_job(load_job(bad, scene.data_dir), tmp_path / "out2")
 
 
@@ -207,7 +207,7 @@ def test_inputs_from_different_passes_need_an_explicit_opt_in(scene, tmp_path):
     p.write_text(base)
     with pytest.raises(LayoutError, match="allow_different_passes"):
         run_job(load_job(p, scene.data_dir), tmp_path / "out")
-    p.write_text(base + '\n[[figures]]\ntemplate = "compare"\ninputs = ["L", "S"]\nallow_different_passes = true\n')
+    p.write_text(base + '\n[[figures]]\ntemplate = "sar"\ninputs = ["L", "S"]\nallow_different_passes = true\n')
     assert run_job(load_job(p, scene.data_dir), tmp_path / "out2")[0].exists()
 
 
@@ -218,11 +218,11 @@ def test_layout_files_are_found_next_to_the_job_whatever_the_working_directory(s
     (job_dir / "layouts").mkdir(parents=True)
     shutil.copy(layouts_dir / "ls_social.toml", job_dir / "layouts" / "ls_social.toml")
     p = job_dir / "j.toml"
-    p.write_text(JOB + '\n[[figures]]\ntemplate = "compare"\ninputs = ["L", "S"]\nlayout = "layouts/ls_social.toml"\n')
+    p.write_text(JOB + '\n[[figures]]\ntemplate = "sar"\ninputs = ["L", "S"]\nlayout = "layouts/ls_social.toml"\n')
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
     assert run_job(load_job(p, scene.data_dir), tmp_path / "out")[0].exists()
-    p.write_text(JOB + '\n[[figures]]\ntemplate = "compare"\ninputs = ["L", "S"]\nlayout = "nope.toml"\n')
+    p.write_text(JOB + '\n[[figures]]\ntemplate = "sar"\ninputs = ["L", "S"]\nlayout = "nope.toml"\n')
     with pytest.raises(JobError, match="not found; looked in"):
         run_job(load_job(p, scene.data_dir), tmp_path / "out3")

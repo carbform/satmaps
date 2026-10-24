@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from satviz.config import BandSpec, Scene, Zoom
-from satviz.sensors.nisar_gcov.io import assemble
+from satviz.sensors.sar.nisar.io import assemble
 
 H, W = 120, 110
 NEBS_DB = -22.0  # sigma0-referenced noise-equivalent backscatter
@@ -46,7 +46,7 @@ def ds(raw):
 
 def write_granule(path: Path, group: str, raw: dict, *, instrument: str = "SSAR", freq_hz: float = 3.2e9, calibrated: bool = False,
                   rfi: str = "FDNF", start: str = "2026-09-25T22:57:40.10308051", crid: str = "P00500", track: int = 112) -> None:
-    """Minimal HDF5 file with the GCOV layout and the metadata that `satviz.sensors.nisar_gcov.io` / `satviz.sensors.nisar_gcov.metadata` read."""
+    """Minimal HDF5 file with the GCOV layout and the metadata that `satviz.sensors.sar.nisar.io` / `satviz.sensors.sar.nisar.metadata` read."""
     root = group.rsplit("/", 1)[0]
     with h5py.File(path, "w") as f:
         g = f.create_group(f"{group}/grids/frequencyA")
@@ -104,12 +104,4 @@ def scene(tmp_path) -> Scene:
 
 @pytest.fixture
 def layouts_dir() -> Path:
-    return Path(__file__).resolve().parents[1] / "legacy" / "layouts"
-
-
-def inputs_for(scene: Scene, fig) -> dict:
-    """The inputs a figure needs, as the kind it takes: generic Products for templates, NISAR datasets for older figures."""
-    from satviz.cli import load_products
-
-    prods = load_products(scene, fig.inputs, None)
-    return prods if fig.products else {k: p.native for k, p in prods.items()}
+    return Path(__file__).resolve().parents[1] / "jobs" / "layouts"

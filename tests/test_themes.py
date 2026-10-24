@@ -14,7 +14,7 @@ from satviz.arrangements import compare, grid, single  # noqa: E402
 from satviz.core import THEMES  # noqa: E402
 from satviz.layout import default_layout  # noqa: E402
 from satviz.registry import load_builtin  # noqa: E402
-from satviz.sensors.nisar_gcov import load as load_product  # noqa: E402
+from satviz.sensors.sar.nisar import load as load_product  # noqa: E402
 
 load_builtin()
 ALL = sorted(THEMES)

@@ -1,4 +1,4 @@
-"""The multispectral template and its bands arrangement: one optical product band by band, no comparison."""
+"""The optical template's bands arrangement: one optical product band by band, no comparison."""
 from types import SimpleNamespace
 
 import matplotlib
@@ -16,11 +16,11 @@ from satviz.recipes import bands as rb  # noqa: E402
 from satviz.registry import load_builtin  # noqa: E402
 from satviz.run import run_job  # noqa: E402
 from satviz.templates import TemplateError  # noqa: E402
-from tests.test_geotiff_sensors import needs_rasterio  # noqa: E402
+from tests.rasters import needs_rasterio  # noqa: E402
 
 load_builtin()
 from satviz.core import TEMPLATES  # noqa: E402
-from tests.test_sentinel2_safe import safe_folder  # noqa: E402
+from tests.test_sentinel2 import safe_folder  # noqa: E402
 
 N = 24
 
@@ -82,23 +82,21 @@ def test_limits_pool_all_bands_unless_asked_per_band():
     assert len({round(o[1], 6) for o in own}) == len(own)  # per-band limits differ band to band, which is what `per-band` is for
 
 
-JOB = SimpleNamespace(inputs={"S2": InputSpec("S2", "sentinel2_safe", "", {}), "L4": InputSpec("L4", "liss4", "", {}),
+JOB = SimpleNamespace(inputs={"S2": InputSpec("S2", "sentinel2", "", {}), "L4": InputSpec("L4", "liss4", "", {}),
                               "E": InputSpec("E", "eos04", "", {})}, path="job.toml")
 
 
 def test_the_template_gives_every_input_its_own_figure_and_refuses_what_it_cannot_show():
-    t = TEMPLATES["multispectral"]
-    assert t.plan(FigureSpec("multispectral", ("S2", "L4")), JOB) == [("S2",), ("L4",)]
+    t = TEMPLATES["optical"]
+    assert t.plan(FigureSpec("optical", ("S2", "L4"), arrangement="bands"), JOB) == [("S2",), ("L4",)]
     with pytest.raises(TemplateError, match="no spectral bands; use template 'sar'"):
-        t.plan(FigureSpec("multispectral", ("S2", "E")), JOB)
-    with pytest.raises(TemplateError, match="arrangement must be one of bands"):
-        t.plan(FigureSpec("multispectral", ("S2",), arrangement="compare"), JOB)
+        t.plan(FigureSpec("optical", ("S2", "E"), arrangement="bands"), JOB)
     with pytest.raises(TemplateError, match="arrangement must be one of single, compare, grid"):
-        TEMPLATES["optical"].plan(FigureSpec("optical", ("S2",), arrangement="bands"), JOB)  # bands belongs to this template only
+        TEMPLATES["sar"].plan(FigureSpec("sar", ("E",), arrangement="bands"), JOB)  # bands belongs to the optical template only
 
 
 def test_resolve_says_the_bands_and_nothing_about_comparison():
-    r = TEMPLATES["multispectral"].resolve(FigureSpec("multispectral", ("S2",), composites=("true_colour",)), ("S2",), {"S2": product()},
+    r = TEMPLATES["optical"].resolve(FigureSpec("optical", ("S2",), arrangement="bands", composites=("true_colour",)), ("S2",), {"S2": product()},
                                            SimpleNamespace(region="Dibrugarh, Assam"))
     assert r.arrangement == "bands" and r.recipes == {} and r.caveats == ()  # no relation notes, no recipes per input
     assert r.text["subtitle"] == "SENTINEL-2C L2A · 5 BANDS  ·  DIBRUGARH, ASSAM" and r.options["composites"] == ("true_colour",)
@@ -137,10 +135,10 @@ def test_a_product_without_a_band_table_still_renders_from_its_roles(scene, tmp_
 
 
 @needs_rasterio
-def test_job_runs_the_multispectral_template_on_a_local_sentinel_2_product(tmp_path):
+def test_job_runs_the_bands_arrangement_on_a_local_sentinel_2_product(tmp_path):
     from pyproj import Transformer
 
-    from tests.test_geotiff_sensors import EPSG, X0, Y0
+    from tests.rasters import EPSG, X0, Y0
 
     safe_folder(tmp_path)
     lon, lat = Transformer.from_crs(f"EPSG:{EPSG}", "EPSG:4326", always_xy=True).transform(X0 + 500, Y0 - 500)
@@ -155,11 +153,12 @@ size_km = [0.6, 0.6]
 resolution_m = 10
 [[inputs]]
 id = "S2"
-sensor = "sentinel2_safe"
+sensor = "sentinel2"
 source = {{ path = "S2C_MSIL2A_test.SAFE" }}
 [[figures]]
 name = "bands"
-template = "multispectral"
+template = "optical"
+arrangement = "bands"
 inputs = ["S2"]
 composites = ["true_colour"]
 stretch = "per-band"

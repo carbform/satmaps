@@ -1,0 +1,36 @@
+# Social posts from NISAR with their own wording files (relative to this job file) and zoom windows: L against S, and S alone.
+# The wording file's text wins over the template's default wording. Run:  satviz run jobs/social.toml --out outputs/social/
+extends = "brahmaputra.toml"
+
+# Zoom windows: geographic (center + size) or canvas rows/cols (10 m pixels): 300 x 780 px = 3.0 x 7.8 km
+[[zooms]]
+key = "A"
+name = "HILL EDGE"
+rows = [520, 820]
+cols = [560, 1340]
+
+[[zooms]]
+key = "B"
+name = "SAND BARS"
+rows = [2500, 2800]
+cols = [1200, 1980]
+
+[[zooms]]
+key = "C"
+name = "SOUTH BANK"
+rows = [2600, 2900]
+cols = [2000, 2780]
+
+[[figures]]
+name = "social"
+template = "sar"
+inputs = ["L", "S"]                   # left, right
+layout = "layouts/ls_social.toml"
+theme = "neo_retro"
+
+[[figures]]
+name = "social_s"
+template = "sar"
+inputs = ["S"]
+layout = "layouts/sband_social.toml"
+theme = "neo_retro"

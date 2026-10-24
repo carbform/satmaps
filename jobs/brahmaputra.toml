@@ -1,0 +1,53 @@
+# The Brahmaputra near Dibrugarh as every job here sees it: one place, and every local product that covers it.
+# The job files (sar.toml, optical.toml, sar_optical.toml) extend this one and say what to draw; inputs a job does not
+# use are never read. Needs no network: unzip the downloads into ./data first (the .SAFE folders and the NRSC product folders).
+
+[scene]
+name = "Brahmaputra"
+region = "Dibrugarh, Assam"
+author = "Sarat (NRSC/ISRO)"
+website = "www.carbform.github.io"
+
+[area]
+center = [27.60279514, 94.87069168]   # lat, lon
+size_km = [29.0, 30.8]
+resolution_m = 10
+
+# SAR: NISAR (L and S band, 25 Sep), Sentinel-1 GRD (25 Sep), EOS-04 MRS (10 Sep)
+[[inputs]]
+id = "L"
+sensor = "nisar"
+source = { path = "NISAR_L2_PR_GCOV_031_112_A_016_4005_DHDH_A_20260925T225740_20260925T225815_P05023_N_F_J_001.h5" }
+
+[[inputs]]
+id = "S"
+sensor = "nisar"
+source = { path = "NISAR_S2_PR_GCOV_031_112_A_016_3700_DHNA_A_20260925T225740_20260925T225816_P00500_M_F_I_001.h5" }
+
+[[inputs]]
+id = "S1"
+sensor = "sentinel1"
+source = { path = "S1D_IW_GRDH_1SDV_20260925T114837_20260925T114902_004734_008DBE_F331.SAFE" }
+
+[[inputs]]
+id = "E"
+sensor = "eos04"
+source = { path = "E04_SAR_MRS_10SEP2026_253234052550_25247_STUC00ZTD_1830_6_DH_D_R_N27673_E094265" }
+
+# the same EOS-04 scene as sigma0, so it can sit next to Sentinel-1 (also sigma0) without a convention mismatch
+[[inputs]]
+id = "Es"
+sensor = "eos04"
+source = { path = "E04_SAR_MRS_10SEP2026_253234052550_25247_STUC00ZTD_1830_6_DH_D_R_N27673_E094265" }
+backscatter = "sigma0"                  # default is "gamma0", the product as delivered
+
+# Optical: Sentinel-2C L2A (29 Sep, 12 bands, surface reflectance), LISS-IV on ResourceSat-2A (19 Oct, 3 bands, top of atmosphere)
+[[inputs]]
+id = "S2"
+sensor = "sentinel2"
+source = { path = "S2C_MSIL2A_20260929T041551_N0513_R090_T46RFR_20260929T075413.SAFE" }
+
+[[inputs]]
+id = "L4"
+sensor = "liss4"
+source = { path = "RAF19OCT2026051193011300052SSANSTUC00GTDA" }

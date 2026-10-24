@@ -46,7 +46,8 @@ def resolve_zooms(job: Job, canvas):
 
 def _layout(fig: FigureSpec, job: Job, layouts_dir, arrangement: str, defaults: dict | None = None) -> dict:
     """The figure's wording: its `layout` file (looked up next to the job file, then the working directory, then
-    `layouts_dir`) or the arrangement's built-in one. The template's default wording goes in first, then the job's `text`."""
+    `layouts_dir`) or the arrangement's built-in one. The template's default wording goes in first (not with a wording file
+    of its own), then the job's `text`."""
     if fig.layout:
         name = Path(fig.layout).expanduser()
         if name.suffix != ".toml":
@@ -58,7 +59,7 @@ def _layout(fig: FigureSpec, job: Job, layouts_dir, arrangement: str, defaults: 
         data = load_layout(found.parent, found.stem)
     else:
         data = default_layout(arrangement)
-    return apply_text(apply_text(data, defaults or {}), fig.text)
+    return apply_text(data if fig.layout else apply_text(data, defaults or {}), fig.text)  # a wording file's own text wins
 
 
 def plan_figure(fig: FigureSpec, job: Job) -> list[tuple[str, ...]]:
@@ -71,8 +72,29 @@ def plan_figure(fig: FigureSpec, job: Job) -> list[tuple[str, ...]]:
         raise JobError(f"{job.path}: {e}") from None
 
 
+def read_products(job: Job, needed: list[str], cache_dir: str | Path | None = None):
+    """Choose the canvas and read each needed input onto it: (canvas, source info per input, products per input)."""
+    canvas, infos = choose_canvas(job, needed)
+    products = {}
+    for k in needed:
+        spec = job.inputs[k]
+        products[k] = _sensor(spec).open(spec, canvas, job.area, job.scene.data_dir, cache_dir, job.scene.name)
+    return canvas, infos, products
+
+
+def placeholders_job(job: Job, cache_dir: str | Path | None = None) -> dict:
+    """The `{placeholders}` a wording file of this job can use, with their values: scene names, what the products share, and one
+    namespace per input id (`{S1.date}`). Needs the data, because the values come from the products."""
+    from satviz.layout import build_context_products
+
+    load_builtin()
+    canvas, _, products = read_products(job, list(job.inputs), cache_dir)
+    scene = dataclasses.replace(job.scene, zooms=resolve_zooms(job, canvas))
+    return build_context_products(scene, products, per_band=True, strict=False)
+
+
 def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
-            layouts_dir: str | Path = "legacy/layouts") -> list[Path]:
+            layouts_dir: str | Path = "layouts") -> list[Path]:
     load_builtin()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -82,12 +104,8 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
         for th in fig.themes:
             THEMES.get_or_raise(th)
 
-    canvas, infos = choose_canvas(job, needed)
+    canvas, infos, products = read_products(job, needed, cache_dir)
     scene = dataclasses.replace(job.scene, zooms=resolve_zooms(job, canvas))
-    products = {}
-    for k in needed:
-        spec = job.inputs[k]
-        products[k] = _sensor(spec).open(spec, canvas, job.area, job.scene.data_dir, cache_dir, job.scene.name)
 
     written = []
     per_figure = Counter(id(f) for f, _ in plan)
@@ -118,8 +136,7 @@ def _write_lock(job: Job, out: Path, canvas, infos: dict, products: dict, writte
         "job": str(job.path),
         "canvas": dataclasses.asdict(canvas),
         "area_lonlat_bbox": [round(v, 6) for v in canvas.lonlat_bbox()],
-        "inputs": {k: {"sensor": job.inputs[k].sensor, "files": i.files, "native_resolution_m": i.resolution_m,
-                       **({"scenes": products[k].meta["items"]} if "items" in products[k].meta else {})}
+        "inputs": {k: {"sensor": job.inputs[k].sensor, "files": i.files, "native_resolution_m": i.resolution_m}
                    for k, i in infos.items()},
         "figures": [p.name for p in written],
     }
@@ -128,12 +145,3 @@ def _write_lock(job: Job, out: Path, canvas, infos: dict, products: dict, writte
 
 __all__ = ["AreaError", "LayoutError", "run_job"]
 
-
-def search_job(job: Job, cache_dir: str | Path | None = None) -> dict[str, list[dict]]:
-    """For each catalogue input: the scene groups that would be tried, with cloud and coverage in the area."""
-    load_builtin()
-    needed = [k for k in job.inputs if hasattr(_sensor(job.inputs[k]), "search")]
-    if not needed:
-        raise JobError(f"{job.path}: no input reads from a catalogue, so there is nothing to search")
-    canvas, _ = choose_canvas(job, list(job.inputs))
-    return {k: _sensor(job.inputs[k]).search(job.inputs[k], canvas, job.area, cache_dir) for k in needed}

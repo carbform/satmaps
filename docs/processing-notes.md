@@ -27,7 +27,7 @@ The PDFs are third-party and are not stored in this repository.
 
 Both ROIs have identical x/y coordinates (0 m offset), so the bands can be stacked pixel for pixel without resampling.
 The ROI is 29 × 30.8 km of braided river, floodplain, a hill edge and the south bank. The figures say "22:57 UTC" (the
-start of the data take); the S-band-only publication figure previously said 22:58, the approximate mid-time.
+start of the data take, not the mid-time of about 22:58).
 In local time the pass is 04:27 IST on 26 Sep.
 
 ## What the products already did
@@ -86,7 +86,7 @@ HH spread is the same. S-band HV is squeezed, probably because its higher noise 
 HH−HV ratio is lower. Together the channels sit closer, so colours turn pastel. Part of this is probably physical
 (shorter wavelengths depolarise more) and part instrumental (noise floor, uncalibrated levels); the data here do not
 separate the two. The social figure therefore stretches each band to its own percentiles by default and says so on the
-graphic; the publication and clean figures use one pooled stretch so colours are comparable.
+graphic. `stretch = "pooled"` in a job uses one set of limits for both, so colours are comparable.
 
 S-band water appears dark green rather than grey in the pooled figures: its HV clears the 3 dB threshold even though it
 is dark. Unexplained (wind-roughened water, or a noise floor that is too low?). Do not caption it as a real signal.

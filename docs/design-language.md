@@ -42,7 +42,6 @@ See the README section "Layout files".
 - Do say when colours are not comparable (per-band stretch) and when dB are provisional.
 - Don't add scanlines, glow, stripes, logos or gradients; don't use neon.
 
-The `ls-clean` and `*-publication` figures use a plain white style on purpose.
 
 ## Other themes
 

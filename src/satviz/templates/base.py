@@ -2,7 +2,7 @@
 
 A **template** is a content scenario: which kinds of products it takes (optical, SAR, both), how they relate, which recipe
 each gets, which page arrangement shows them and what the figure must say about the combination. It does not draw. The
-**arrangement** (`satviz.arrangements`: single, compare, grid) draws, and the **theme** styles the chrome.
+**arrangement** (`satviz.arrangements`: single, compare, grid, bands) draws, and the **theme** styles the chrome.
 
     job file -> Template.plan (which input ids go in which figure)
              -> Template.resolve (arrangement, recipes, default wording, relation notes)
@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 from satviz.core import RECIPES, SENSORS, Product, template
 from satviz.relations import relate
 
-ARRANGEMENTS = ("single", "compare", "grid")
 OPTICAL_PREFERENCE = ("true_colour", "nir_fcc")  # true colour when there is a blue band, else NIR false colour
 SAR_PREFERENCE = ("sar_fcc",)
 
@@ -37,9 +36,8 @@ class Resolved:
 
 
 def input_kind(spec) -> str:
-    """'sar' or 'optical' for an input, known before any pixels are read (the sensor, or `kind` for a generic GeoTIFF)."""
-    kind = SENSORS.get_or_raise(spec.sensor).kind
-    return spec.options.get("kind", kind) if kind == "any" else kind
+    """'sar' or 'optical' for an input, known before any pixels are read (the sensor's own kind)."""
+    return SENSORS.get_or_raise(spec.sensor).kind
 
 
 def default_recipe(product: Product, input_id: str = "") -> str:
@@ -81,7 +79,7 @@ class Template:
     summary = ""
     kinds: tuple[str, ...] = ("sar", "optical")
     default_arrangement = "single"
-    arrangements: tuple[str, ...] = ARRANGEMENTS  # the page arrangements this template can use
+    arrangements: tuple[str, ...] = ("single", "compare", "grid")  # the page arrangements this template can use
     hints: dict = {}  # kind -> what to use instead, when an input of that kind is refused
     min_inputs = 1
 
@@ -97,7 +95,7 @@ class Template:
         for i in fig.inputs:
             kind = input_kind(job.inputs[i])
             if kind not in out:
-                hint = self.hints.get(kind) or f"see template '{ {'sar': 'optical_sar', 'optical': 'optical_sar'}.get(kind, 'single') }'"
+                hint = self.hints.get(kind) or "use template 'sar_optical' to mix SAR and optical"
                 raise TemplateError(f"template {self.name!r} takes {' and '.join(self.kinds)} inputs only; input {i!r} is {kind} "
                                     f"({hint})")
             out[kind].append(i)

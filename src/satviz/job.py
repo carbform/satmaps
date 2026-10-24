@@ -11,11 +11,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from satviz.area import Area
-from satviz.config import DATA_DIR_ENV, LEGACY_DATA_DIR_ENV, InputSpec, Scene
+from satviz.config import DATA_DIR_ENV, InputSpec, Scene
 
 TOP_LEVEL = {"extends", "scene", "area", "inputs", "figures", "zooms", "callouts"}
 SCENE_KEYS = ("name", "reach", "locality", "region", "callout_caption", "author", "website")
-FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "pairs", "stretch", "name", "allow_different_passes",
+FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "stretch", "name", "allow_different_passes",
                "arrangement", "composites"}
 
 
@@ -31,11 +31,10 @@ class FigureSpec:
     themes: tuple[str, ...] = ("neo_retro",)
     layout: str | None = None  # name or path of a layout file; default: the template's built-in one
     text: dict = field(default_factory=dict)  # wording overrides: title, subtitle, ... or dotted layout keys
-    pairs: str | None = None  # "all": one figure per unordered pair of `inputs`
     stretch: str | None = None  # compare: "per-band" or "pooled"
     name: str | None = None  # output filename stem
-    composites: tuple[str, ...] = ()  # multispectral: recipes to add after the band panels (true_colour, nir_fcc, ...)
-    arrangement: str | None = None  # single, compare or grid; default: the template's own (optical_sar and sar_vs_sar compare)
+    composites: tuple[str, ...] = ()  # optical, bands: recipes added after the band panels
+    arrangement: str | None = None  # single, compare, grid (or bands, optical only); default: single for one input, else compare
     strict: bool = True  # inputs must share a pass (NISAR track/frame); allow_different_passes = true lifts it
 
 
@@ -98,7 +97,7 @@ def load_job(path: str | os.PathLike, data_dir: str | os.PathLike | None = None)
     if unknown := set(s) - set(SCENE_KEYS):
         raise JobError(f"{path} [scene]: unknown key(s) {sorted(unknown)}; allowed: {list(SCENE_KEYS)}")
     callouts = {k: (float(v["lat"]), float(v["lon"])) for k, v in raw.get("callouts", {}).items()}
-    env = os.environ.get(DATA_DIR_ENV) or os.environ.get(LEGACY_DATA_DIR_ENV)
+    env = os.environ.get(DATA_DIR_ENV)
     root = data_dir or env or (Path("data") if Path("data").is_dir() else path.resolve().parent)
     scene = Scene(
         **{k: str(s.get(k, "")) for k in SCENE_KEYS if k != "name"}, name=str(s.get("name") or path.stem),
@@ -106,13 +105,19 @@ def load_job(path: str | os.PathLike, data_dir: str | os.PathLike | None = None)
     )
 
     figures = []
-    for i, f in enumerate(raw.get("figures") or [_default_figure(list(inputs))], 1):
+    for i, f in enumerate(raw.get("figures") or [_default_figure(inputs)], 1):
         figures.append(_figure(path, i, f, inputs))
     return Job(path, scene, area, inputs, tuple(figures), tuple(raw.get("zooms", [])))
 
 
-def _default_figure(ids: list[str]) -> dict:
-    return {"template": "single" if len(ids) == 1 else "compare", "inputs": ids[:2]}
+def _default_figure(inputs: dict) -> dict:
+    """With no [[figures]]: the template that fits the kinds of the inputs, over all of them."""
+    from satviz.registry import load_builtin
+    from satviz.templates.base import input_kind
+
+    load_builtin()
+    kinds = {input_kind(spec) for spec in inputs.values()}
+    return {"template": "sar_optical" if len(kinds) > 1 else next(iter(kinds)), "inputs": list(inputs)}
 
 
 def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
@@ -121,18 +126,16 @@ def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
         raise JobError(f"{where}: unknown key(s) {sorted(unknown)}; allowed: {sorted(FIGURE_KEYS)}")
     if "template" not in f:
         raise JobError(f"{where}: needs `template` "
-                       "(optical, sar, multispectral, optical_sar, sar_vs_sar; or single, compare, grid)")
+                       "(sar, optical or sar_optical)")
     ids = tuple(f.get("inputs") or inputs)
     if missing := [k for k in ids if k not in inputs]:
         raise JobError(f"{where}: unknown input(s) {missing}; the job defines {list(inputs)}")
     themes = f.get("theme", "neo_retro")
     themes = (themes,) if isinstance(themes, str) else tuple(themes)
-    if f.get("pairs") not in (None, "all"):
-        raise JobError(f"{where}: pairs must be \"all\"")
     if f.get("stretch") not in (None, "per-band", "pooled"):
         raise JobError(f"{where}: stretch must be \"per-band\" or \"pooled\"")
     return FigureSpec(template=f["template"], inputs=ids, recipes=dict(f.get("recipes", {})), themes=themes,
-                      layout=f.get("layout"), text=dict(f.get("text", {})), pairs=f.get("pairs"),
+                      layout=f.get("layout"), text=dict(f.get("text", {})),
                       stretch=f.get("stretch"), name=f.get("name"), arrangement=f.get("arrangement"),
                       composites=tuple(f.get("composites", ())),
                       strict=not f.get("allow_different_passes", False))

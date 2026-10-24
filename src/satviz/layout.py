@@ -30,7 +30,7 @@ class LayoutError(ValueError):
 def load_layout(layouts_dir: str | Path, name: str) -> dict:
     path = Path(layouts_dir) / f"{name}.toml"
     if not path.exists():
-        raise LayoutError(f"layout file {path} not found (see legacy/layouts/ in the repository)")
+        raise LayoutError(f"layout file {path} not found (see jobs/layouts/ in the repository for examples)")
     with open(path, "rb") as f:
         data = tomllib.load(f)
     data["_path"] = str(path)
@@ -95,7 +95,7 @@ def acquisition_label(meta: dict) -> str:
 
 def build_context(scene: Scene, bands: dict, stats_by_band: dict, per_band: bool, extra: dict | None = None) -> dict:
     """`build_context_products` for NISAR working datasets (the older figures pass these plus their own statistics)."""
-    from satviz.sensors.nisar_gcov import to_product
+    from satviz.sensors.sar.nisar import to_product
 
     products = {k: to_product(d, stats_by_band[k]) for k, d in bands.items()}
     return build_context_products(scene, products, per_band, extra)

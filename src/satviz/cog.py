@@ -1,4 +1,4 @@
-"""Windowed reads of cloud-optimised GeoTIFFs onto what a canvas needs. Needs rasterio: pip install "satviz[optical]"."""
+"""Windowed reads of cloud-optimised GeoTIFFs onto what a canvas needs. Needs rasterio: pip install "satviz[rasters]"."""
 from __future__ import annotations
 
 import hashlib
@@ -16,7 +16,7 @@ def _rasterio():
     try:
         import rasterio
     except ImportError:
-        raise ImportError('reading GeoTIFFs and STAC data needs rasterio: pip install "satviz[optical]"') from None
+        raise ImportError('reading GeoTIFF products needs rasterio: pip install "satviz[rasters]"') from None
     return rasterio
 
 

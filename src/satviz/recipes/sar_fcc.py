@@ -5,7 +5,7 @@ import numpy as np
 
 from satviz.core import Component, LegendItem, Product, Recipe, Rendered, recipe
 from satviz.geo import utm_extent
-from satviz.sensors.nisar_gcov.processing import coarsen, db
+from satviz.sensors.sar.nisar.processing import coarsen, db
 
 NOISE_RGB = (58, 58, 64)  # HV below the noise floor: neutral dark grey, never drawn as signal
 OUTSIDE_RGB = (7, 9, 14)  # outside the valid-sample mask

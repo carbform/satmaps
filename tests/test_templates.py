@@ -11,8 +11,8 @@ from satviz.registry import load_builtin
 from satviz.relations import relate, time_gap
 from satviz.run import run_job
 from satviz.templates import TemplateError, default_recipe, pick_recipes
+from tests.rasters import needs_rasterio
 from tests.test_eos04 import product_folder as eos_folder
-from tests.test_geotiff_sensors import needs_rasterio
 from tests.test_liss4 import product_folder as liss_folder
 
 load_builtin()
@@ -93,26 +93,30 @@ def fig(template, ids, **kw):
     return FigureSpec(template=template, inputs=tuple(ids), **kw)
 
 
-JOB = job_with(L="nisar_gcov", S="nisar_gcov", S1="sentinel1_grd", E="eos04", L4="liss4", O="sentinel2_l2a")
+JOB = job_with(L="nisar", S="nisar", S1="sentinel1", E="eos04", L4="liss4", O="sentinel2")
 
 
-def test_plans_of_the_four_scenarios():
+def test_plans_of_the_three_scenarios():
     t = TEMPLATES
-    assert t["sar"].plan(fig("sar", "LSE"), JOB) == [("L",), ("S",), ("E",)]
-    assert t["optical"].plan(fig("optical", ["L4", "O"]), JOB) == [("L4",), ("O",)]
-    assert t["sar_vs_sar"].plan(fig("sar_vs_sar", ["L", "S", "S1"]), JOB) == [("L", "S"), ("L", "S1"), ("S", "S1")]
-    assert t["sar_vs_sar"].plan(fig("sar_vs_sar", ["L", "S", "S1"], arrangement="grid"), JOB) == [("L", "S", "S1")]
-    assert t["optical_sar"].plan(fig("optical_sar", ["L4", "E", "S1", "O"]), JOB) == [
+    assert t["sar"].plan(fig("sar", "LSE", arrangement="single"), JOB) == [("L",), ("S",), ("E",)]
+    assert t["sar"].plan(fig("sar", "L"), JOB) == [("L",)]  # one input: a figure of its own
+    assert t["optical"].plan(fig("optical", ["L4", "O"], arrangement="single"), JOB) == [("L4",), ("O",)]
+    assert t["optical"].plan(fig("optical", ["L4", "O"], arrangement="bands"), JOB) == [("L4",), ("O",)]
+    assert t["sar"].plan(fig("sar", ["L", "S", "S1"]), JOB) == [("L", "S"), ("L", "S1"), ("S", "S1")]
+    assert t["sar"].plan(fig("sar", ["L", "S", "S1"], arrangement="grid"), JOB) == [("L", "S", "S1")]
+    assert t["sar_optical"].plan(fig("sar_optical", ["L4", "E", "S1", "O"]), JOB) == [
         ("E", "L4"), ("E", "O"), ("S1", "L4"), ("S1", "O")]  # SAR on the left, whatever the listed order
     assert t["optical"].plan(fig("optical", ["L4", "O"], arrangement="compare"), JOB) == [("L4", "O")]
 
 
 @pytest.mark.parametrize("template, ids, kw, match", [
-    ("sar_vs_sar", ["L", "L4"], {}, "input 'L4' is optical"),
+    ("sar", ["L", "L4"], {}, "input 'L4' is optical"),
     ("sar", ["E", "L4"], {}, "takes sar inputs only"),
-    ("optical_sar", ["E", "S1"], {}, "at least one SAR and one optical"),
-    ("sar_vs_sar", ["L"], {}, "at least two SAR"),
-    ("sar_vs_sar", ["L", "S"], {"arrangement": "single"}, "use arrangement 'compare' or 'grid'"),
+    ("sar_optical", ["E", "S1"], {}, "at least one SAR and one optical"),
+    ("sar", ["L", "S"], {"arrangement": "bands"}, "arrangement must be one of single, compare, grid"),
+    ("optical", ["L4", "E"], {"arrangement": "bands"}, "no spectral bands; use template 'sar'"),
+    ("optical", ["L4"], {"arrangement": "compare"}, "at least two inputs"),
+    ("sar_optical", ["E", "L4"], {"arrangement": "single"}, "arrangement must be one of compare, grid"),
     ("sar", ["L"], {"arrangement": "compare"}, "at least two inputs"),
     ("sar", ["L"], {"arrangement": "poster"}, "arrangement must be one of"),
 ])
@@ -121,11 +125,9 @@ def test_inputs_that_do_not_fit_are_refused_with_a_pointer(template, ids, kw, ma
         TEMPLATES[template].plan(fig(template, ids, **kw), JOB)
 
 
-def test_generic_templates_add_no_scenario_wording():
+def test_sar_states_how_its_products_relate():
     products = {"L": sar("L", "NISAR", "L", 24.2), "S": sar("S", "NISAR", "S", 9.4)}
-    r = TEMPLATES["compare"].resolve(fig("compare", "LS"), ("L", "S"), products, SimpleNamespace(region="Somewhere"))
-    assert r.text == {} and r.caveats == () and r.arrangement == "compare"
-    r = TEMPLATES["sar_vs_sar"].resolve(fig("sar_vs_sar", "LS"), ("L", "S"), products, SimpleNamespace(region="Somewhere"))
+    r = TEMPLATES["sar"].resolve(fig("sar", "LS"), ("L", "S"), products, SimpleNamespace(region="Somewhere"))
     assert r.text["subtitle"] == "SAME SENSOR · L VS S BAND  ·  SOMEWHERE" and "L-band 24.2 cm" in r.caveats[0]
 
 
@@ -133,7 +135,7 @@ def test_generic_templates_add_no_scenario_wording():
 def test_job_renders_radar_and_optical_from_two_isro_products(tmp_path):
     from pyproj import Transformer
 
-    from tests.test_geotiff_sensors import EPSG, X0, Y0
+    from tests.rasters import EPSG, X0, Y0
 
     eos_folder(tmp_path)
     liss_folder(tmp_path)
@@ -157,7 +159,7 @@ sensor = "liss4"
 source = {{ path = "R2F_scene" }}
 [[figures]]
 name = "pair"
-template = "optical_sar"
+template = "sar_optical"
 inputs = ["L4", "E"]
 theme = ["minimal", "neo_retro"]
 ''')
@@ -169,7 +171,7 @@ def test_template_error_becomes_a_job_error(tmp_path):
     from tests.test_job import JOB as BASE  # NISAR L and S inputs
 
     p = tmp_path / "j.toml"
-    p.write_text(BASE + '\n[[figures]]\ntemplate = "optical_sar"\ninputs = ["L", "S"]\n')
+    p.write_text(BASE + '\n[[figures]]\ntemplate = "sar_optical"\ninputs = ["L", "S"]\n')
     with pytest.raises(JobError, match="at least one SAR and one optical"):
         run_job(load_job(p), tmp_path / "out")
 
@@ -181,7 +183,7 @@ def test_every_shipped_preset_loads_and_plans(tmp_path):
     from satviz.run import plan_figure
 
     found = [p for p in files("satviz").joinpath("presets").iterdir() if p.name.endswith(".toml")]
-    assert len(found) >= 5
+    assert len(found) == 3
     for preset in found:
         copy = tmp_path / preset.name
         copy.write_text(preset.read_text())
@@ -194,8 +196,8 @@ def test_named_figures_with_one_file_per_input_do_not_overwrite_each_other(scene
     from tests.test_job import JOB as BASE  # NISAR L and S inputs
 
     p = tmp_path / "j.toml"
-    p.write_text(BASE + '\n[[figures]]\nname = "x"\ntemplate = "sar"\ninputs = ["L", "S"]\ntheme = "minimal"\n'
-                 '\n[[figures]]\nname = "y"\ntemplate = "single"\ninputs = ["L", "S"]\ntheme = "minimal"\n')
+    p.write_text(BASE + '\n[[figures]]\nname = "x"\ntemplate = "sar"\narrangement = "single"\ninputs = ["L", "S"]\ntheme = "minimal"\n'
+                 '\n[[figures]]\nname = "y"\ntemplate = "sar"\narrangement = "single"\ninputs = ["L", "S"]\ntheme = "minimal"\n')
     paths = run_job(load_job(p, scene.data_dir), tmp_path / "out")
     names = sorted(q.name for q in paths)
     assert names == ["x_L_Minimal.png", "x_S_Minimal.png", "y_L_Minimal.png", "y_S_Minimal.png"]
@@ -246,7 +248,7 @@ def test_backscatter_warning_compares_conventions_not_labels():
 def test_notices_fit_one_per_line_then_run_together_and_only_too_much_text_is_refused(scene, tmp_path):
     from satviz.arrangements import grid
     from satviz.layout import LayoutError, default_layout
-    from satviz.sensors.nisar_gcov import load as load_product
+    from satviz.sensors.sar.nisar import load as load_product
 
     prods = {b: load_product(scene, b) for b in "LS"}  # three notices of their own (two NISAR lines and "colours not comparable")
 

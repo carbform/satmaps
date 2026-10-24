@@ -1,4 +1,4 @@
-# Built-in wording for the `bands` arrangement (the multispectral template). Everything in {braces} is filled in from your job file and
+# Built-in wording for the `bands` arrangement (`optical` with `arrangement = "bands"`). Everything in {braces} is filled in from your job file and
 # the data; override any line from the job with  [[figures]] text = { title = "...", subtitle = "..." }  or a layout of your own.
 # What the sensor insists on (attribution, quality and resampling caveats) is added automatically.
 

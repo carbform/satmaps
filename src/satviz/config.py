@@ -1,16 +1,13 @@
-"""Scene configuration: which granules to read, which region of each, and what the place is called.
+"""Scene and input dataclasses: what the place is called, which products to read and with which reader.
 
-Acquisition facts (date, pass, frequency, posting, CRS, processing flags) are read from the files, see `metadata`.
-Figure wording lives in the layout files, see `layout`."""
+A job file (`satviz.job`) builds these. Acquisition facts (date, pass, frequency, posting, CRS, processing flags) are read from
+the files by each sensor; figure wording lives in wording files, see `layout`."""
 from __future__ import annotations
 
-import os
-import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
 DATA_DIR_ENV = "SATVIZ_DATA_DIR"
-LEGACY_DATA_DIR_ENV = "NISAR_DATA_DIR"  # still honoured
 
 
 @dataclass(frozen=True)
@@ -26,7 +23,7 @@ class BandSpec:
 class InputSpec:
     """One input product: which sensor reader handles it, which file, and the reader's own options.
 
-    For ``nisar_gcov`` the options are ``group``, ``rows`` and ``cols`` (see `BandSpec`)."""
+    For ``nisar`` the options are ``group``, ``rows`` and ``cols`` (see `BandSpec`)."""
 
     key: str
     sensor: str
@@ -34,7 +31,7 @@ class InputSpec:
     options: dict = field(default_factory=dict)
 
 
-NISAR = "nisar_gcov"
+NISAR = "nisar"
 
 
 @dataclass(frozen=True)
@@ -76,27 +73,3 @@ class Scene:
 
     def band_path(self, key: str) -> Path:
         return self.input_path(key)
-
-
-def load_scene(config: str | os.PathLike, data_dir: str | os.PathLike | None = None) -> Scene:
-    """Read a scene TOML. Data dir: argument, $SATVIZ_DATA_DIR (legacy $NISAR_DATA_DIR), ./data if present, else cwd."""
-    with open(config, "rb") as f:
-        raw = tomllib.load(f)
-    s = raw["scene"]
-    inputs = {}
-    for i in raw.get("inputs", []):  # [[inputs]] id = "S", sensor = "nisar_gcov", file = ..., plus reader options
-        opts = {k: v for k, v in i.items() if k not in ("id", "sensor", "file")}
-        inputs[i["id"]] = InputSpec(i["id"], i.get("sensor", NISAR), i["file"], opts)
-    for key, b in raw.get("bands", {}).items():  # older form: [bands.S]
-        inputs[key] = InputSpec(key, NISAR, b["file"], dict(group=b["group"], rows=list(b["rows"]), cols=list(b["cols"])))
-    if not inputs:
-        raise KeyError("scene config has no [[inputs]]")
-    zooms = tuple(Zoom(z["key"], z["name"], tuple(z["rows"]), tuple(z["cols"])) for z in raw.get("zooms", []))
-    callouts = {k: (float(v["lat"]), float(v["lon"])) for k, v in raw.get("callouts", {}).items()}
-    env = os.environ.get(DATA_DIR_ENV) or os.environ.get(LEGACY_DATA_DIR_ENV)
-    root = data_dir or env or (Path("data") if Path("data").is_dir() else Path.cwd())
-    return Scene(
-        name=s["name"], reach=s["reach"], locality=s["locality"], region=s["region"], callout_caption=s["callout_caption"],
-        author=s["author"], website=s["website"],
-        inputs=inputs, zooms=zooms, callouts=callouts, data_dir=Path(root).expanduser(),
-    )

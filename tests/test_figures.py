@@ -1,25 +1,29 @@
-"""Smoke tests: every figure renders from small synthetic granules and writes non-empty files."""
-import importlib
-
+"""Smoke tests: the wording examples (jobs/layouts) render through the arrangements from small synthetic granules."""
 import matplotlib
 import pytest
 
 matplotlib.use("Agg")
 
-from satviz.cli import FIGURES  # noqa: E402
 from satviz.layout import load_layout  # noqa: E402
-from satviz.sensors.nisar_gcov import load as load_product  # noqa: E402
-from tests.conftest import inputs_for  # noqa: E402
+from satviz.sensors.sar.nisar import load as load_product  # noqa: E402
+
+EXAMPLES = {"ls_social": ("compare", ("L", "S")), "sband_social": ("single", ("S",))}
 
 
-@pytest.mark.parametrize("name", list(FIGURES))
-def test_figure_renders(name, scene, tmp_path, layouts_dir):
-    fig = FIGURES[name]
-    mod = importlib.import_module(fig.module)
-    bands = inputs_for(scene, fig)
-    out = tmp_path / "out"
-    out.mkdir()
-    paths = mod.render(scene, bands, out, load_layout(layouts_dir, fig.layout), **fig.kwargs)
+def render_example(name, scene, out, layouts_dir, **kw):
+    from satviz.arrangements import compare, single
+
+    arrangement, ids = EXAMPLES[name]
+    prods = {b: load_product(scene, b) for b in ids}
+    lay = load_layout(layouts_dir, name)
+    if arrangement == "compare":
+        return compare.render(scene, prods, out, lay, inputs=ids, **kw)
+    return single.render(scene, prods, out, lay, input=ids[0], chip_slot="b", **kw)
+
+
+@pytest.mark.parametrize("name", list(EXAMPLES))
+def test_wording_example_renders(name, scene, tmp_path, layouts_dir):
+    paths = render_example(name, scene, tmp_path, layouts_dir)
     assert paths and all(p.exists() and p.stat().st_size > 5000 for p in paths)
 
 
@@ -30,17 +34,13 @@ def test_social_pooled_stretch_variant(scene, tmp_path, layouts_dir):
     assert ls_social.render(scene, bands, tmp_path, load_layout(layouts_dir, "ls_social"), per_band=False)[0].exists()
 
 
-@pytest.mark.parametrize("theme", ["minimal", "neo_brutal", "neo_retro"])
-@pytest.mark.parametrize("name", ["ls-social", "sband-social"])
-def test_social_figures_render_in_every_theme(name, theme, scene, tmp_path, layouts_dir):
-    fig = FIGURES[name]
-    mod = importlib.import_module(fig.module)
-    bands = inputs_for(scene, fig)
-    paths = mod.render(scene, bands, tmp_path, load_layout(layouts_dir, fig.layout), theme=theme, **fig.kwargs)
-    assert paths[0].exists() and paths[0].stat().st_size > 5000
+@pytest.mark.parametrize("theme", ["minimal", "neo_brutal", "neo_retro", "newspaper", "xkcd"])
+@pytest.mark.parametrize("name", list(EXAMPLES))
+def test_wording_examples_render_in_every_theme(name, theme, scene, tmp_path, layouts_dir):
     from satviz.core import THEMES
 
-    assert THEMES[theme].tag in paths[0].name
+    paths = render_example(name, scene, tmp_path, layouts_dir, theme=theme)
+    assert paths[0].exists() and paths[0].stat().st_size > 5000 and THEMES[theme].tag in paths[0].name
 
 
 def test_unknown_theme_lists_available(scene, tmp_path, layouts_dir):

@@ -1,62 +1,33 @@
 from pathlib import Path
 
-import pytest
-
-from satviz.config import DATA_DIR_ENV, load_scene
-
-CONFIG = Path(__file__).resolve().parents[1] / "legacy" / "configs" / "brahmaputra.toml"
+from satviz.config import DATA_DIR_ENV, BandSpec, InputSpec, Scene
+from satviz.job import load_job
+from tests.test_job import JOB
 
 
-def test_brahmaputra_config_parses():
-    s = load_scene(CONFIG, "/data")
-    assert s.name == "Brahmaputra" and set(s.bands) == {"L", "S"}
-    assert [z.key for z in s.zooms] == ["A", "B", "C"]
-    assert set(s.callouts) == {"simen", "bars"}
-    assert s.bands["S"].rows[1] - s.bands["S"].rows[0] == s.bands["L"].rows[1] - s.bands["L"].rows[0]
-    assert s.bands["S"].cols[1] - s.bands["S"].cols[0] == s.bands["L"].cols[1] - s.bands["L"].cols[0]
+def write_job(tmp_path):
+    p = tmp_path / "job.toml"
+    p.write_text(JOB)
+    return p
 
 
-def test_data_dir_precedence(monkeypatch, tmp_path):
+def test_data_dir_precedence_for_a_job(monkeypatch, tmp_path):
+    p = write_job(tmp_path)
     monkeypatch.setenv(DATA_DIR_ENV, str(tmp_path / "env"))
-    assert load_scene(CONFIG).data_dir == tmp_path / "env"
-    assert load_scene(CONFIG, tmp_path / "arg").data_dir == tmp_path / "arg"
+    assert load_job(p).scene.data_dir == tmp_path / "env"  # the environment beats the default
+    assert load_job(p, tmp_path / "arg").scene.data_dir == tmp_path / "arg"  # an argument beats the environment
     monkeypatch.delenv(DATA_DIR_ENV)
-    monkeypatch.delenv("NISAR_DATA_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
-    assert load_scene(CONFIG).data_dir == Path.cwd()
+    assert load_job(p).scene.data_dir == tmp_path.resolve()  # no ./data: next to the job file
     (tmp_path / "data").mkdir()
-    assert load_scene(CONFIG).data_dir == Path("data")  # ./data is picked up when present
+    assert load_job(p).scene.data_dir == Path("data")  # ./data is picked up when present
 
 
-def test_band_path_joins_data_dir(tmp_path):
-    s = load_scene(CONFIG, tmp_path)
-    assert s.band_path("L") == tmp_path / s.bands["L"].file
-
-
-def test_missing_key_is_reported():
-    with pytest.raises(KeyError):
-        load_scene(CONFIG, "/data").bands["X"]
-
-
-def test_legacy_env_var_still_honoured(tmp_path, monkeypatch):
-    monkeypatch.delenv("SATVIZ_DATA_DIR", raising=False)
-    monkeypatch.setenv("NISAR_DATA_DIR", str(tmp_path / "legacy"))
-    assert load_scene(CONFIG).data_dir == tmp_path / "legacy"
-
-
-def test_inputs_form_and_legacy_bands_form_agree(tmp_path):
-    new = load_scene(CONFIG, tmp_path)
-    assert list(new.inputs) == ["S", "L"] and new.inputs["S"].sensor == "nisar_gcov"
-    legacy = tmp_path / "legacy.toml"
-    text = CONFIG.read_text()
-    text = text.replace('[[inputs]]\nid = "S"\nsensor = "nisar_gcov"\n', "[bands.S]\n").replace('[[inputs]]\nid = "L"\nsensor = "nisar_gcov"\n', "[bands.L]\n")
-    legacy.write_text(text)
-    old = load_scene(legacy, tmp_path)
-    assert old.inputs == new.inputs and old.bands == new.bands
-
-
-def test_scene_needs_inputs(tmp_path):
-    cfg = tmp_path / "c.toml"
-    cfg.write_text('[scene]\nname="x"\nreach="x"\nlocality="x"\nregion="x"\ncallout_caption="x"\nauthor="x"\nwebsite="x"\n')
-    with pytest.raises(KeyError, match="inputs"):
-        load_scene(cfg)
+def test_inputs_and_nisar_bands_describe_the_same_scene(tmp_path):
+    kw = dict(name="x", reach="", locality="", region="", callout_caption="", author="", website="", zooms=(), callouts={},
+              data_dir=tmp_path)
+    bands = {"S": BandSpec("S", "S.h5", "science/SSAR/GCOV", (0, 10), (5, 20))}
+    from_bands = Scene(bands=bands, **kw)
+    assert from_bands.inputs["S"] == InputSpec("S", "nisar", "S.h5", dict(group="science/SSAR/GCOV", rows=[0, 10], cols=[5, 20]))
+    from_inputs = Scene(inputs=from_bands.inputs, **kw)
+    assert from_inputs.bands == bands and from_inputs.input_path("S") == tmp_path / "S.h5"

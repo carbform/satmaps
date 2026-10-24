@@ -1,8 +1,8 @@
 import pytest
 
 from satviz.layout import Layout, LayoutError, build_context, load_layout
-from satviz.sensors.nisar_gcov.io import load_roi
-from satviz.sensors.nisar_gcov.processing import stats
+from satviz.sensors.sar.nisar.io import load_roi
+from satviz.sensors.sar.nisar.processing import stats
 
 
 @pytest.fixture
@@ -80,23 +80,20 @@ def test_different_passes_are_rejected(scene, tmp_path):
 
 
 def test_shipped_layouts_render(scene, layouts_dir, tmp_path):
-    """Every shipped layout file must parse and use only placeholders that exist."""
-    import importlib
+    """Every wording example (jobs/layouts) must parse and use only placeholders that exist."""
+    from tests.test_figures import EXAMPLES, render_example
 
-    from satviz.cli import FIGURES
-    from tests.conftest import inputs_for
-
-    for name, fig in FIGURES.items():
-        mod = importlib.import_module(fig.module)
-        have = inputs_for(scene, fig)
-        assert mod.render(scene, have, tmp_path, load_layout(layouts_dir, fig.layout), **fig.kwargs), name
+    shipped = {p.stem for p in layouts_dir.glob("*.toml")}
+    assert shipped == set(EXAMPLES), shipped  # a new example needs an entry in EXAMPLES, so it is rendered here
+    for name in shipped:
+        assert render_example(name, scene, tmp_path, layouts_dir), name
 
 
 def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):
     import copy
 
     from satviz.arrangements import compare as ls_social
-    from satviz.sensors.nisar_gcov import load as load_product
+    from satviz.sensors.sar.nisar import load as load_product
 
     bands = {b: load_product(scene, b) for b in "LS"}
     lay = copy.deepcopy(load_layout(layouts_dir, "ls_social"))
@@ -112,7 +109,7 @@ def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):
 
 def test_products_with_differing_passes_are_allowed_when_not_strict(scene, tmp_path):
     from satviz.layout import build_context_products
-    from satviz.sensors.nisar_gcov import load as load_product
+    from satviz.sensors.sar.nisar import load as load_product
     from tests.conftest import make_raw, write_granule
 
     write_granule(tmp_path / "L.h5", "science/LSAR/GCOV", make_raw(2), instrument="LSAR", freq_hz=1.239e9, track=113)
@@ -142,7 +139,7 @@ def test_dates_form_a_range_and_times_are_not_listed_when_days_differ(scene):
     from datetime import datetime
 
     from satviz.layout import _dates_label, _times, acquisition_label, build_context_products
-    from satviz.sensors.nisar_gcov import load as load_product
+    from satviz.sensors.sar.nisar import load as load_product
 
     assert _dates_label([datetime(2026, 9, 25, 22, 57)] * 2) == "25 Sep 2026"
     assert _dates_label([datetime(2026, 9, 25, 22, 57), datetime(2026, 9, 24, 4, 30)]) == "24 – 25 Sep 2026"

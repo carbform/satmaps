@@ -1,67 +1,58 @@
 # Pipelines: sensor -> recipe -> template -> theme
 
-Every figure is four independent choices. A new sensor, recipe, template or theme is one module that registers itself, and
-any combination that makes sense works.
+Every figure is four independent choices. A new sensor, recipe, template or theme is one module that registers itself.
 
 ```
 sensor reader --> Product --> recipe --> Rendered --> arrangement (page) --> theme (chrome)
-   (what)        layers,     (picture,    + legend      single|compare|grid    colours, type,
-                 meta,       legend)      + caveats     chosen by the          rules, sketch
-                 caveats                                template
+   (what)        layers,     (picture,    + legend      single|compare|grid|bands   colours, type,
+                 meta,       legend)      + caveats     chosen by the template       rules, sketch
+                 caveats
 ```
 
-A **template** (`optical`, `sar`, `optical_sar`, `sar_vs_sar`) sits above this: it checks the inputs, picks the recipes and the
-arrangement, and adds what must be said about the combination. A theme never touches the data.
+## SAR
 
-## Sensors
-
-| Sensor | Kind | Reads | Layers | Facts the figure states (all read from the files) |
-|---|---|---|---|---|
-| `nisar_gcov` | SAR, L or S band | L2 GCOV HDF5 (local) | `hh hv` and noise-screened terms | band, frequency, track, frame, noise shares, calibration state |
-| `eos04` | SAR, C band | Level-2B folder (local) | `co cross` gamma0, or sigma0 with `backscatter = "sigma0"` (document eq. 13-14) | band and frequency from `product.xml`, noise bias, RTC flag |
-| `sentinel1_grd` | SAR, C band | `.SAFE` folder (local) | `co cross` sigma0 | frequency, orbit, ellipsoid geolocation, noise dropped |
-| `sentinel1_rtc` | SAR, C band | Planetary Computer STAC | `co cross` gamma0 | frequency from the catalogue |
-| `sentinel2_l2a` | optical | Earth Search STAC | `blue green red nir swir16 swir22` | cloud share in the area |
-| `sentinel2_safe` | optical | `.SAFE` folder (local) | all 12 bands `B01`..`B12` + the six roles + `cloud` | surface reflectance, band wavelengths, native resolution, cloud share |
-| `landsat_c2l2` | optical | Planetary Computer STAC | same | cloud share |
-| `liss4` | optical | NRSC folder (local), ResourceSat-2 and 2A | `green red nir` (no blue) | top-of-atmosphere; which radiance constant was used |
-| `geotiff` | either | any GeoTIFF | from the job's band map | credit and date from the job |
-
-## Recipes
-
-| Recipe | Needs | Default for |
-|---|---|---|
-| `sar_fcc` | SAR | every SAR input |
-| `true_colour` | `red green blue` | optical with a blue band |
-| `nir_fcc` | `nir red green` | optical without blue (LISS-IV) |
-| `swir_fcc`, `ndvi`, `ndwi` | as named | on request |
-
-## Templates and what they accept
-
-| Template | Inputs | Page | Relation stated |
+| Sensor | Reads | Layers | Facts the figure states (all read from the files) |
 |---|---|---|---|
-| `multispectral` | optical, one per figure | `bands`: a panel per band (composites opt-in) | nothing: it does not compare |
-| `optical` | optical | one per input (or `compare`/`grid`) | same sensor or different, time gap, reflectance level |
-| `sar` | SAR | one per input (or `compare`/`grid`) | as `sar_vs_sar` when several |
-| `optical_sar` | SAR + optical | split view, SAR left (or `grid`) | days apart |
-| `sar_vs_sar` | SAR + SAR | split view per pair (or `grid`) | same sensor/two bands, same band/two sensors, or both different; wavelengths; time gap; sigma0 vs gamma0 |
+| `nisar` | L2 GCOV HDF5 (L-SAR or S-SAR) | `hh hv` and noise-screened terms | band, frequency, track, frame, noise shares, calibration state |
+| `sentinel1` | unzipped `.SAFE` (IW GRD) | `co cross` sigma0 | frequency, orbit, ellipsoid geolocation, noise dropped |
+| `eos04` | Level-2B folder (MRS) | `co cross` gamma0, or sigma0 with `backscatter = "sigma0"` (document eq. 13-14) | band and frequency from `product.xml`, noise bias, RTC flag |
 
-## What the local data can and cannot show
+Recipe: `sar_fcc` for all (HH red, HV green, HH−HV blue; noise-dominated pixels grey).
 
-| Combination | Where | Status |
-|---|---|---|
-| SAR vs SAR, one sensor in two bands | Dibrugarh: NISAR L + S | rendered |
-| SAR vs SAR, different sensors and bands | Dibrugarh: NISAR + Sentinel-1 GRD | rendered |
-| SAR vs SAR, same band from different sensors | Dibrugarh: EOS-04 (10 Sep) + Sentinel-1 GRD (25 Sep), both C | rendered; the figure states the 15 days between them |
-| Four radars on one page | Dibrugarh: NISAR L, NISAR S, Sentinel-1, EOS-04 | rendered (`jobs/brahmaputra_all.toml`) |
-| optical vs optical | Dibrugarh: Sentinel-2C (29 Sep) + LISS-IV 2A (19 Oct) | rendered; both get NIR false colour; states 20 days apart and surface vs TOA |
-| SAR + optical | Dibrugarh: Sentinel-1 / EOS-04 with Sentinel-2 / LISS-IV | rendered (`jobs/brahmaputra_optical.toml`) |
-| Multispectral | Dibrugarh: Sentinel-2C 12 bands, LISS-IV 3 bands | rendered (`jobs/brahmaputra_multispectral.toml`) |
+## Optical
+
+| Sensor | Reads | Layers | Facts the figure states |
+|---|---|---|---|
+| `sentinel2` | unzipped `.SAFE` (L2A) | all 12 bands `B01`..`B12` + `blue green red nir swir16 swir22` + `cloud` | surface reflectance, band wavelengths, native resolution, cloud share |
+| `liss4` | NRSC folder (ResourceSat-2 and 2A) | `green red nir` (no blue) | top-of-atmosphere; which radiance constant was used |
+
+Recipes: `true_colour` (needs blue), `nir_fcc` (the default without blue), `swir_fcc`, `ndvi`, `ndwi`, and the single-band grey
+panels of the `bands` arrangement.
+
+## Templates
+
+| Template | Inputs | Arrangements | Relation stated |
+|---|---|---|---|
+| `sar` | SAR | `single` (one input), `compare` (default for 2+: every pair), `grid` | with 2+: same sensor/two bands, same band/two sensors, or both different; wavelengths; time gap; sigma0 vs gamma0 |
+| `optical` | optical | `single`, `compare`, `grid`, `bands` | same sensor or different; time gap; reflectance level. `bands`: nothing (it does not compare) |
+| `sar_optical` | SAR + optical | `compare` (SAR left), `grid` | days apart |
+
+## What the local data shows (Dibrugarh)
+
+| Combination | Job |
+|---|---|
+| SAR vs SAR: NISAR L + S; NISAR + Sentinel-1; EOS-04 + Sentinel-1 (both C, 15 days apart) | `jobs/sar.toml` |
+| Four radars on one page | `jobs/sar.toml` (`tiles`) |
+| optical vs optical: Sentinel-2C (29 Sep) + LISS-IV 2A (19 Oct), both NIR false colour | `jobs/optical.toml` |
+| Multispectral: Sentinel-2C 12 bands, LISS-IV 3 bands | `jobs/optical.toml` (`bands`) |
+| SAR + optical: Sentinel-1 / EOS-04 with Sentinel-2 / LISS-IV | `jobs/sar_optical.toml` |
 
 ## Adding one
 
-- **Sensor**: `sensors/<name>.py` with `describe` and `open` registered by `@sensor`; give every SAR product `radar_band`, `freq_ghz`,
-  `wavelength_cm` (`satviz.radar.radar_facts`) and `backscatter`, and put its own caveats in `Product.caveats`.
+- **Sensor**: `sensors/sar/<name>.py` or `sensors/optical/<name>.py` with `describe` and `open` registered by `@sensor`; list it in
+  `registry.load_builtin`. Give every SAR product `radar_band`, `freq_ghz`, `wavelength_cm` (`satviz.radar.radar_facts`) and
+  `backscatter`, and put its own caveats in `Product.caveats`.
 - **Recipe**: `recipes/`, with the `needs` it requires.
-- **Template**: subclass `Template` in `templates/scenarios.py` (or its own module, as `multispectral.py`); `plan` returns the input tuples, `resolve` the arrangement, recipes and wording.
+- **Template**: subclass `Template` in `templates/scenarios.py`; `plan` returns the input tuples, `resolve` the arrangement,
+  recipes and wording.
 - **Theme**: `themes/<name>.py`, a `Theme` of tokens; add `chrome` only for another structure, `rc` and `sketch` for a hand-drawn look.

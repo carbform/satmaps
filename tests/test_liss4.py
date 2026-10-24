@@ -7,9 +7,9 @@ import pytest
 from satviz.config import InputSpec
 from satviz.core import RECIPES, SENSORS
 from satviz.registry import load_builtin
-from satviz.sensors import liss4
+from satviz.sensors.optical import liss4
 from satviz.sources import SourceError
-from tests.test_geotiff_sensors import AREA, EPSG, X0, Y0, needs_rasterio, write_tif
+from tests.rasters import AREA, EPSG, X0, Y0, needs_rasterio, write_tif
 
 load_builtin()
 

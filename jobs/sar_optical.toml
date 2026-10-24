@@ -1,0 +1,29 @@
+# Radar and optical over the Brahmaputra, radar on the left. The dates differ by up to 39 days and the optical products are at
+# different reflectance levels (surface and top-of-atmosphere); each figure says both.
+# Run:  satviz run jobs/sar_optical.toml --out outputs/sar_optical/
+extends = "brahmaputra.toml"
+
+# every radar against every optical: four figures
+[[figures]]
+name = "pair"
+template = "sar_optical"
+inputs = ["S1", "E", "S2", "L4"]
+theme = "minimal"
+text = { title = "Radar and optical" }
+
+# all four on one page
+[[figures]]
+name = "tiles"
+template = "sar_optical"
+arrangement = "grid"
+inputs = ["S1", "E", "S2", "L4"]
+theme = ["minimal", "newspaper"]
+text = { title = "Radar and optical, one river" }
+
+# the five themes on one figure (the README previews)
+[[figures]]
+name = "themes"
+template = "sar_optical"
+inputs = ["S1", "L4"]
+theme = ["neo_retro", "minimal", "neo_brutal", "newspaper", "xkcd"]
+text = { title = "Radar and optical, one river" }

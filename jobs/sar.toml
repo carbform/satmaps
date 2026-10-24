@@ -1,0 +1,28 @@
+# SAR over the Brahmaputra: NISAR L and S, Sentinel-1 and EOS-04. Every pair says how its two products relate (band, sensor,
+# days apart, gamma0 or sigma0). Run:  satviz run jobs/sar.toml --out outputs/sar/
+extends = "brahmaputra.toml"
+
+# every pair of the four radars: six figures
+[[figures]]
+name = "pair"
+template = "sar"
+inputs = ["L", "S", "S1", "E"]
+theme = "minimal"
+text = { title = "Radar against radar" }
+
+# all four on one page
+[[figures]]
+name = "tiles"
+template = "sar"
+arrangement = "grid"
+inputs = ["L", "S", "S1", "E"]
+theme = ["minimal", "newspaper"]
+text = { title = "Four radars, one river" }
+
+# both sigma0: the figure carries no backscatter warning
+[[figures]]
+name = "sigma0"
+template = "sar"
+inputs = ["S1", "Es"]
+theme = "minimal"
+text = { title = "Same band, same convention" }

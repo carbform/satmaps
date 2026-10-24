@@ -1,0 +1,20 @@
+# Optical over the Brahmaputra: Sentinel-2C (12 bands) and LISS-IV (3 bands), band by band and side by side. LISS-IV has no blue
+# band, so the pair gets NIR false colour on both sides; the figure states the reflectance levels and the days apart.
+# Run:  satviz run jobs/optical.toml --out outputs/optical/
+extends = "brahmaputra.toml"
+
+# each product band by band: no comparison
+[[figures]]
+name = "bands"
+template = "optical"
+arrangement = "bands"
+inputs = ["S2", "L4"]                 # one figure per input
+theme = "minimal"
+text = { title = "Band by band" }
+
+[[figures]]
+name = "pair"
+template = "optical"
+inputs = ["S2", "L4"]
+theme = ["minimal", "newspaper"]
+text = { title = "Two optical eyes" }

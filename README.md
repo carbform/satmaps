@@ -1,11 +1,11 @@
 # satviz
 
-Social, publication and editorial infographics from satellite data: SAR (NISAR, EOS-04, Sentinel-1) and optical (Sentinel-2, Landsat, ResourceSat LISS-IV), alone or side by side. NISAR was the first sensor (noise-aware false-colour composites from **L-band** and **S-band** L2 GCOV products).
-The first scene is the Brahmaputra near Dibrugarh (Assam), seen by L-SAR and S-SAR on the same pass.
+Social, publication and editorial infographics from satellite data, alone or side by side: **SAR** (NISAR, Sentinel-1, EOS-04) and **optical** (Sentinel-2, ResourceSat LISS-IV, including band-by-band multispectral views).
+The worked scene is the Brahmaputra near Dibrugarh (Assam), seen by all five.
 
 <p align="center">
-  <img src="docs/img/social.jpg" alt="Social graphic: L-band and S-band split view of the Brahmaputra" width="46%">
-  <img src="docs/img/publication.jpg" alt="Publication figure: L-band vs S-band composites, HH scatter and HV SNR" width="46%">
+  <img src="docs/img/social.jpg" alt="Social graphic: L-band and S-band split view of the Brahmaputra" width="38%">
+  <img src="docs/img/theme_neoretro.jpg" alt="Radar next to optical over the Brahmaputra: Sentinel-1 and LISS-IV" width="38%">
 </p>
 
 The S-band product is still unfinished: calibration metadata is unpopulated, noise is not subtracted and a flag
@@ -15,99 +15,76 @@ Read [docs/processing-notes.md](docs/processing-notes.md) before quoting any num
 
 ## What it does
 
-- Reads an ROI from a GCOV HDF5 file (HH and HV covariance terms, mask, RTC factor, noise-equivalent backscatter).
-- Refers the noise floor to γ⁰ (NEBS / η), flags pixels below SNR 3 dB and subtracts noise elsewhere.
-- Builds a false-colour composite: R = HH, G = HV (noise-subtracted), B = HH−HV ratio, with per-band or pooled stretch.
-- Renders six figures:
+You describe a place, point at the data you have, and choose what the figure is about and how it looks. The tool finds the
+product's files, reads only the part under your area, calibrates it from the product's own metadata, puts every input on one
+pixel grid, and prints what the data cannot promise (calibration, noise, cloud, reflectance level, backscatter convention, time
+between acquisitions) on the figure. Everything reads local files; nothing is downloaded.
 
-| `satviz render …` | Output | Style |
-|---|---|---|
-| `sband-social` / `lband-social` | One band: full-width composite and the three bands it is built from, 4:5 | neo-retro |
-| `ls-social` | L|S split view with three zoom pairs, 4:5 | neo-retro ([design notes](docs/design-language.md)) |
-| `ls-clean` | Two large maps, compact header and footer | clean white, [preview](docs/img/clean.jpg) |
-| `ls-publication` | Composites, HH L-vs-S density, HV SNR distributions; PNG + PDF | journal-style, one pooled stretch |
-| `sband-publication` | S-band alone: HH, HV, composite, SNR; PNG + PDF | journal-style |
+Two kinds of data, five sensors, three templates:
+
+| | Sensors (`sensor =`) | Reads | Layers |
+|---|---|---|---|
+| **SAR** | `nisar` | NISAR L2 GCOV `.h5` (L-band and S-band) | HH/HV, noise-screened, γ⁰ |
+| | `sentinel1` | Sentinel-1 IW GRD, the unzipped `.SAFE` | VV/VH, σ⁰ with noise subtracted |
+| | `eos04` | EOS-04 MRS Level-2B, the unzipped folder | HH/HV, γ⁰ (or `backscatter = "sigma0"`) |
+| **Optical** | `sentinel2` | Sentinel-2 L2A, the unzipped `.SAFE` | all 12 bands, surface reflectance |
+| | `liss4` | ResourceSat-2/2A LISS-IV, the unzipped folder | green, red, NIR at 5 m, top-of-atmosphere |
+
+| You choose | Options |
+|---|---|
+| **Where** | a centre and size, or a box (`[area]`) |
+| **What data** | one of the five sensors and a file or folder (`[[inputs]]`) |
+| **What it is about** | `sar`, `optical` or `sar_optical` (`template`) |
+| **How it looks** | `neo_retro`, `minimal`, `neo_brutal`, `newspaper`, `xkcd` (`theme`) |
+| **What it says** | titles, notes, credits, in a wording file with `{placeholders}` filled from the data |
 
 ## Job files: fill in a config, run one command
 
 ```bash
-satviz init                              # list presets (sar, sar-compare, optical, sar-vs-optical, multi-sensor-grid)
-satviz list                              # sensors, recipes, themes and what each template does
-satviz init sar-compare -o job.toml      # write a starter file
+satviz init                              # list the starters: sar, optical, sar-optical
+satviz init sar -o job.toml              # write one
 # edit the area, the data files and the wording
 satviz run job.toml --out outputs/
 ```
 
-A job file says where (`[area]`: `center` + `radius_km` or `size_km`, or a `bbox`), which data (`[[inputs]]`: an `id`,
-a `sensor` and a `source` path or glob), optional `[[zooms]]` by place, and which figures (`[[figures]]`: a `template`
-(see [Templates](#templates)), `inputs`, `theme` or a list of themes, `text = { title = "...", subtitle = "..." }`, and
-optionally an `arrangement`). Place names, titles and credits are yours to write. A worked
-example is [jobs/brahmaputra_l_vs_s.toml](jobs/brahmaputra_l_vs_s.toml), which reproduces the L-vs-S and S-band graphics
-exactly. The area defines one pixel grid and every input is read onto it, so the inputs always line up. Grids that
-already match are copied, others are resampled. A `<job>.lock.json` next to the outputs records the grid, the input files and the catalogue scenes that were chosen
-(it documents a run; to repeat a scene exactly, pin it with `item = "..."`). The built-in wording needs no layout file; sensors add their own attribution and caveats (calibration state,
-noise screening) and these cannot be removed.
-
-### Inputs: SAR, optical, anything with a GeoTIFF
-
-| `sensor` | Data | `source` | Notes |
-|---|---|---|---|
-| `nisar_gcov` | NISAR L2 GCOV (L-SAR, S-SAR) | `{ path = "file or glob" }` | local files; noise-screened false colour |
-| `sentinel2_l2a` | Sentinel-2 surface reflectance | `{ stac = "earth-search", date = "2026-09-25" }` | free, no login |
-| `sentinel2_safe` | Sentinel-2 L2A, all 12 bands, from a `.SAFE` folder | `{ path = "S2C_MSIL2A_….SAFE" }` (unzipped) | local; each band at its native resolution; wavelengths from the metadata |
-| `landsat_c2l2` | Landsat 8/9 Collection 2 Level 2 | `{ stac = "planetary-computer", date = ... }` | free, anonymous token |
-| `eos04` | EOS-04 (RISAT-1A) SAR, Level-2B gamma0 ARD (MRS) | `{ path = "E04_…" }` (unzipped product folder) | local; calibrated per the EOS-04 format document; layover/shadow masked; `backscatter = "gamma0"` (default) or `"sigma0"` |
-| `sentinel1_grd` | Sentinel-1 IW GRD (VV/VH) from a `.SAFE` folder | `{ path = "S1…SAFE" }` (unzipped) | local; sigma0 with noise subtracted; GCP geolocation, not terrain-flattened |
-| `liss4` | ResourceSat-2 and 2A LISS-IV (NRSC/ISRO), green/red/NIR at 5 m | `{ path = "R2F…" }` (unzipped product folder) | local; TOA reflectance from the `.meta`; false colour only |
-| `sentinel1_rtc` | Sentinel-1 RTC (VV/VH) | `{ stac = "planetary-computer", date = ..., orbit = "ascending" }` | no noise floor published; the figure says so |
-| `geotiff` | anything else: ResourceSat, ALOS PALSAR RTC, PlanetScope, ... | `{ path = "scene.tif" }` | band map in the job file, see [sensors/geotiff.py](src/satviz/sensors/geotiff.py) |
-
-Catalogue inputs need network and `pip install "satviz[optical]"`. The scene is the one closest to `date` (within
-`window_days`) whose **cloud cover over your area** (not the tile-wide figure) is at most `max_cloud` and that covers at
-least `min_coverage` of it; pin one with `item = "..."`. `satviz search job.toml` lists what would be used. Reflectance
-scaling is read from each scene's own metadata. Clouds are shown, not masked, and the figure states the cloud share.
-Each sensor adds its own attribution (Copernicus, USGS, NISAR) and caveats; they cannot be removed from a figure. When
-inputs are from different days the header shows every date and time. Pixels coarser than the canvas are resampled, and a
-notice says so.
-
-<p align="center">
-  <img src="docs/img/sar_vs_optical.jpg" alt="NISAR L-band next to Sentinel-2" width="38%">
-  <img src="docs/img/grid_four_sensors.jpg" alt="NISAR, Sentinel-1, Landsat 8 and Sentinel-2 on one grid" width="38%">
-</p>
+A job file says where (`[area]`: `center` + `radius_km` or `size_km`, or a `bbox`), which data (`[[inputs]]`: an `id`, a
+`sensor` and a `source` path or glob), and which figures (`[[figures]]`: a `template`, `inputs`, `theme` or a list of themes,
+`text = { title = "...", subtitle = "..." }`, and optionally an `arrangement`). The area defines one pixel grid and every
+input is read onto it, so the inputs always line up: grids that already match are copied, others are resampled, and a notice
+says so. A `<job>.lock.json` next to the outputs records the grid and the input files. Sensors add their own attribution and
+caveats (calibration state, noise screening), and these cannot be removed.
 
 ## Templates
 
 A **template** says what a figure is about. It checks the inputs, picks a recipe for each, decides how they sit on the page
 (the **arrangement**) and states how the products relate. A **theme** only styles the chrome around the data.
 
-| `template` | Takes | Default page | What the figure also says |
+| `template` | Takes | `arrangement` | What the figure also says |
 |---|---|---|---|
-| `optical` | optical inputs | one figure per input | the sensor's own notices (cloud share, no blue band) |
-| `sar` | SAR inputs | one figure per input | noise handling, calibration state |
-| `optical_sar` | at least one SAR and one optical | split view, SAR left | days between the acquisitions |
-| `sar_vs_sar` | two or more SAR | split view per pair | how they relate, below |
-| `multispectral` | one optical product per figure | `bands`: a panel per spectral band | the sensor's own notices; no comparison |
+| `sar` | NISAR, Sentinel-1, EOS-04 | `single` (one input, the default), `compare` (every pair, split view; the default for two or more), `grid` (2 to 6 tiled) | with two or more: how they relate (below) |
+| `optical` | Sentinel-2, LISS-IV | the same three, plus `bands`: one product band by band | reflectance level and days apart; the sensor's own notices |
+| `sar_optical` | at least one of each | `compare` (each SAR against each optical, SAR left; default) or `grid` | days between the acquisitions |
 
-`sar_vs_sar` reads the relation from the products and prints it as the subtitle and one notice line: **same sensor in two
-bands** (NISAR L and S), **same band from different sensors** (EOS-04 and Sentinel-1, both C-band), or **different sensors
-and bands**; with the wavelengths, the time between acquisitions, and a warning when backscatter conventions differ
-(σ⁰ ellipsoid against γ⁰ terrain-corrected: not directly comparable). Optical pairs get the same treatment for reflectance level (Sentinel-2 L2A is
-surface reflectance, LISS-IV top-of-atmosphere). Bands and wavelengths come from each file's own
-frequency, never from a table.
+`sar` with two or more inputs reads the relation from the products and prints it as the subtitle and one notice line: **same
+sensor in two bands** (NISAR L and S), **same band from different sensors** (EOS-04 and Sentinel-1, both C-band), or **different
+sensors and bands**; with the wavelengths, the time between acquisitions, and a warning when backscatter conventions differ
+(σ⁰ ellipsoid against γ⁰ terrain-corrected: not directly comparable). Bands and wavelengths come from each file's own frequency,
+never from a table. Optical pairs get the same treatment for reflectance level (Sentinel-2 L2A is surface reflectance, LISS-IV
+top-of-atmosphere).
 
-`multispectral` is separate on purpose: it shows one product band by band (Sentinel-2's 12 bands, LISS-IV's 3), each panel in linear grey on
-one shared stretch so brightness ratios between bands stay real (`stretch = "per-band"` gives each its own, with the limits on its label), labelled
-with the band id, centre wavelength (or nominal range) and native pixel size. `composites = ["true_colour", "nir_fcc"]` appends colour composites; they are
-off by default. It never compares and refuses SAR inputs.
+`optical` with `arrangement = "bands"` shows one product band by band (Sentinel-2's 12 bands, LISS-IV's 3), each panel in linear
+grey on one shared stretch so brightness ratios between bands stay real (`stretch = "per-band"` gives each its own, with the limits on
+its label), labelled with the band id, centre wavelength (or nominal range) and native pixel size. `composites = ["true_colour",
+"nir_fcc"]` appends colour composites; they are off by default. It never compares.
 
-`arrangement = "single" | "compare" | "grid"` overrides the page: `grid` tiles two to six inputs, `compare` splits one
-canvas between two. `single`, `compare` and `grid` also work as templates for older job files: no checks, no relation text.
-If a figure names no recipe, SAR inputs get `sar_fcc`; optical inputs get `true_colour` when they have a blue band and
-`nir_fcc` when they do not (LISS-IV). Other recipes: `swir_fcc`, `ndvi`, `ndwi`; `recipes = { E = "sar_fcc", L4 = "ndvi" }`
-sets one per input.
+If a figure names no recipe, SAR inputs get `sar_fcc`; optical inputs get `true_colour` when they have a blue band and `nir_fcc`
+when they do not (LISS-IV), and several optical inputs on one figure share one recipe. Other recipes: `swir_fcc`, `ndvi`, `ndwi`;
+`recipes = { E = "sar_fcc", L4 = "ndvi" }` sets one per input.
 
 <p align="center">
-  <img src="docs/img/scenario_sar_vs_sar.jpg" alt="SAR against SAR: Sentinel-1 and EOS-04, both C-band; the relation, the 15 days between them and the backscatter conventions are stated" width="38%">
+  <img src="docs/img/sar_vs_optical.jpg" alt="EOS-04 radar next to Sentinel-2 over the Brahmaputra" width="30%">
+  <img src="docs/img/grid_four_sensors.jpg" alt="Sentinel-1, EOS-04, Sentinel-2 and LISS-IV on one grid" width="30%">
+  <img src="docs/img/scenario_sar_vs_sar.jpg" alt="SAR against SAR: Sentinel-1 and EOS-04, both C-band; the relation, the days between them and the backscatter conventions are stated" width="30%">
 </p>
 
 ## Themes
@@ -127,7 +104,7 @@ rules; inspired by a printed page, no real masthead) and `xkcd` (hand-drawn chro
 removed inside every data axes, so scale bars, zoom boxes and the split line stay exact). `theme = ["minimal", "xkcd"]` writes one
 file per theme. A theme is a dozen tokens in `src/satviz/themes/` (copy `minimal.py`); one that needs another structure can
 also supply `chrome` with its own `header` and `block`, as `newspaper.py` does. Text tokens must reach 4.5:1 contrast on their
-backgrounds; a test enforces it. Older `satviz render` figures take `--theme`; the clean and publication figures stay plain on purpose.
+backgrounds; a test enforces it.
 
 ## Install
 
@@ -136,45 +113,54 @@ Python 3.11 or newer.
 ```bash
 git clone <this repo> && cd satviz
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[rasters,dev]"
 ```
 
 ## Data
 
-No data are stored here. You need two NISAR GCOV granules from the same pass, obtained from the official NISAR
-distribution channels (check the provider's terms of use). The Brahmaputra scene expects:
+No data are stored here. Put the downloads in `data/` (ignored by git), unzipped: the Sentinel-1 and Sentinel-2 `.SAFE` folders,
+the NRSC folders (EOS-04 `E04_…`, LISS-IV `R2F…`), and the NISAR `.h5` files as they are. Or point the tool elsewhere with
+`--data-dir /path` or `export SATVIZ_DATA_DIR=/path`. Lookup order: `--data-dir`, `$SATVIZ_DATA_DIR`, `./data`, the current
+directory. The Dibrugarh jobs in [jobs/](jobs/) expect:
 
 ```
-NISAR_S2_PR_GCOV_031_112_A_016_3700_DHNA_A_20260925T225740_20260925T225816_P00500_M_F_I_001.h5   (S-SAR)
-NISAR_L2_PR_GCOV_031_112_A_016_4005_DHDH_A_20260925T225740_20260925T225815_P05023_N_F_J_001.h5   (L-SAR)
+NISAR_L2_PR_GCOV_031_112_A_016_4005_…h5     NISAR_S2_PR_GCOV_031_112_A_016_3700_…h5     (L-SAR and S-SAR, 25 Sep 2026)
+S1D_IW_GRDH_1SDV_20260925T114837_….SAFE     E04_SAR_MRS_10SEP2026_….                    (Sentinel-1, EOS-04)
+S2C_MSIL2A_20260929T041551_….SAFE           RAF19OCT2026051193011300052SSANSTUC00GTDA   (Sentinel-2C, LISS-IV)
 ```
 
-Other local products go in `data/` too, unzipped: the NRSC downloads (EOS-04 `E04_…`, LISS-IV `R2F…`) as folders and the Sentinel-1 `.SAFE` as a folder. The third-party handbooks the readers follow are listed in [docs/references/](docs/references/README.md).
-
-Put them in `data/` (ignored by git), or point the tool elsewhere with `--data-dir /path/to/granules` or
-`export SATVIZ_DATA_DIR=/path/to/granules` (the old `NISAR_DATA_DIR` still works). Lookup order: `--data-dir`, `$SATVIZ_DATA_DIR`, `./data`, the current directory. Reading a slice from these multi-GB files can be slow, so ROIs are cached as `.npz`
-in `cache/` (invalidated automatically if the source file changes; `--no-cache` to disable).
+NISAR needs only `pip install -e .`; the other four are GeoTIFF products and need `pip install -e ".[rasters]"` (rasterio). Reading
+a slice of a multi-GB NISAR file can be slow, so it is cached as `.npz` in `cache/` (invalidated when the source changes;
+`--no-cache` to disable). The handbooks the readers follow are listed in [docs/references/](docs/references/README.md).
 
 ## Usage
 
-`satviz render` is the older NISAR-only path, kept under `legacy/`; new work uses `satviz run` with a job file. Run from the repository root (the default `--config` is `legacy/configs/brahmaputra.toml`).
-
 ```bash
-satviz render all                                       # granules in ./data; writes to outputs/
-satviz render ls-social ls-clean --out figs/
-satviz render ls-social --pooled-stretch                # same colours in both bands (default: each band on its own)
-satviz stats --data-dir /path/to/granules               # noise fractions, backscatter percentiles per band
-python -m satviz render ls-publication                  # same as the console script
+satviz init                                 # list the starter job files
+satviz init sar -o job.toml                 # write one, then edit the area, the data and the wording
+satviz run job.toml --out outputs/          # render every figure of the job
+satviz placeholders job.toml                # the {placeholders} a wording file of this job can use, with their values
+satviz list                                 # sensors, recipes, themes, templates
 ```
 
-## Layout files: change the wording without touching code
+The worked jobs in [jobs/](jobs/) all extend [brahmaputra.toml](jobs/brahmaputra.toml), which holds the place and every local input;
+each says only what to draw:
 
-What is written on each figure lives in a wording file, e.g. `legacy/layouts/<figure>.toml` (`sband_social.toml` and `lband_social.toml` for the
-single-band graphics, plus the four L-vs-S and publication files): main title, subtitle, info line, the how-to-read
-legend, the bottom notes, the credits and the publication captions. Edit them freely.
+| Job | Draws |
+|---|---|
+| [sar.toml](jobs/sar.toml) | every pair of NISAR L, NISAR S, Sentinel-1 and EOS-04; all four on one page; a sigma0-only pair |
+| [optical.toml](jobs/optical.toml) | Sentinel-2 and LISS-IV band by band, and side by side |
+| [sar_optical.toml](jobs/sar_optical.toml) | each radar against each optical; all four tiled; the five themes |
+| [social.toml](jobs/social.toml) | NISAR social posts with their own wording files from [jobs/layouts/](jobs/layouts/) and zoom windows |
+
+## Wording files: change what the figure says without touching code
+
+Every template has built-in wording, and the job's `text = { title = "...", subtitle = "..." }` overrides the header. For full control
+point a figure at a wording file of your own: `layout = "layouts/my_figure.toml"` (relative to the job file). Two examples, with
+the placeholders they use, are in [jobs/layouts/](jobs/layouts/): `ls_social.toml` (split view) and `sband_social.toml` (one input).
 
 ```toml
-# legacy/layouts/ls_social.toml
+# jobs/layouts/ls_social.toml
 [header]
 title = "River Brahmaputra"
 subtitle = "THE {name_upper} AS SEEN BY NISAR"
@@ -187,31 +173,16 @@ lines = [
 ]
 ```
 
-Facts are **never typed in a layout**. Placeholders such as `{date}`, `{time_utc}`, `{track}`, `{frame}`,
-`{pass_direction}`, `{posting_m}`, `{crs}`, `{L.wavelength_cm:.0f}`, `{S.freq_ghz:g}`, `{S.crid}` and the noise
-percentages `{S.noisy_hv_pct:.0f}` are read from the granule metadata and the data (the identification group,
-swath, calibration and processing-parameter groups). `{x_upper}` is the upper-case form of `{x}`, and `{x!u}` upper-cases any value (e.g. `{L.rfi!u}`). The colour-stretch
-limits of the single-band graphics are `{lim.HH_lo}`, `{lim.HH_hi}`, `{lim.HV_lo}` and so on. List all of them
-with their values:
+Facts are **never typed in a wording file**. Placeholders such as `{date}`, `{time_utc}`, `{crs}`, `{posting_m}`, and per input
+`{S1.date}`, `{L.wavelength_cm:.0f}`, `{S.freq_ghz:g}`, `{S.noisy_hv_pct:.0f}` are read from the products. `{x_upper}` is the
+upper-case form of `{x}`, and `{x!u}` upper-cases any value. `satviz placeholders job.toml` lists every one the job's products
+provide, with its value.
 
-```bash
-satviz placeholders --data-dir /path/to/granules
-```
-
-Two safeguards: a line written as `{ if = "uncal_bands", text = "..." }` shows only while a band's calibration scale
-factors are zero in the file, so the provisional-calibration warning disappears by itself when ISRO populates them; and
-the tool refuses to build a figure from two granules that are not the same track, frame and pass direction. Unknown
-placeholders and over-long lists fail with the file name and the valid choices. `satviz render --layouts-dir DIR`
-uses another set of layout files.
-
-## Another scene
-
-A scene for the older `render` path is one TOML file ([legacy/configs/brahmaputra.toml](legacy/configs/brahmaputra.toml)): a list of `[[inputs]]` (an `id`, the
-`sensor` reader that handles it, the file, and that reader's options; for NISAR the HDF5 group and the ROI rows and
-columns in each file's own grid; the first input is the reference for shared facts such as track and CRS), zoom windows, callouts and the place names (`name`, `reach`, `region`, author,
-website). Date, pass and instrument facts are not in it; they come from the files. Copy it, edit it and pass
-`--config`. The L-band and S-band ROIs must cover the same ground; check that the `x`/`y` coordinates match before
-building a split view.
+Two safeguards: a line written as `{ if = "uncal_bands", text = "..." }` shows only while a band's calibration scale factors are
+zero in the file, so the provisional-calibration warning disappears by itself when ISRO populates them; and NISAR inputs from
+different tracks, frames or passes are refused unless the figure sets `allow_different_passes = true`. Unknown placeholders and
+over-long lists fail with the file name and the valid choices. What a sensor insists on (attribution, calibration and quality
+caveats) is added to every figure and cannot be removed by a wording file's header.
 
 ## Layout
 
@@ -219,21 +190,21 @@ building a split view.
 src/satviz/
   core.py         Product, Rendered, registries for sensors, recipes, templates, themes
   registry.py     loads the built-in plugins; `satviz list`
-  sensors/        one module per sensor: nisar_gcov/, eos04, sentinel1_grd, sentinel1 (RTC), sentinel2 (catalogue), sentinel2_safe (local), landsat, liss4, geotiff
-                  nrsc.py (shared NRSC metadata parser), stac_optical.py (shared catalogue reader)
+  sensors/
+    sar/          nisar/ (L2 GCOV), sentinel1 (GRD), eos04 (MRS L2B)
+    optical/      sentinel2 (L2A, 12 bands), liss4
+    nrsc.py       metadata parser shared by the NRSC/ISRO readers (eos04, liss4)
   recipes/        sar_fcc (SAR false colour), optical (true colour, NIR/SWIR false colour, NDVI, NDWI), bands (single-band grey panels)
-  templates/      scenarios: optical, sar, multispectral, optical_sar, sar_vs_sar (+ single/compare/grid as bare arrangements)
-  relations.py    how the products of a figure relate (band, sensor, time gap, backscatter convention)
+  templates/      sar, optical, sar_optical (scenarios.py); base.py holds what they share
+  relations.py    how the products of a figure relate (band, sensor, time gap, backscatter convention, reflectance level)
   radar.py        radar band and wavelength from a centre frequency
   arrangements/   single, compare, grid, bands: where products sit on the page; `draw` runs one
   themes/         base.py (Theme tokens + chrome), neo_retro, minimal, neo_brutal, newspaper, xkcd
   area.py, grid.py, job.py, run.py, sources.py   area -> canvas grid, resampling, job file, runner, data paths
   config.py, layout.py, geo.py, cog.py            scene dataclasses, wording files + placeholders, projections, GeoTIFF windows
-  presets/, layouts/    starter job files and built-in wording (shipped with the package)
-  legacy/         the NISAR-only figures behind `satviz render` (clean, publication)
-  cli.py          satviz entry point (`nisar-viz` and `python -m nisar_viz` are aliases)
-jobs/             worked job files: Dibrugarh (NISAR, Sentinel-1, EOS-04, Sentinel-2, LISS-IV) and their template variants
-legacy/           configs/ and layouts/ for `satviz render`
+  presets/, layouts/    starter job files (sar, optical, sar-optical) and built-in wording (shipped with the package)
+  cli.py          `satviz run | init | list | placeholders`
+jobs/             brahmaputra.toml (place + inputs) and the four jobs that extend it; layouts/ has two wording-file examples
 docs/             architecture, pipelines, processing notes, design language; references/ lists the (git-ignored) PDFs
 tests/            synthetic-data tests (no granules needed)
 ```

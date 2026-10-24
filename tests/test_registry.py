@@ -2,15 +2,15 @@ import pytest
 
 from satviz.core import RECIPES, SENSORS, THEMES, Registry
 from satviz.registry import describe
-from satviz.sensors.nisar_gcov import to_product
-from satviz.sensors.nisar_gcov.io import load_roi
+from satviz.sensors.sar.nisar import to_product
+from satviz.sensors.sar.nisar.io import load_roi
 
 
 def test_builtins_registered():
     d = describe()
-    assert d == {"sensors": ["eos04", "geotiff", "landsat_c2l2", "liss4", "nisar_gcov", "sentinel1_grd", "sentinel1_rtc", "sentinel2_l2a", "sentinel2_safe"],
+    assert d == {"sensors": ["eos04", "liss4", "nisar", "sentinel1", "sentinel2"],
                  "recipes": ["ndvi", "ndwi", "nir_fcc", "sar_fcc", "swir_fcc", "true_colour"], "themes": ["minimal", "neo_brutal", "neo_retro", "newspaper", "xkcd"],
-                 "templates": ["compare", "grid", "multispectral", "optical", "optical_sar", "sar", "sar_vs_sar", "single"]}
+                 "templates": ["optical", "sar", "sar_optical"]}
 
 
 def test_registry_rejects_duplicates_and_lists_known():
@@ -24,7 +24,7 @@ def test_registry_rejects_duplicates_and_lists_known():
 
 def test_nisar_product_and_recipe(scene):
     describe()
-    p = SENSORS["nisar_gcov"].load(scene, "S")
+    p = SENSORS["nisar"].load(scene, "S")
     assert p.meta["platform"] == "NISAR" and p.meta["resolution_m"] == 10
     assert p.layers["hh"].shape == p.valid.shape
     assert any("calibration" in c for c in p.caveats)  # S fixture is uncalibrated

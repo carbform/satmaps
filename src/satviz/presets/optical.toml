@@ -1,6 +1,6 @@
-# One optical scene (Sentinel-2) as a social graphic; the scene is found by place and date, no files needed.
-# Needs network and:  pip install "satviz[optical]"
-# Check what would be used with `satviz search optical.toml`, then:  satviz run optical.toml
+# Optical from local files (Sentinel-2 L2A or LISS-IV): each product band by band, and/or compared side by side.
+# Edit the area, the file names and the wording, then:  satviz run optical.toml
+# Unzip the downloads into ./data first (the Sentinel-2 .SAFE folder, the NRSC product folder).
 
 [scene]
 name = "My place"
@@ -9,19 +9,32 @@ author = ""
 website = ""
 
 [area]
-center = [27.565, 94.905]     # lat, lon
-radius_km = 8
+center = [27.60, 94.87]       # lat, lon
+size_km = [20, 20]
+resolution_m = 10
 
 [[inputs]]
-id = "opt"
-sensor = "sentinel2_l2a"
-# The scene closest to `date` (within window_days) with at most max_cloud % cloud IN YOUR AREA is used.
-# Pin one exactly with  item = "S2B_46RFR_20260924_0_L2A".
-source = { stac = "earth-search", date = "2026-09-25", window_days = 7, max_cloud = 20 }
+id = "S2"
+sensor = "sentinel2"          # sentinel2 or liss4
+source = { path = "S2*_MSIL2A_*.SAFE" }
+
+[[inputs]]
+id = "L4"
+sensor = "liss4"
+source = { path = "RAF*" }
 
 [[figures]]
+name = "bands"
 template = "optical"
-inputs = ["opt"]
-recipes = { opt = "true_colour" }      # true_colour, nir_fcc, swir_fcc, ndvi, ndwi
-theme = "neo_retro"
-text = { title = "My title", subtitle = "SEEN BY SENTINEL-2" }
+arrangement = "bands"         # a panel per spectral band, one figure per input; composites = ["true_colour", "nir_fcc"] adds composites
+inputs = ["S2", "L4"]
+theme = "minimal"
+text = { title = "Band by band" }
+
+[[figures]]
+name = "pair"
+template = "optical"          # one input: one figure. Two or more: every pair, split view
+inputs = ["S2", "L4"]
+recipes = { default = "nir_fcc" }   # true_colour (needs a blue band), nir_fcc, swir_fcc, ndvi, ndwi
+theme = "minimal"
+text = { title = "My title", subtitle = "SENTINEL-2 AND LISS-IV" }

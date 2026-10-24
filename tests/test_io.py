@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from satviz.sensors.nisar_gcov.io import load_roi, read_roi
+from satviz.sensors.sar.nisar.io import load_roi, read_roi
 from tests.conftest import NEBS_DB, H, W
 
 

@@ -1,4 +1,4 @@
-"""Where an input's data comes from: a local path or glob. (STAC search is added with the optical readers.)"""
+"""Where an input's data comes from: a local path or glob."""
 from __future__ import annotations
 
 from pathlib import Path
