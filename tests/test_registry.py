@@ -9,7 +9,7 @@ from satviz.sensors.sar.nisar.io import load_roi
 def test_builtins_registered():
     d = describe()
     assert d == {"sensors": ["eos04", "liss4", "nisar", "sentinel1", "sentinel2"],
-                 "recipes": ["ndvi", "ndwi", "nir_fcc", "sar_fcc", "swir_fcc", "true_colour"], "themes": ["minimal", "neo_brutal", "neo_retro", "newspaper", "xkcd"],
+                 "recipes": ["ndvi", "ndwi", "nir_fcc", "sar_compact", "sar_fcc", "swir_fcc", "true_colour"], "themes": ["minimal", "neo_brutal", "neo_retro", "newspaper", "xkcd"],
                  "templates": ["optical", "sar", "sar_optical"]}
 
 

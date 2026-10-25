@@ -6,6 +6,7 @@ from satviz.core import RECIPES, SENSORS, TEMPLATES, THEMES
 
 def load_builtin() -> None:
     import satviz.recipes.optical  # noqa: F401
+    import satviz.recipes.sar_compact  # noqa: F401
     import satviz.recipes.sar_fcc  # noqa: F401
     import satviz.sensors.optical.liss4  # noqa: F401  # noqa: F401
     import satviz.sensors.optical.sentinel2  # noqa: F401  # noqa: F401

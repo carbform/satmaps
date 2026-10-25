@@ -46,7 +46,8 @@ def ds(raw):
 
 
 def write_granule(path: Path, group: str, raw: dict, *, instrument: str = "SSAR", freq_hz: float = 3.2e9, calibrated: bool = False,
-                  rfi: str = "FDNF", start: str = "2026-09-25T22:57:40.10308051", crid: str = "P00500", track: int = 112) -> None:
+                  rfi: str = "FDNF", start: str = "2026-09-25T22:57:40.10308051", crid: str = "P00500", track: int = 112,
+                  pols: tuple[str, str] = ("HH", "HV"), rhrv: np.ndarray | None = None) -> None:
     """Minimal HDF5 file with the GCOV layout and the metadata that `satviz.sensors.sar.nisar.io` / `satviz.sensors.sar.nisar.metadata` read."""
     root = group.rsplit("/", 1)[0]
     with h5py.File(path, "w") as f:
@@ -54,8 +55,12 @@ def write_granule(path: Path, group: str, raw: dict, *, instrument: str = "SSAR"
         g["xCoordinates"], g["yCoordinates"] = raw["x"], raw["y"]
         g["xCoordinateSpacing"] = 10.0
         g["projection"] = np.uint32(raw["epsg"])
-        g["listOfPolarizations"] = np.array([b"HH", b"HV"])
-        g["HHHH"], g["HVHV"] = raw["hh"], raw["hv"]
+        g["listOfPolarizations"] = np.array([p.encode() for p in pols])
+        co, cross = pols[0] * 2, pols[1] * 2  # the covariance terms: HHHH and HVHV, VVVV and VHVH, RHRH and RVRV
+        g["listOfCovarianceTerms"] = np.array([t.encode() for t in (co, cross, *(("RHRV",) if rhrv is not None else ()))])
+        g[co], g[cross] = raw["hh"], raw["hv"]
+        if rhrv is not None:
+            g["RHRV"] = rhrv.astype(np.complex64)
         g["mask"], g["inputDataExceptionMask"] = raw["mask"], raw["exc"]
         g["rtcGammaToSigmaFactor"] = raw["eta"]
         g["numberOfLooks"] = np.full(raw["hh"].shape, 16.0 if instrument == "SSAR" else np.nan, np.float32)
@@ -68,15 +73,15 @@ def write_granule(path: Path, group: str, raw: dict, *, instrument: str = "SSAR"
         for k, v in (("noiseCorrectionApplied", "False"), ("polarimetricSymmetrizationApplied", "False"),
                      ("rangeIonosphericGeolocationCorrectionApplied", "False"), ("azimuthIonosphericGeolocationCorrectionApplied", "False")):
             par[k] = v.encode()
-        for pol in ("HH", "HV"):
+        for pol in pols:
             m[f"calibrationInformation/frequencyA/{pol}/scaleFactor"] = 27000.0 if calibrated else 0.0
         nb = m.create_group("calibrationInformation/frequencyA/noiseEquivalentBackscatter")
         # coarse noise grid with descending y, as in the real products
         nx = np.linspace(raw["x"][0] - 100, raw["x"][-1] + 100, 5)
         ny = np.linspace(raw["y"][0] + 100, raw["y"][-1] - 100, 4)
         nb["xCoordinates"], nb["yCoordinates"] = nx, ny
-        nb["HH"] = np.full((4, 5), 10 ** (NEBS_DB / 10))
-        nb["HV"] = np.full((4, 5), 10 ** (NEBS_DB / 10))
+        for pol in pols:
+            nb[pol] = np.full((4, 5), 10 ** (NEBS_DB / 10))
         ident = f.create_group(f"{root}/identification")
         for k, v in (("instrumentName", instrument), ("radarBand", instrument[0]), ("granuleId", path.stem), ("compositeReleaseId", crid),
                      ("productVersion", "1.0"), ("productSpecificationVersion", "1.2.1"), ("processingCenter", "TEST"),

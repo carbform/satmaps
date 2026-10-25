@@ -36,8 +36,9 @@ def coarsen(d: dict, k: int = 3) -> dict:
         return a[:H, :W].reshape(H // k, k, W // k, k).mean(axis=(1, 3)).astype(np.float32)
 
     c = dict(d)
-    for key in ("hh", "hv", "n_hh", "n_hv", "n_hh_raw", "n_hv_raw", "eta"):
-        c[key] = bm(d[key])
+    for key in ("hh", "hv", "n_hh", "n_hv", "n_hh_raw", "n_hv_raw", "eta", "s2", "s3"):
+        if key in d:
+            c[key] = bm(d[key])
     c["valid"] = d["valid"][:H, :W].reshape(H // k, k, W // k, k).all(axis=(1, 3))
     c["x"] = d["x"][:W].reshape(-1, k).mean(1)
     c["y"] = d["y"][:H].reshape(-1, k).mean(1)

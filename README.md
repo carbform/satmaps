@@ -91,7 +91,7 @@ Two kinds of data, five sensors, three templates:
 
 | | Sensors (`sensor =`) | Reads | Layers |
 |---|---|---|---|
-| **SAR** | `nisar` | NISAR L2 GCOV `.h5` (L-band and S-band) | HH/HV, noise-screened, γ⁰ |
+| **SAR** | `nisar` | NISAR L2 GCOV `.h5` (L-band and S-band) | HH/HV or VV/VH false colour; compact-pol (RH/RV) m-χ composite; noise-screened, γ⁰ |
 | | `sentinel1` | Sentinel-1 IW GRD, the unzipped `.SAFE` | VV/VH, σ⁰ with noise subtracted |
 | | `eos04` | EOS-04 MRS Level-2B, the unzipped folder | HH/HV, γ⁰ (or `backscatter = "sigma0"`) |
 | **Optical** | `sentinel2` | Sentinel-2 L2A, the unzipped `.SAFE` | all 12 bands, surface reflectance |

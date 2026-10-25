@@ -17,6 +17,27 @@ from satviz.sensors.sar.nisar.processing import derive
 log = logging.getLogger(__name__)
 
 
+CACHE_VERSION = "v2"  # raw arrays changed shape with polarisation sets: older cache files are not read
+
+
+class PolarisationError(ValueError):
+    """The product's polarisations are not ones satviz draws."""
+
+
+def pol_set(g) -> dict:
+    """The terms of a GCOV grid group that satviz draws, from the file's own lists: `co` and `cross` are the first two power
+    terms (HHHH/HVHV, else VVVV/VHVH, else the compact RHRH/RVRV, which also has the complex RHRV), `noise` their names in the
+    noise layer, `pols` the two polarisations, `compact` whether the product is compact-pol (circular transmit)."""
+    listed = g["listOfCovarianceTerms"][()] if "listOfCovarianceTerms" in g else list(g)  # (no list: the datasets present)
+    terms = {t.decode() if isinstance(t, bytes) else str(t) for t in listed}
+    for co, cross, noise, compact in (("HHHH", "HVHV", ("HH", "HV"), False), ("VVVV", "VHVH", ("VV", "VH"), False),
+                                      ("RHRH", "RVRV", ("RH", "RV"), True)):
+        if {co, cross} <= terms and (not compact or "RHRV" in terms):
+            return dict(co=co, cross=cross, noise=noise, pols=noise, compact=compact)
+    raise PolarisationError(f"covariance terms {', '.join(sorted(terms))}: satviz draws products with HH+HV, VV+VH or compact "
+                            "RH+RV (RHRH, RVRV, RHRV); single-polarisation and co-polarised pairs are not drawn")
+
+
 STRIP = 64  # output rows per strip when a read is decimated: bounds the memory of a whole-frame read
 
 
@@ -31,6 +52,16 @@ def _strips(ds, r0: int, r1: int, c0: int, c1: int, k: int, mean: bool) -> np.nd
     return np.concatenate(out)
 
 
+class _Part:
+    """A complex dataset seen as its real or imaginary part, so `_strips` reads it a strip at a time."""
+
+    def __init__(self, ds, part):
+        self.ds, self.part = ds, part
+
+    def __getitem__(self, key):
+        return self.part(self.ds[key]).astype(np.float32)
+
+
 def read_roi(path: Path, spec: BandSpec, k: int = 1) -> dict:
     """Raw ROI arrays straight from the file, with the noise layer interpolated onto the grid. With `k` > 1 every layer is
     reduced k x k while it is read (a coarse canvas never needs the full-resolution window in memory)."""
@@ -43,13 +74,14 @@ def read_roi(path: Path, spec: BandSpec, k: int = 1) -> dict:
         r1, c1 = r1 - (r1 - r0) % k, c1 - (c1 - c0) % k
     with h5py.File(path, "r") as f:
         g = f[f"{spec.group}/grids/frequencyA"]
+        ps = pol_set(g)
         x = g["xCoordinates"][c0:c1]
         y = g["yCoordinates"][r0:r1]
         if k == 1:
             sl = (slice(r0, r1), slice(c0, c1))
             out = dict(
                 x=x, y=y, epsg=int(g["projection"][()]),
-                hh=g["HHHH"][sl].astype(np.float32), hv=g["HVHV"][sl].astype(np.float32),
+                hh=g[ps["co"]][sl].astype(np.float32), hv=g[ps["cross"]][sl].astype(np.float32),
                 mask=g["mask"][sl], exc=g["inputDataExceptionMask"][sl],
                 eta=g["rtcGammaToSigmaFactor"][sl].astype(np.float32),
             )
@@ -57,14 +89,23 @@ def read_roi(path: Path, spec: BandSpec, k: int = 1) -> dict:
             x, y = x.reshape(-1, k).mean(1), y.reshape(-1, k).mean(1)
             out = dict(
                 x=x, y=y, epsg=int(g["projection"][()]),
-                hh=_strips(g["HHHH"], r0, r1, c0, c1, k, True), hv=_strips(g["HVHV"], r0, r1, c0, c1, k, True),
+                hh=_strips(g[ps["co"]], r0, r1, c0, c1, k, True), hv=_strips(g[ps["cross"]], r0, r1, c0, c1, k, True),
                 mask=_strips(g["mask"], r0, r1, c0, c1, k, False),
                 exc=_strips(g["inputDataExceptionMask"], r0, r1, c0, c1, k, False),
                 eta=_strips(g["rtcGammaToSigmaFactor"], r0, r1, c0, c1, k, True),
             )
+        if ps["compact"]:  # RHRV is complex: its Stokes parts S2 = 2 Re, S3 = -2 Im, as real layers (the averaging is linear)
+            cross = g["RHRV"]
+            if k == 1:
+                z = cross[r0:r1, c0:c1]
+                out["s2"], out["s3"] = (2 * z.real).astype(np.float32), (-2 * z.imag).astype(np.float32)
+            else:
+                out["s2"] = 2 * _strips(_Part(cross, np.real), r0, r1, c0, c1, k, True)
+                out["s3"] = -2 * _strips(_Part(cross, np.imag), r0, r1, c0, c1, k, True)
+        out["pols"] = np.array(ps["pols"])
         nb = f[f"{spec.group}/metadata/calibrationInformation/frequencyA/noiseEquivalentBackscatter"]
         nx, ny = nb["xCoordinates"][:], nb["yCoordinates"][:]
-        nhh, nhv = nb["HH"][:].astype(np.float64), nb["HV"][:].astype(np.float64)
+        nhh, nhv = nb[ps["noise"][0]][:].astype(np.float64), nb[ps["noise"][1]][:].astype(np.float64)
 
     def interp(grid):
         # NEBS y is descending; RegularGridInterpolator needs ascending axes.
@@ -89,7 +130,9 @@ def assemble(raw: dict, band: str) -> dict:
     hh, hv, mask = raw["hh"], raw["hv"], raw["mask"]
     valid = (mask >= 1) & (mask <= 5) & np.isfinite(hh) & np.isfinite(hv) & (hh > 0) & (hv > 0)
     epsg = raw["epsg"]
+    extra = {k: raw[k] for k in ("s2", "s3") if k in raw}  # compact-pol Stokes parts
     d = dict(
+        **extra, pols=tuple(str(p) for p in raw.get("pols", ("HH", "HV"))),
         band=band, x=raw["x"], y=raw["y"], epsg=epsg, hh=hh, hv=hv, mask=mask, exc=raw["exc"], eta=eta,
         n_hh=n_hh, n_hv=n_hv, n_hh_raw=raw["n_hh_raw"], n_hv_raw=raw["n_hv_raw"], valid=valid,
         to_ll=Transformer.from_crs(f"EPSG:{epsg}", "EPSG:4326", always_xy=True),
@@ -100,7 +143,7 @@ def assemble(raw: dict, band: str) -> dict:
 
 def _cache_file(cache_dir: Path, tag: str, spec: BandSpec, k: int = 1) -> Path:
     (r0, r1), (c0, c1) = spec.rows, spec.cols
-    return cache_dir / f"{tag.lower()}_{spec.key}_{r0}-{r1}_{c0}-{c1}{f'_x{k}' if k > 1 else ''}.npz"
+    return cache_dir / f"{tag.lower()}_{spec.key}_{r0}-{r1}_{c0}-{c1}{f'_x{k}' if k > 1 else ''}_{CACHE_VERSION}.npz"
 
 
 def load_raw(path: Path, spec: BandSpec, cache_dir: str | Path | None = None, tag: str = "scene", k: int = 1) -> dict:

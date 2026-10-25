@@ -77,12 +77,12 @@ def channel_panels(d: dict, lims: dict) -> list[tuple[str, np.ndarray]]:
     return out
 
 
-def default_legend() -> list[LegendItem]:
+def default_legend(p1: str = "HH", p2: str = "HV") -> list[LegendItem]:
     """How-to-read items for the composite; layouts may replace them (e.g. to add the noise share)."""
     return [
-        LegendItem("#d4574f", "RED = HH  (SURFACE)"),
-        LegendItem("#5fb673", "GREEN = HV  (VOLUME)"),
-        LegendItem("#6580d6", "BLUE = HH−HV  (RATIO)"),
+        LegendItem("#d4574f", f"RED = {p1}  (SURFACE)"),
+        LegendItem("#5fb673", f"GREEN = {p2}  (VOLUME)"),
+        LegendItem("#6580d6", f"BLUE = {p1}−{p2}  (RATIO)"),
         LegendItem("#a05cb5", "PURPLE = HV LOW, SURFACE-LIKE"),
         LegendItem("#a8c25c", "LIME = HV HIGH, VOLUME-LIKE"),
         LegendItem("noise", "GREY = NOISE (SNR < 3 dB)"),
@@ -151,11 +151,15 @@ def render_product(product: Product, lims_in: dict | None = None) -> Rendered:
     d = product.native
     if d is None:  # a SAR product from another sensor: co/cross layers, no noise floor
         return _generic_render(product, lims_in)
+    if "s2" in d:
+        raise ValueError("recipe 'sar_fcc' is for products with a co- and a cross-polarised channel (HH+HV, VV+VH); this one "
+                         "is compact-pol (RH+RV): use recipe 'sar_compact'")
+    p1, p2 = d.get("pols", ("HH", "HV"))
     rgba, lims, _ = fcc_rgba(d, lims_in=lims_in)
     c = coarsen(d, 4)
-    labels = {"R": "CH1  HH", "G": "CH2  HV", "B": "CH3  HH−HV"}
+    labels = {"R": f"CH1  {p1}", "G": f"CH2  {p2}", "B": f"CH3  {p1}−{p2}"}
     comps = [Component(key, img, CHANNEL_COLORS[key], labels[key]) for key, img in channel_panels(c, lims)]
-    return Rendered(rgba=rgba, extent=utm_extent(d), legend=default_legend(),
+    return Rendered(rgba=rgba, extent=utm_extent(d), legend=default_legend(p1, p2),
                     caveats=[*product.caveats, "NISAR: noise-screened (SNR < 3 dB shown grey); no speckle filter."],
                     components=comps, components_extent=utm_extent(c), lims=lims, title="R+G+B  COMPOSITE")
 

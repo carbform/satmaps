@@ -18,7 +18,7 @@ from satviz.sensors.sar.nisar.metadata import read_band_metadata
 from satviz.sensors.sar.nisar.processing import stats
 from satviz.sources import resolve_one_file
 
-LAYER_KEYS = ("hh", "hv", "hh_ns", "hv_ns", "snr_hh", "snr_hv", "n_hh", "n_hv", "eta")
+LAYER_KEYS = ("hh", "hv", "hh_ns", "hv_ns", "snr_hh", "snr_hv", "n_hh", "n_hv", "eta", "s2", "s3")  # (s2, s3: compact-pol only)
 
 
 def to_product(d: dict, st: dict | None = None) -> Product:
@@ -28,7 +28,7 @@ def to_product(d: dict, st: dict | None = None) -> Product:
     if not m.calibrated:
         caveats.append(f"{m.radar_band}-band calibration metadata not yet populated: dB values are provisional and relative")
     return Product(
-        key=d["band"], layers={k: d[k] for k in LAYER_KEYS}, x=d["x"], y=d["y"], epsg=d["epsg"], valid=d["valid"],
+        key=d["band"], layers={k: d[k] for k in LAYER_KEYS if k in d}, x=d["x"], y=d["y"], epsg=d["epsg"], valid=d["valid"],
         meta=dict(platform="NISAR", sensor=m.instrument, label=f"{m.radar_band}-band", start=m.start, end=m.end,
                   resolution_m=m.posting_m, crs=m.crs, calibrated=m.calibrated,
                   **radar_facts(m.freq_ghz, m.radar_band), backscatter="gamma0, terrain-corrected",

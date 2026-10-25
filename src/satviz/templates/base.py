@@ -17,7 +17,7 @@ from satviz.core import RECIPES, SENSORS, Product, template
 from satviz.relations import relate
 
 OPTICAL_PREFERENCE = ("true_colour", "nir_fcc")  # true colour when there is a blue band, else NIR false colour
-SAR_PREFERENCE = ("sar_fcc",)
+SAR_PREFERENCE = ("sar_compact", "sar_fcc")  # compact-pol products have the layers the first needs; the rest take the second
 
 
 class TemplateError(ValueError):

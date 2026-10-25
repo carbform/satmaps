@@ -81,7 +81,7 @@ def read_band_metadata(path: Path, spec: BandSpec) -> BandMeta:
         nl = g["numberOfLooks"][rows[0]:rows[1]:100, cols[0]:cols[1]:100].astype(float)
         looks = float(np.nanmedian(nl)) if np.isfinite(nl).any() else None
         cal = meta["calibrationInformation/frequencyA"]
-        sf = [float(cal[p]["scaleFactor"][()]) for p in ("HH", "HV")]
+        sf = [float(cal[p]["scaleFactor"][()]) for p in g["listOfPolarizations"][()].astype(str) if p in cal]
         rfi_raw = _s(par["rfiMitigationApplied"][()]).strip()
         rfi_off = rfi_raw.lower() in ("false", "", "none")
         return BandMeta(

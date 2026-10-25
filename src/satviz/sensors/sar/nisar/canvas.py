@@ -10,7 +10,7 @@ from satviz.config import BandSpec
 from satviz.core import SourceInfo, footprint_or_none
 from satviz.grid import to_canvas
 
-CONTINUOUS = ("hh", "hv", "eta", "n_hh_raw", "n_hv_raw")
+CONTINUOUS = ("hh", "hv", "eta", "n_hh_raw", "n_hv_raw", "s2", "s3")  # (s2, s3: compact-pol products only)
 CLASSES = ("mask", "exc")
 MARGIN = 2  # source pixels read beyond the canvas, for interpolation at the edges
 
@@ -78,7 +78,7 @@ def raw_on_canvas(raw: dict, canvas: Canvas) -> dict:
     """Raw ROI arrays (as from `read_roi`) resampled onto the canvas. Aligned grids are copied exactly."""
     sx, sy, epsg = raw["x"], raw["y"], raw["epsg"]
     out = dict(raw)
-    for k in CONTINUOUS:
+    for k in (k for k in CONTINUOUS if k in raw):
         out[k] = to_canvas(raw[k], sx, sy, epsg, canvas, "bilinear")
     for k in CLASSES:
         out[k] = to_canvas(raw[k], sx, sy, epsg, canvas, "nearest", fill=0)  # mask 0 = not valid
