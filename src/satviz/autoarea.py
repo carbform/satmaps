@@ -16,7 +16,8 @@ from satviz.area import Area, AreaError, _tf, utm_epsg
 GRID = 400  # cells along the longer side of the overlap's bounding box
 ERODE = 2  # cells shaved off the overlap so the canvas edge stays inside the data
 MIN_SIDE_KM = 1.0
-NO_OVERLAP_FIX = "Give an [area] to draw one place anyway."
+NO_OVERLAP_FIX = ("Draw each place on its own (satviz quick --per-place; in a job file, one figure per place), "
+                  "or give an [area] to draw one place anyway.")
 NICE_M = (10, 20, 30, 50, 60, 100, 150, 200, 250, 300, 500, 1000, 2000)
 
 
@@ -71,6 +72,25 @@ def common_area(footprints: dict[str, list[tuple[float, float]]], labels: dict[s
     return Area(epsg, x0 + c0 * step, y1 - r1 * step, x0 + c1 * step, y1 - r0 * step)
 
 
+def group_by_ground(rings: list) -> list[list[int]]:
+    """Indices of footprint rings (None: unknown) grouped by shared ground: each group has a common area, no two groups share
+    one. A product with no footprint joins the first group, since nothing can be said against it."""
+    groups: list[list[int]] = []
+    for i in range(len(rings)):
+        for g in groups:
+            known = {str(j): rings[j] for j in (*g, i) if rings[j]}
+            try:
+                if len(known) >= 2:
+                    common_area(known)
+            except AreaError:
+                continue
+            g.append(i)
+            break
+        else:
+            groups.append([i])
+    return groups
+
+
 def coverage(ring: list[tuple[float, float]], box: tuple[float, float, float, float], n: int = 40) -> float:
     """The share (0..1) of a (west, south, east, north) box that lies inside a footprint ring, sampled on an n x n grid."""
     w, s, e, nn = box
@@ -79,6 +99,14 @@ def coverage(ring: list[tuple[float, float]], box: tuple[float, float, float, fl
     lon, lat = np.meshgrid(np.linspace(w, e, n), np.linspace(s, nn, n))
     inside = Ring(np.asarray(ring, float)).contains_points(np.column_stack([lon.ravel(), lat.ravel()]))
     return float(inside.mean())
+
+
+def touches(ring: list[tuple[float, float]], box: tuple[float, float, float, float]) -> bool:
+    """Whether a (west, south, east, north) box and a footprint ring share any ground at all."""
+    from matplotlib.transforms import Bbox
+
+    w, s, e, n = box
+    return bool(w < e and s < n and Ring(np.asarray(ring, float)).intersects_bbox(Bbox.from_extents(w, s, e, n), filled=True))
 
 
 def pick_resolution(area: Area, finest_native_m: float, target_px: int) -> float:

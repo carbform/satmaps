@@ -44,6 +44,15 @@ def inspect(path: str | os.PathLike) -> dict:
             "bbox": bbox, "footprint": ring}
 
 
+def places(paths) -> list[list[str]]:
+    """The products grouped by the ground they share: each group (a list of paths, in the order given) has a common area, and no
+    two groups share one."""
+    from satviz.autoarea import group_by_ground
+
+    resolved = [str(Path(p).expanduser().resolve()) for p in paths]
+    return [[resolved[i] for i in g] for g in group_by_ground([inspect(p)["footprint"] for p in resolved])]
+
+
 def scan(folder: str | os.PathLike) -> list[dict]:
     """The products directly inside a folder: ``{"path", "name", "sensor", "kind", "note"}`` for each one a sensor reads, and
     ``{"path", "name", "sensor": None, "kind": None, "note": "unzip it"}`` for a zip. Anything else is skipped.
@@ -148,7 +157,7 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
               template: str | None = None, arrangement: str | None = None, bands: bool = False, resolution_m: float | None = None,
               allow_different_passes: bool = False, allow_large: bool = False, data_dir=None, subtitle: str | None = None,
               place: str | None = None, author: str | None = None, website: str | None = None, credits: str | None = None,
-              grid: bool = False, north: bool = False, scalebar: bool = True):
+              grid: bool = False, north: bool = False, scalebar: bool = True, suffix: str = ""):
     """The `Job` for some paths, with sensors detected, ids chosen, template and arrangement picked from what the inputs are, and
     the area and pixel size resolved. Also returns the job-file tables that reproduce it."""
     import dataclasses
@@ -174,7 +183,7 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
     kinds = [SENSORS[i["sensor"]].kind for i in inputs]
     chosen = template or ("sar_optical" if len(set(kinds)) > 1 else kinds[0])
     arrangement = "bands" if bands else arrangement or _default_arrangement(chosen, kinds)
-    name = _figure_name([i["sensor"] for i in inputs], quality)
+    name = _figure_name([i["sensor"] for i in inputs], quality) + suffix
     scene_fields, typed = details(title, subtitle, place, author, website, credits)
     fig = {"name": name, "template": chosen, "inputs": ids, "theme": theme,
            "arrangement": arrangement, **({"text": typed} if typed else {}),
@@ -246,8 +255,11 @@ def _resolved_area_table(area) -> dict:
 
 
 def render(paths, *, out: str | os.PathLike = "outputs", cache: str | os.PathLike | None = "cache", save_job=None,
-           **options) -> list[Path]:
+           per_place: bool = False, **options) -> list[Path]:
     """Render one figure from product paths and return the PNG paths written (and a PDF beside each for ``"publication"``).
+
+    Products that share no ground cannot be drawn on one map. With ``per_place`` (and no ``area``) they are grouped by the
+    ground they share (`places`) and each group gets a figure of its own; without it, the error names the groups.
 
     Options: ``area`` (None: the overlap of the inputs; a (west, south, east, north) box; or a dict of `[area]` keys),
     ``theme``, ``quality`` ("quick", "medium" or "publication"), ``title`` (default: what the figure shows), ``template`` and
@@ -256,10 +268,25 @@ def render(paths, *, out: str | os.PathLike = "outputs", cache: str | os.PathLik
     ``save_job`` writes the job file that reproduces the figure."""
     from satviz.run import run_job
 
-    job, raw = build_job(paths, **options)
-    if save_job:
-        write_job(raw, Path(save_job))
-    return run_job(job, out, cache)
+    groups = places(paths) if per_place and options.get("area") is None and len(paths) > 1 else [list(paths)]
+    written = []
+    for n, group in enumerate(groups, 1):
+        job, raw = build_job(group, **place_options(options, group, n if len(groups) > 1 else 0))
+        if save_job:
+            write_job(raw, Path(save_job) if len(groups) == 1 else Path(save_job).with_stem(f"{Path(save_job).stem}_place{n}"))
+        written += run_job(job, out, cache)
+    return written
+
+
+def place_options(options: dict, group: list, n: int) -> dict:
+    """The options for one place of several: its figure is named for it (`_place2`), and a layout that needs more products than
+    the place has (side by side for one product) gives way to the automatic one."""
+    out = dict(options)
+    if n:
+        out["suffix"] = f"_place{n}"
+    if len(group) == 1 and out.get("arrangement") in ("compare", "grid"):
+        out["arrangement"] = None
+    return out
 
 
 def job_toml(raw: dict) -> str:

@@ -96,14 +96,35 @@ def test_the_app_lists_the_products_and_makes_a_figure(app_env):
 
 
 @needs_streamlit
-def test_the_app_shows_a_missing_overlap_as_a_message_not_a_traceback(app_env, tmp_path):
+def test_products_that_share_no_ground_get_a_figure_for_each_place(app_env, tmp_path):
     far = make_raw(seed=5)
-    far["x"] = far["x"] + 5_000_000  # another UTM zone's worth of metres away
+    far["x"] = far["x"] + 400_000  # a few degrees east: the same zone, no shared ground
     write_granule(app_env.data_dir / "F.h5", "science/LSAR/GCOV", far, instrument="LSAR", freq_hz=1.239e9)
     at = run_app()
     pick(at, "L.h5", "F.h5")
+    assert any("2 different places" in i.value for i in at.info)  # said before anything is drawn
     press(at, "Make the figure")
-    assert not at.exception and any("do not overlap" in e.value for e in at.error) and not made(at)
+    assert not at.exception and not at.error and len(made(at)) == 2
+
+
+@needs_streamlit
+def test_a_box_that_misses_a_product_says_so_and_can_leave_it_out(app_env):
+    far = make_raw(seed=5)
+    far["x"] = far["x"] + 400_000
+    write_granule(app_env.data_dir / "F.h5", "science/LSAR/GCOV", far, instrument="LSAR", freq_hz=1.239e9)
+    at = run_app()
+    pick(at, "L.h5", "F.h5")
+    at.radio(key="area_mode").set_value("A box I choose").run()
+    from satviz.api import inspect
+
+    w, s, e, n = inspect(app_env.data_dir / "L.h5")["bbox"]
+    for key, value in zip(("box_w", "box_s", "box_e", "box_n"), (w, s, e, n), strict=True):
+        at.number_input(key=key).set_value(value)
+    at.run()
+    assert any("outside" in e.value for e in at.error)
+    assert next(b for b in at.button if b.label == "Make the figure").disabled
+    press(at, "Leave out the products outside the box")
+    assert not at.error and len(at.multiselect[0].value) == 1
 
 
 @needs_streamlit

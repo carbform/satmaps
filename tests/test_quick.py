@@ -314,3 +314,15 @@ def test_coverage_is_the_share_of_a_box_inside_a_footprint():
     assert coverage(ring, (3, 3, 4, 4)) == 0.0  # outside
     assert 0.45 < coverage(ring, (1, 0, 3, 2)) < 0.55  # half in
     assert coverage(ring, (2, 2, 1, 1)) == 0.0  # not a box
+
+
+def test_products_are_grouped_by_the_ground_they_share():
+    from satviz.autoarea import group_by_ground, touches
+
+    def box(w, s, e, n):
+        return [(w, s), (e, s), (e, n), (w, n), (w, s)]
+
+    a, b, far = box(0, 0, 2, 2), box(1, 1, 3, 3), box(10, 10, 12, 12)
+    assert group_by_ground([a, far, b]) == [[0, 2], [1]]  # a and b overlap; far is a place of its own
+    assert group_by_ground([a, None, far]) == [[0, 1], [2]]  # no footprint: joins the first group
+    assert touches(a, (1, 1, 5, 5)) and not touches(a, (3, 3, 5, 5))

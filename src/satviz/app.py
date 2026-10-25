@@ -21,9 +21,9 @@ matplotlib.use("Agg")  # the CLI sets this in main(); the app never goes through
 import streamlit as st  # noqa: E402
 import streamlit.components.v1 as components  # noqa: E402
 
-from satviz.api import TooLarge, auto_layout, build_job, inspect, job_toml, layout_choices, scan  # noqa: E402
+from satviz.api import TooLarge, auto_layout, build_job, inspect, job_toml, layout_choices, place_options, places, scan  # noqa: E402
 from satviz.area import AreaError  # noqa: E402
-from satviz.autoarea import common_area, coverage  # noqa: E402
+from satviz.autoarea import common_area, coverage, group_by_ground, touches  # noqa: E402
 from satviz.core import THEMES  # noqa: E402
 from satviz.desktop import DesktopError, choose_folder
 from satviz.detect import DetectError  # noqa: E402
@@ -96,14 +96,20 @@ def label(row: dict) -> str:
     return f"{row['sensor']} ({row['kind']})  ·  {row['name']}"  # the sensor first: the name is long and the tag cuts it off
 
 
-def render(chosen: list[str], options: dict) -> None:
-    """Draw the figures for the chosen products and keep them in the session; an error is kept as a message instead."""
+def render(chosen: list[str], options: dict, per_place: bool = False) -> None:
+    """Draw the figures for the chosen products and keep them in the session; an error is kept as a message instead.
+    With `per_place`, products that share no ground get a figure each place."""
     out, cache = Path(os.environ["SATVIZ_OUT_DIR"]), Path(os.environ["SATVIZ_CACHE_DIR"])
     st.session_state["error"] = st.session_state["results"] = st.session_state["suggestion"] = None
+    results = []
     try:
         with render_lock():
-            job, raw = build_job(chosen, **options)
-            pngs = run_job(job, out, cache)
+            groups = places(chosen) if per_place else [chosen]
+            for n, group in enumerate(groups, 1):
+                job, raw = build_job(group, **place_options(options, group, n if len(groups) > 1 else 0))
+                toml = job_toml(raw)
+                results += [{"png": p, "pdf": p.with_suffix(".pdf") if p.with_suffix(".pdf").exists() else None, "toml": toml,
+                             "name": p.stem} for p in run_job(job, out, cache)]
     except TooLarge as e:
         st.session_state["error"] = str(e)
         st.session_state["suggestion"] = e.suggestion
@@ -111,9 +117,12 @@ def render(chosen: list[str], options: dict) -> None:
     except USER_ERRORS as e:
         st.session_state["error"] = str(e.args[0]) if isinstance(e, KeyError) and e.args else str(e)
         return
-    toml = job_toml(raw)
-    st.session_state["results"] = [{"png": p, "pdf": p.with_suffix(".pdf") if p.with_suffix(".pdf").exists() else None,
-                                    "toml": toml, "name": p.stem} for p in pngs]
+    st.session_state["results"] = results
+
+
+def leave_out(labels: list[str]) -> None:
+    """Button callback: take these products out of the selection."""
+    st.session_state["picked"] = [x for x in st.session_state["picked"] if x not in labels]
 
 
 def show_results(results: list[dict], key_prefix: str = "", show_job: bool = True) -> None:
@@ -151,20 +160,26 @@ def apply_drawn(state, drawn: dict | None) -> bool:
     return True
 
 
-def area_section(chosen_rows: list[dict]) -> tuple[str, tuple | None]:
-    """Step 1: where the products are, on a map you can draw on, and the area that results. Returns (mode, box)."""
+def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | None, bool, list[str]]:
+    """Step 1: where the products are, on a map you can draw on, and the area that results.
+
+    Returns (mode, box, per_place, outside): `per_place` is True when the products share no ground and no box is drawn, so each
+    place gets its own figure; `outside` names the products a drawn box does not touch (they cannot be drawn in it)."""
     st.markdown("##### 1 · Area")
     if not chosen_rows:
         st.info("Choose products in the sidebar: they appear here on a map, and you draw the area you want.")
-        return OVERLAP, None
+        return OVERLAP, None, False, []
     prints = [{"name": r["name"][:24], **footprint_of(r["path"], Path(r["path"]).stat().st_mtime)} for r in chosen_rows]
     prints = [p for p in prints if p["ring"]]
-    overlap = None
-    if prints:
-        try:
-            overlap = [round(v, 4) for v in common_area({str(i): p["ring"] for i, p in enumerate(prints)}).lonlat_bbox()]
-        except AreaError:
-            st.warning("These products share no ground: they do not overlap. Draw a box over the one you want, or drop one.")
+    overlap, spread = None, []
+    if len(prints) == len(chosen_rows):
+        spread = group_by_ground([p["ring"] for p in prints])
+    if len(spread) > 1:
+        st.session_state["places"] = [[chosen_rows[i]["name"][:34] for i in g] for g in spread]
+    elif prints:
+        st.session_state["places"] = []
+        overlap = [round(v, 4) for v in common_area({str(i): p["ring"] for i, p in enumerate(prints)}).lonlat_bbox()] if (
+            len(prints) > 1) else None
     st.checkbox("Show the OpenStreetMap basemap", value=True, key="basemap",
                 help="Your browser fetches map tiles from openstreetmap.org, which sees roughly where you look. Untick to keep "
                      "the map to your data alone: nothing is then fetched.")
@@ -176,7 +191,12 @@ def area_section(chosen_rows: list[dict]) -> tuple[str, tuple | None]:
     st.caption("Drag to draw the area · wheel to zoom · right-drag or shift-drag to move. The dashed rectangle is what is drawn "
                "when you draw nothing.")
     mode = st.radio("Area", [OVERLAP, BOX], key="area_mode", horizontal=True, label_visibility="collapsed")
-    box = None
+    box, outside = None, []
+    per_place = mode == OVERLAP and len(spread) > 1
+    if per_place:
+        lines = "\n".join(f"- **Place {n}:** {', '.join(names)}" for n, names in enumerate(st.session_state["places"], 1))
+        st.info(f"These products cover {len(spread)} different places, so there is no one area to draw them in. satviz makes "
+                f"**one figure for each place**:\n\n{lines}\n\nTo draw just one place, drag a rectangle over it on the map.")
     if mode == BOX:
         cols = st.columns(4)
         for col, key, name in zip(cols, BOX_KEYS, ("West", "South", "East", "North"), strict=True):
@@ -185,9 +205,15 @@ def area_section(chosen_rows: list[dict]) -> tuple[str, tuple | None]:
         for row in chosen_rows:  # say so before drawing: a box that misses a product leaves its panel empty
             ring = footprint_of(row["path"], Path(row["path"]).stat().st_mtime)["ring"]
             share = coverage(ring, box) if ring else 1.0
-            if share < 0.95:
+            if ring and not touches(ring, box):
+                outside.append(label(row))
+            elif share < 0.95:
                 st.warning(f"{row['name'][:30]} has data in {share:.0%} of this box.")
-    return mode, box
+        if outside:
+            names = ", ".join(by_label[x]["name"][:30] for x in outside)
+            st.error(f"This box is outside {names}: there is nothing of it to draw here.")
+            st.button("Leave out the products outside the box", on_click=leave_out, args=(outside,))
+    return mode, box, per_place, outside
 
 
 def details_section() -> dict:
@@ -261,6 +287,7 @@ def main() -> None:
                "products. Everything runs on this machine.")
     defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "area_mode": OVERLAP, "last_draw": 0,
                 "folder": os.environ.get("SATVIZ_DATA_DIR", "data"), "folder_note": "", "made_with": None,
+                "places": [], "picked": [],
                 **dict.fromkeys(("title", "subtitle", "place", "author", "website", "credits"), "")}
     for key, default in {**defaults, **dict.fromkeys(BOX_KEYS, 0.0)}.items():
         st.session_state.setdefault(key, default)
@@ -281,7 +308,7 @@ def main() -> None:
             rows = []
         products = [r for r in rows if r["sensor"]]
         by_label = {label(r): r for r in products}
-        picked = st.multiselect("Choose one or more", list(by_label))
+        picked = st.multiselect("Choose one or more", list(by_label), key="picked")
         chosen_rows = [by_label[name] for name in picked]
         chosen = [r["path"] for r in chosen_rows]
         zips = [r["name"] for r in rows if not r["sensor"]]
@@ -295,14 +322,14 @@ def main() -> None:
     left, right = st.columns(2)
     kinds = [r["kind"] for r in chosen_rows]
     with left:
-        mode, box = area_section(chosen_rows)
+        mode, box, per_place, outside = area_section(chosen_rows, by_label)
         st.divider()
         words = details_section()
         st.divider()
         look = look_section(kinds)
-        go = st.button("Make the figure", type="primary", disabled=not chosen)
+        go = st.button("Make the figure", type="primary", disabled=not chosen or bool(outside))
 
-    signature = (tuple(chosen), mode, box, tuple(sorted(words.items(), key=lambda kv: kv[0])), tuple(sorted(
+    signature = (tuple(chosen), mode, box, per_place, tuple(sorted(words.items(), key=lambda kv: kv[0])), tuple(sorted(
         (k, str(v)) for k, v in look.items())))
     if go:
         options = dict(theme=look["theme"], quality=look["quality"], area=box, arrangement=look["layout"],
@@ -310,7 +337,7 @@ def main() -> None:
                        allow_large=look["allow_large"], grid=look["grid"], north=look["north"], scalebar=look["scalebar"],
                        **words)
         with right, st.spinner("Reading the products and drawing…"):
-            render(chosen, options)
+            render(chosen, options, per_place)
         st.session_state["made_with"] = signature
     with right:
         st.markdown("##### Figure")

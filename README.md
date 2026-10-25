@@ -24,6 +24,7 @@ satviz quick data/S2C_….SAFE --bands                 # Sentinel-2 band by band
 satviz quick a.h5 b.SAFE --quality medium            # finer and larger than quick, still no PDF
 satviz quick a.h5 b.SAFE --quality publication       # full size, PNG and PDF, ready to publish
 satviz quick a.h5 b.SAFE --save-job fig.toml         # also write the job file that reproduces it; edit it and `satviz run` it
+satviz quick a.h5 far_away.SAFE --per-place            # products with no shared ground: one figure for each place
 satviz quick a.h5 --title T --subtitle S --place P --author A --website W --credit C   # the same wording the app has
 satviz quick a.h5 b.SAFE --grid --north               # lat/lon grid with labels, north arrow (the scale bar is on; --no-scale drops it)
 ```

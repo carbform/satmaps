@@ -83,6 +83,8 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--arrangement", choices=("single", "compare", "grid", "bands"), default=None,
                     help="default: one input single, two compare, three to six grid")
     qk.add_argument("--bands", action="store_true", help="optical: one panel per spectral band (same as --arrangement bands)")
+    qk.add_argument("--per-place", action="store_true",
+                    help="products that share no ground: one figure for each place, instead of an error")
     qk.add_argument("--allow-large", action="store_true",
                     help="draw an automatic area even above 15,000 km2 (a whole frame: slow); the default asks for --bbox")
     qk.add_argument("--allow-different-passes", action="store_true", help=argparse.SUPPRESS)  # no longer needed: always allowed
@@ -166,8 +168,9 @@ def main(argv: list[str] | None = None) -> int:
         from satviz.sources import SourceError
 
         try:
-            paths = render(args.paths, out=args.out, cache=None if args.no_cache else args.cache, save_job=args.save_job,
-                           area=args.bbox, theme=args.theme, quality=args.quality, title=args.title, template=args.template,
+            paths = render(args.paths, per_place=args.per_place, out=args.out, cache=None if args.no_cache else args.cache,
+                           save_job=args.save_job, area=args.bbox, theme=args.theme, quality=args.quality, title=args.title,
+                           template=args.template,
                            arrangement=args.arrangement, bands=args.bands, resolution_m=args.resolution,
                            allow_different_passes=args.allow_different_passes, allow_large=args.allow_large,
                            data_dir=args.data_dir, subtitle=args.subtitle, place=args.place, author=args.author,
