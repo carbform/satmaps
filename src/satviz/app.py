@@ -213,7 +213,8 @@ def look_section(kinds: list[str]) -> dict:
     choices = layout_choices(kinds)
     layout_name = b.selectbox("Layout", [AUTOMATIC, *choices.values()],
                               help="How the products sit on the page. Automatic: one product alone, two side by side, three to "
-                                   "six on one page.")
+                                   "six on one page. Products of any sensors, tracks, frames or dates can be shown together: "
+                                   "each panel and each legend item names its own product.")
     layout = None if layout_name == AUTOMATIC else next(k for k, v in choices.items() if v == layout_name)
     quality = st.radio("Quality", list(PROFILES), horizontal=True,
                        help="quick: a small PNG in seconds · medium: finer · publication: full size, with a PDF")
@@ -223,9 +224,8 @@ def look_section(kinds: list[str]) -> dict:
     north = f2.checkbox("North arrow", value=False, help="Points at true north.")
     scalebar = f3.checkbox("Scale bar", value=True)
     with st.expander("More options"):
-        different = st.checkbox("Allow NISAR products from different passes")
         large = st.checkbox("Draw a very large area anyway (slow)")
-    return dict(theme=theme, layout=layout, quality=quality, allow_different_passes=different, allow_large=large, grid=grid,
+    return dict(theme=theme, layout=layout, quality=quality, allow_large=large, grid=grid,
                 north=north, scalebar=scalebar)
 
 
@@ -306,7 +306,7 @@ def main() -> None:
         (k, str(v)) for k, v in look.items())))
     if go:
         options = dict(theme=look["theme"], quality=look["quality"], area=box, arrangement=look["layout"],
-                       bands=look["layout"] == "bands", allow_different_passes=look["allow_different_passes"],
+                       bands=look["layout"] == "bands",
                        allow_large=look["allow_large"], grid=look["grid"], north=look["north"], scalebar=look["scalebar"],
                        **words)
         with right, st.spinner("Reading the products and drawing…"):

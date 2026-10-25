@@ -190,7 +190,8 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
         xx = 0.058 + (i % 3) * 0.300
         yy = 0.188 - (i // 3) * 0.0265
         fig.add_artist(Rectangle((xx, yy - 0.008), 0.016, 0.016, transform=fig.transFigure, fc=col, ec=t.ink, lw=min(t.lw(1.1), 1.2), zorder=6))
-        fig.text(xx + 0.024, yy, lay.render(item["text"], f"how_to_read.items[{i}]").strip(), fontsize=9.6, color=t.ink,
+        text = lay.render(item["text"], f"how_to_read.items[{i}]").strip()
+        fig.text(xx + 0.024, yy, text, fontsize=max(7.2, min(9.6, 9.6 * 40 / len(text))), color=t.ink,  # (a product's name makes it long)
                  va="center", zorder=6)
 
     # the notice strip and credits flow downwards from the how-to-read block

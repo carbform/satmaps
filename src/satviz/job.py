@@ -18,8 +18,8 @@ from satviz.quality import DEFAULT, Profile, profile_of
 TOP_LEVEL = {"extends", "scene", "area", "inputs", "figures", "zooms", "callouts", "quality"}
 AUTO_AREA_KEYS = {"resolution_m", "target_px"}  # an [area] with no center or bbox: the inputs' overlap (`satviz.autoarea`)
 SCENE_KEYS = ("name", "reach", "locality", "region", "callout_caption", "author", "website")
-FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "stretch", "name", "allow_different_passes",
-               "arrangement", "composites", "grid", "north", "scalebar"}
+FIGURE_KEYS = {"template", "inputs", "recipes", "theme", "layout", "text", "stretch", "name", "same_pass",
+               "allow_different_passes", "arrangement", "composites", "grid", "north", "scalebar"}
 
 
 class JobError(ValueError):
@@ -41,7 +41,7 @@ class FigureSpec:
     grid: bool = False  # lat/lon grid with labels on every panel
     north: bool = False  # north arrow (true north) on the first panel
     scalebar: bool = True  # scale bar on the first panel
-    strict: bool = True  # inputs must share a pass (NISAR track/frame); allow_different_passes = true lifts it
+    strict: bool = False  # same_pass = true: inputs must share a pass (NISAR track/frame); else any products go together
 
 
 @dataclass(frozen=True)
@@ -172,4 +172,4 @@ def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
                       stretch=f.get("stretch"), name=f.get("name"), arrangement=f.get("arrangement"),
                       composites=tuple(f.get("composites", ())),
                       grid=bool(f.get("grid", False)), north=bool(f.get("north", False)), scalebar=bool(f.get("scalebar", True)),
-                      strict=not f.get("allow_different_passes", False))
+                      strict=bool(f.get("same_pass", False)))  # allow_different_passes is the old, now default, behaviour

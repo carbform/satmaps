@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 def draw(resolved, *, scene, products: dict, out_dir: Path, layout: dict, combo: tuple[str, ...], theme: str,
-         stem: str | None = None, slot: int = 0, strict: bool = True, stretch: str | None = None,
+         stem: str | None = None, slot: int = 0, strict: bool = False, stretch: str | None = None,
          profile=None, furniture=None) -> list[Path]:
     """Draw one figure from a template's `Resolved` decisions. `slot` is the input's position in the job (chip colour)."""
     from satviz.arrangements import bands, compare, grid, single

@@ -93,22 +93,23 @@ def acquisition_label(meta: dict) -> str:
     return f"{s.day} {s:%b}" + (f" {s:%H:%M}" if meta.get("time_known", True) else "")
 
 
-def build_context(scene: Scene, bands: dict, stats_by_band: dict, per_band: bool, extra: dict | None = None) -> dict:
+def build_context(scene: Scene, bands: dict, stats_by_band: dict, per_band: bool, extra: dict | None = None,
+                  strict: bool = False) -> dict:
     """`build_context_products` for NISAR working datasets (the older figures pass these plus their own statistics)."""
     from satviz.sensors.sar.nisar import to_product
 
     products = {k: to_product(d, stats_by_band[k]) for k, d in bands.items()}
-    return build_context_products(scene, products, per_band, extra)
+    return build_context_products(scene, products, per_band, extra, strict)
 
 
 def build_context_products(scene: Scene, products: dict, per_band: bool = True, extra: dict | None = None,
-                           strict: bool = True) -> dict:
+                           strict: bool = False) -> dict:
     """Placeholder values: scene names, facts every product has (dates, resolution, CRS), what the sensors share
     (e.g. NISAR track and frame) and each product's own namespace under its input id (``{L.wavelength_cm}``).
 
-    With ``strict`` the products must agree on everything the sensors call shared (same pass). Without it, the keys they
-    disagree on (e.g. NISAR ``track``) are left out, so a layout that uses them fails with an unknown-placeholder error
-    instead of printing one input's value as if it were shared."""
+    With ``strict`` (a figure's ``same_pass = true``) the products must agree on everything the sensors call shared (same
+    pass). Without it, the keys they disagree on (e.g. NISAR ``track``) are left out, so a layout that uses them fails with an
+    unknown-placeholder error instead of printing one input's value as if it were shared."""
     metas = {k: p.meta for k, p in products.items()}
     order = [k for k in scene.inputs if k in products] or list(products)
     ref_key = order[0]
@@ -119,7 +120,7 @@ def build_context_products(scene: Scene, products: dict, per_band: bool = True, 
         if diff and strict:
             what = ", ".join(f"{k} {a} vs {b}" for k, (a, b) in diff.items())
             raise LayoutError(f"inputs are not from the same pass: {ref_key} and {key} differ in {what}; "
-                              "set allow_different_passes = true on the figure if that is intended")
+                              "drop same_pass = true from the figure to show different passes together")
         disagree |= set(diff)
     starts = [m["start"] for m in metas.values()]
     start = min(starts)

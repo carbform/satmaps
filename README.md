@@ -254,8 +254,8 @@ upper-case form of `{x}`, and `{x!u}` upper-cases any value. `satviz placeholder
 provide, with its value.
 
 Two safeguards: a line written as `{ if = "uncal_bands", text = "..." }` shows only while a band's calibration scale factors are
-zero in the file, so the provisional-calibration warning disappears by itself when ISRO populates them; and NISAR inputs from
-different tracks, frames or passes are refused unless the figure sets `allow_different_passes = true`. Unknown placeholders and
+zero in the file, so the provisional-calibration warning disappears by itself when ISRO populates them; and products from
+any tracks, frames, passes or sensors are shown together; a figure that wants one pass sets `same_pass = true`. Unknown placeholders and
 over-long lists fail with the file name and the valid choices. What a sensor insists on (attribution, calibration and quality
 caveats) is added to every figure and cannot be removed by a wording file's header.
 

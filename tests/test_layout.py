@@ -70,13 +70,13 @@ def test_line_limit(ctx):
         Layout({"_path": "x.toml", "n": {"lines": ["a", "b"]}}, c).lines("n.lines", limit=1)
 
 
-def test_different_passes_are_rejected(scene, tmp_path):
+def test_different_passes_are_rejected_when_the_figure_wants_one_pass(scene, tmp_path):
     from tests.conftest import make_raw, write_granule
 
     write_granule(tmp_path / "L.h5", "science/LSAR/GCOV", make_raw(2), instrument="LSAR", freq_hz=1.239e9, track=113)
     bands = {b: load_roi(scene, b) for b in "LS"}
     with pytest.raises(LayoutError, match="not from the same pass"):
-        build_context(scene, bands, {b: stats(d) for b, d in bands.items()}, per_band=True)
+        build_context(scene, bands, {b: stats(d) for b, d in bands.items()}, per_band=True, strict=True)
 
 
 def test_shipped_layouts_render(scene, layouts_dir, tmp_path):
@@ -119,8 +119,8 @@ def test_products_with_differing_passes_are_allowed_when_not_strict(scene, tmp_p
     lay = Layout({"_path": "x.toml", "h": {"t": "TRACK {track}"}}, ctx)
     with pytest.raises(LayoutError, match="unknown placeholder"):  # a layout that relies on it fails loudly
         lay.text("h.t")
-    with pytest.raises(LayoutError, match="allow_different_passes"):
-        build_context_products(scene, prods)
+    with pytest.raises(LayoutError, match="same_pass"):
+        build_context_products(scene, prods, strict=True)
 
 
 def test_required_credits_are_merged_into_one_data_line_and_never_dropped():

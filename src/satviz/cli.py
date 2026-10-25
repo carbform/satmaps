@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--bands", action="store_true", help="optical: one panel per spectral band (same as --arrangement bands)")
     qk.add_argument("--allow-large", action="store_true",
                     help="draw an automatic area even above 15,000 km2 (a whole frame: slow); the default asks for --bbox")
-    qk.add_argument("--allow-different-passes", action="store_true", help="NISAR: lift the same-track-and-frame check")
+    qk.add_argument("--allow-different-passes", action="store_true", help=argparse.SUPPRESS)  # no longer needed: always allowed
     qk.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
     qk.add_argument("--data-dir", default=None)
     qk.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")

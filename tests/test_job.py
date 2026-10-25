@@ -161,17 +161,30 @@ def test_init_lists_and_writes_presets_that_parse(tmp_path, capsys):
     assert main(["init", "nope"]) == 2
 
 
-def test_grid_legend_merges_channel_mappings_across_families():
-    from satviz.arrangements.grid import grid_legend
+def test_legend_items_name_their_product_when_several_are_shown():
+    import datetime as dt
+    from types import SimpleNamespace
+
     from satviz.core import LegendItem as L
+    from satviz.legend import named_legend
+
+    def prod(platform, label, day):
+        return SimpleNamespace(meta={"platform": platform, "label": label, "start": dt.datetime(2026, 9, day)})
 
     nisar = [L("#r", "RED = HH  (SURFACE)"), L("#g", "GREEN = HV  (VOLUME)"), L("#b", "BLUE = HH−HV  (RATIO)"), L("noise", "GREY = NOISE")]
     s1 = [L("#r", "RED = VV  (SURFACE)"), L("#g", "GREEN = VH  (VOLUME)"), L("#b", "BLUE = VV−VH  (RATIO)")]
-    opt = [L("#r", "RED = RED BAND"), L("#g", "GREEN = GREEN BAND"), L("#b", "BLUE = BLUE BAND"), L("noise", "STRETCH 0.02–0.3")]
-    assert [i.text for i in grid_legend([nisar, nisar])] == [i.text for i in nisar]  # one kind: unchanged
-    assert len(grid_legend([nisar, opt])) == 6  # two kinds: three each
-    merged = grid_legend([nisar, s1, opt, opt])
-    assert [i.text for i in merged] == ["RED = HH · VV · RED BAND", "GREEN = HV · VH · GREEN BAND", "BLUE = HH−HV · VV−VH · BLUE BAND"]
+    opt = [L("#r", "RED = B04 (665 NM)"), L("#g", "GREEN = B03 (560 NM)"), L("#b", "BLUE = B02 (490 NM)"), L("noise", "STRETCH 0.02–0.3")]
+    n1, n2, s, o = prod("NISAR", "L-band", 1), prod("NISAR", "L-band", 8), prod("Sentinel-1D", "IW GRD", 2), prod("Sentinel-2C", "L2A", 3)
+    assert named_legend([(n1, nisar)])[0].text == "RED = HH  (SURFACE)"  # one product: unchanged
+    same = named_legend([(n1, nisar), (n2, nisar)])  # two passes of one product: one legend, named
+    assert [i.text for i in same][:2] == ["NISAR L-BAND · RED = HH  (SURFACE)", "NISAR L-BAND · GREEN = HV  (VOLUME)"] and len(same) == 4
+    two = named_legend([(n1, nisar), (o, opt)])  # two kinds: a row of three each
+    assert [i.text.split(" · ")[0] for i in two] == ["NISAR L-BAND"] * 3 + ["SENTINEL-2C L2A"] * 3
+    many = named_legend([(n1, nisar), (s, s1), (o, opt), (prod("NISAR", "L-band", 9), nisar)])  # three legends: a line each
+    assert [i.text for i in many] == ["NISAR L-BAND · R HH · G HV · B HH−HV", "SENTINEL-1D IW GRD · R VV · G VH · B VV−VH",
+                                      "SENTINEL-2C L2A · R B04 · G B03 · B B02"]
+    twice = named_legend([(n1, nisar), (n2, nisar[:3])])  # same product, different legends: told apart by date
+    assert {i.text.split(" · ")[0] for i in twice} == {"NISAR L-BAND 1 SEP", "NISAR L-BAND 8 SEP"}
 
 
 def test_grid_template_renders_in_a_job(scene, tmp_path):
@@ -197,7 +210,7 @@ theme = "minimal"
         run_job(load_job(bad, scene.data_dir), tmp_path / "out2")
 
 
-def test_inputs_from_different_passes_need_an_explicit_opt_in(scene, tmp_path):
+def test_inputs_from_different_passes_are_shown_together_unless_the_figure_asks_for_one_pass(scene, tmp_path):
     from satviz.layout import LayoutError
     from tests.conftest import make_raw, write_granule
 
@@ -205,10 +218,10 @@ def test_inputs_from_different_passes_need_an_explicit_opt_in(scene, tmp_path):
     base = JOB.replace('source = { path = "S.h5" }', 'source = { path = "S2.h5" }')
     p = tmp_path / "j.toml"
     p.write_text(base)
-    with pytest.raises(LayoutError, match="allow_different_passes"):
-        run_job(load_job(p, scene.data_dir), tmp_path / "out")
-    p.write_text(base + '\n[[figures]]\ntemplate = "sar"\ninputs = ["L", "S"]\nallow_different_passes = true\n')
-    assert run_job(load_job(p, scene.data_dir), tmp_path / "out2")[0].exists()
+    assert run_job(load_job(p, scene.data_dir), tmp_path / "out")[0].exists()  # any passes, by default
+    p.write_text(base + '\n[[figures]]\ntemplate = "sar"\ninputs = ["L", "S"]\nsame_pass = true\n')
+    with pytest.raises(LayoutError, match="same_pass"):
+        run_job(load_job(p, scene.data_dir), tmp_path / "out2")
 
 
 def test_layout_files_are_found_next_to_the_job_whatever_the_working_directory(scene, tmp_path, monkeypatch, layouts_dir):

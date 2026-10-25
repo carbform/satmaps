@@ -6,16 +6,16 @@ space the page has for the number of panels.
 from __future__ import annotations
 
 import math
-import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 
 from satviz.arrangements.compare import panel_text, platforms
 from satviz.config import Scene
-from satviz.core import RECIPES, THEMES, LegendItem, check_recipe
+from satviz.core import RECIPES, THEMES, check_recipe
 from satviz.furniture import DEFAULT, Furniture, decorate
 from satviz.layout import Layout, LayoutError, build_context_products
+from satviz.legend import named_legend
 from satviz.quality import Profile, save
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, social_footer, social_header
@@ -23,29 +23,6 @@ from satviz.themes.base import chip, img_axes, social_footer, social_header
 FILENAME = "{scene}_grid{n}_Social_{tag}.png"
 AREA_BOX = (0.04, 0.255, 0.92, 0.585)  # x, y, width, height in figure fractions (the page is 12 x 15 inches)
 FIG_W, FIG_H = 12.0, 15.0
-
-
-def grid_legend(legends: list[list]) -> list:
-    """One legend for several panels. Identical legends collapse; with two kinds the first three items of each are shown;
-    with more, items of the same colour are merged ('RED = HH · VV · RED BAND') so every channel mapping is still stated."""
-    groups: dict[tuple, list] = {}
-    for leg in legends:
-        groups.setdefault(tuple(i.text for i in leg[:3]), leg)
-    kinds = list(groups.values())
-    if len(kinds) == 1:
-        return kinds[0][:6]
-    if len(kinds) == 2:
-        return [*kinds[0][:3], *kinds[1][:3]]
-    merged: dict[str, list] = {}
-    for leg in kinds:
-        for item in leg[:3]:
-            merged.setdefault(item.color, []).append(item.text)
-    out = []
-    for color, texts in merged.items():
-        left = texts[0].split(" = ")[0]
-        rights = list(dict.fromkeys(re.sub(r"\s*\(.*\)$", "", x.split(" = ", 1)[-1]).strip() for x in texts))
-        out.append(LegendItem(color, f"{left} = {' · '.join(rights)}"))
-    return out
 
 
 def layout_cells(n: int, aspect: float) -> tuple[int, int, float]:
@@ -61,7 +38,7 @@ def layout_cells(n: int, aspect: float) -> tuple[int, int, float]:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, ...], recipe: str | dict = "sar_fcc",
-           theme: str = "neo_retro", stem: str | None = None, strict: bool = True,
+           theme: str = "neo_retro", stem: str | None = None, strict: bool = False,
            extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """`inputs` are two to six input ids in reading order (left to right, top to bottom); `recipe` is one name or {id: name}."""
     load_builtin()
@@ -80,7 +57,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     first = rendered[inputs[0]]
     lay = Layout(layout, build_context_products(scene, {k: products[k] for k in inputs}, True, strict=strict))
 
-    legend = grid_legend([rendered[k].legend for k in inputs])
+    legend = named_legend([(products[k], rendered[k].legend) for k in inputs])
     caveats = list(dict.fromkeys(c for k in inputs for c in rendered[k].caveats))
     if any(recs[k].shared_lims is not None for k in inputs):
         caveats.append("Colours are not comparable between panels (own stretch each).")

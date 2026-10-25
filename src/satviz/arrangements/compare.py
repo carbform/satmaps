@@ -14,6 +14,7 @@ from satviz.config import Scene
 from satviz.core import RECIPES, THEMES, check_recipe
 from satviz.furniture import DEFAULT, Furniture, decorate
 from satviz.layout import Layout, LayoutError, acquisition_label, build_context_products
+from satviz.legend import named_legend
 from satviz.quality import Profile, save
 from satviz.registry import load_builtin
 from satviz.themes.base import chip, img_axes, social_footer, social_header
@@ -34,7 +35,7 @@ def panel_text(lay: Layout, key: str, prod) -> str:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, str] = ("L", "S"),
-           recipe: str | dict = "sar_fcc", per_band: bool | None = None, theme: str = "neo_retro", strict: bool = True,
+           recipe: str | dict = "sar_fcc", per_band: bool | None = None, theme: str = "neo_retro", strict: bool = False,
            stem: str | None = None, extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """`inputs` are the two input ids, left and right of the split. Wording comes from `layout`; facts from the products.
 
@@ -66,9 +67,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
     lay = Layout(layout, build_context_products(scene, {a: A, b: B}, per_band, strict=strict))
     lims = None if per_band else rec.shared_lims([A, B])
     rA, rB = recA.render(A, lims), recB.render(B, lims)
-    legend = list({i.text: i for i in (*rA.legend, *rB.legend)}.values())
-    if names[a] != names[b] or len(legend) > 6:  # the six legend slots are shared: the first three items of each side
-        legend = [*rA.legend[:3], *rB.legend[:3]]
+    legend = named_legend([(A, rA.legend), (B, rB.legend)])  # each item says whose it is
     caveats = list(dict.fromkeys(c for r in (rA, rB) for c in r.caveats))
     if per_band and (recA.shared_lims is not None or recB.shared_lims is not None):
         caveats.append("Colours are not comparable between the two inputs (own stretch each).")
