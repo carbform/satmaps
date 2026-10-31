@@ -216,18 +216,18 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     return mode, box, per_place, outside
 
 
-def summary(chosen_rows: list[dict], mode: str, box: tuple | None, per_place: bool, outside: bool) -> str:
-    """One line under the button: what pressing it will do, or why it cannot yet."""
+def summary(chosen_rows: list[dict], mode: str, box: tuple | None, per_place: bool, outside: bool) -> tuple[bool, str]:
+    """(ready, message) shown under the button: what pressing it will draw, or the one thing to do first."""
     if not chosen_rows:
-        return "Choose at least one product in the sidebar."
+        return False, "Not yet: choose a product in the sidebar (step 1)."
     if outside:
-        return "Fix the area first: the box misses some products."
+        return False, "Not yet: the box misses some products. Redraw the box on the map, or leave those products out."
     n = len(chosen_rows)
     what = f"{n} product{'s' if n > 1 else ''}"
-    where = "in the box you chose" if mode == BOX and box else "over their common area"
     if per_place:
-        return f"Will draw {what} as {len(st.session_state['places'])} figures, one for each place."
-    return f"Will draw {what} in one figure {where}. Title, theme and layout have good defaults; change them below if you want."
+        return True, f"Ready: {what} in {len(st.session_state['places'])} figures, one for each place."
+    where = "in the box you drew" if mode == BOX and box else "where they overlap"
+    return True, f"Ready: {what} in one figure, {where}."
 
 
 def details_section() -> dict:
@@ -263,8 +263,7 @@ def look_section(kinds: list[str]) -> dict:
     grid = f1.checkbox("Lat/lon grid", value=False, help="Grid lines with latitude and longitude labels on every panel.")
     north = f2.checkbox("North arrow", value=False, help="Points at true north.")
     scalebar = f3.checkbox("Scale bar", value=True)
-    large = st.checkbox("Draw a very large area anyway (slow)")
-    return dict(theme=theme, layout=layout, quality=quality, allow_large=large, grid=grid,
+    return dict(theme=theme, layout=layout, quality=quality, grid=grid,
                 north=north, scalebar=scalebar)
 
 
@@ -340,7 +339,8 @@ def main() -> None:
         st.divider()
         st.markdown("##### 3 · Make the figure")
         go = st.button("Make the figure", type="primary", disabled=not chosen or bool(outside))
-        st.caption(summary(chosen_rows, mode, box, per_place, bool(outside)))
+        ready, said = summary(chosen_rows, mode, box, per_place, bool(outside))
+        (st.success if ready else st.warning)(said)
         st.divider()
         with st.expander("Optional: title, credits, theme, layout, quality", expanded=False):
             words = details_section()
@@ -352,7 +352,7 @@ def main() -> None:
     if go:
         options = dict(theme=look["theme"], quality=look["quality"], area=box, arrangement=look["layout"],
                        bands=look["layout"] == "bands",
-                       allow_large=look["allow_large"], grid=look["grid"], north=look["north"], scalebar=look["scalebar"],
+                       grid=look["grid"], north=look["north"], scalebar=look["scalebar"],
                        **words)
         with right, st.spinner("Reading the products and drawing…"):
             render(chosen, options, per_place)
