@@ -11,8 +11,8 @@
   Arguments: footprints [{name, kind, ring: [[lon, lat], ...]}]; overlap [w, s, e, n] or null (what the app uses on its own);
   box [w, s, e, n] or null (the rectangle now chosen); basemap true/false; dark true/false (the app's colour mode); tile_url (default: OpenStreetMap's), with {z}/{x}/{y}.
   zooms {A: [w, s, e, n] or null, B: ..., C: ...} and tool "area" | "A" | "B" | "C": the zoom boxes drawn on the map, and what a drag
-  draws now (the area rectangle or that zoom's box); Clear clears that one.
-  Value sent back on every change: {target: "area" | "A" | "B" | "C", box: [w, s, e, n] or null, n: counter}.
+  draws now (the main area's rectangle or that zoom's box); Clear removes all of them.
+  Value sent back on every change: {target: "area" | "A" | "B" | "C" | "all", box: [w, s, e, n] or null, n: counter}.
 
   The only network use is the browser fetching map tiles, and only when the basemap is on: the tile server sees which tiles
   (so roughly which place) you look at. Switch the basemap off and the page makes no requests at all.
@@ -34,7 +34,7 @@
 </head>
 <body>
 <canvas id="map" height="460"></canvas>
-<div id="bar"><div id="legend"></div><div><span id="readout"></span> <button id="fit">Fit</button> <button id="clear">Clear</button></div></div>
+<div id="bar"><div id="legend"></div><div><span id="readout"></span> <button id="fit">Fit</button> <button id="clear" title="Remove everything you drew: the main area and the zoom boxes">Clear</button></div></div>
 <script>
 "use strict";
 const OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -171,9 +171,9 @@ cv.addEventListener("wheel", ev => {
   redraw();
 }, {passive: false});
 document.getElementById("fit").addEventListener("click", () => { fit(); redraw(); });
-document.getElementById("clear").addEventListener("click", () => {
-  const tool = args.tool || "area"; if (tool === "area") box = null; else zbox[tool] = null;
-  counter += 1; send("streamlit:setComponentValue", {value: {target: tool, box: null, n: counter}, dataType: "json"}); redraw();
+document.getElementById("clear").addEventListener("click", () => {   // everything drawn goes: the main area and the zoom boxes (not the data's own coverage)
+  box = null; zbox = {}; counter += 1;
+  send("streamlit:setComponentValue", {value: {target: "all", box: null, n: counter}, dataType: "json"}); redraw();
 });
 window.addEventListener("resize", () => redraw());
 

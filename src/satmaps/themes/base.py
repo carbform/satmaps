@@ -114,8 +114,18 @@ def chip(target, t: Theme, x, y, text, fc, fs=11, **kw):
                        bbox=dict(boxstyle="square,pad=0.35", fc=fc, ec=t.ink, lw=t.lw(1.3)), **kw)
 
 
+MADE_WITH = "MADE WITH SATMAPS"
+
+
+def made_with(fig, t: Theme) -> None:
+    """The small banner in the top right corner of every figure. It is not a setting: a figure always says what made it."""
+    chip(fig, t, 0.96, 0.9895, MADE_WITH, t.card, fs=7.5, ha="right", va="center")
+
+
 def social_header(fig, t: Theme, lay: Layout) -> None:
-    """Title box with (if the theme has an accent) one soft offset behind the title, details right-aligned, and the info line under it."""
+    """Title box with (if the theme has an accent) one soft offset behind the title, details right-aligned, and the info line under it.
+    Every figure's top right corner carries the `made_with` banner."""
+    made_with(fig, t)
     if hasattr(t.chrome, "header"):
         return t.chrome.header(fig, t, lay)
     block(fig, t, 0.04, 0.885, 0.92, 0.09, fc=t.header_fc)

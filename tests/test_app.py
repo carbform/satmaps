@@ -136,7 +136,6 @@ def test_a_box_that_misses_a_product_says_so_and_can_leave_it_out(app_env):
     write_granule(app_env.data_dir / "F.h5", "science/LSAR/GCOV", far, instrument="LSAR", freq_hz=1.239e9)
     at = run_app()
     pick(at, "L.h5", "F.h5")
-    at.radio(key="area_mode").set_value("A box I choose").run()
     from satmaps.api import inspect
 
     w, s, e, n = inspect(app_env.data_dir / "L.h5")["bbox"]
@@ -157,7 +156,6 @@ def test_a_large_area_offers_the_suggested_box(app_env, monkeypatch):
     press(at, "Make the figure")
     assert any("slow" in e.value for e in at.error)
     press(at, "Use the suggested box")
-    assert at.radio(key="area_mode").value == "A box I choose"
     assert all(at.number_input(key=k).value != 0.0 for k in ("box_w", "box_s", "box_e", "box_n"))
     press(at, "Make the figure")  # the suggested box is now given, so the size check no longer applies
     assert not at.exception and not at.error and len(made(at)) == 1
@@ -376,18 +374,35 @@ def test_choose_folder_runs_the_dialog_in_its_own_process(monkeypatch, tmp_path)
         desktop.choose_folder(tmp_path)
 
 
-def test_a_drawn_box_fills_the_fields_and_clear_goes_back_to_the_overlap():
+def test_a_drawn_box_fills_the_fields_and_clear_removes_everything_drawn_but_the_coverage():
     pytest.importorskip("streamlit")
-    from satmaps.app import BOX, BOX_KEYS, OVERLAP, apply_drawn
+    from satmaps.app import BOX_KEYS, apply_drawn, box_of
 
-    state = {"last_draw": 0, "area_mode": OVERLAP, **dict.fromkeys(BOX_KEYS, 0.0)}
-    assert not apply_drawn(state, None) and state["area_mode"] == OVERLAP  # the map has sent nothing yet
+    state = {"last_draw": 0, "zoom_A": (1, 2, 3, 4), "zoom_B": None, "zoom_C": (5, 6, 7, 8), **dict.fromkeys(BOX_KEYS, 0.0)}
+    assert not apply_drawn(state, None) and box_of(state) is None  # the map has sent nothing yet: the products' overlap
     assert apply_drawn(state, {"box": [94.12345678, 27.2, 94.3, 27.4], "n": 1})
-    assert [state[k] for k in BOX_KEYS] == [94.1235, 27.2, 94.3, 27.4] and state["area_mode"] == BOX
+    assert [state[k] for k in BOX_KEYS] == [94.1235, 27.2, 94.3, 27.4] and box_of(state) == (94.1235, 27.2, 94.3, 27.4)
     state["box_w"] = 90.0  # the person edits a field by hand...
     assert not apply_drawn(state, {"box": [94.12345678, 27.2, 94.3, 27.4], "n": 1})  # ...and the map's old value does not undo it
     assert state["box_w"] == 90.0
-    assert apply_drawn(state, {"box": None, "n": 2}) and state["area_mode"] == OVERLAP  # Clear
+    state["box_n"] = 0.0
+    assert box_of(state) is None  # a field left empty: not a box yet
+    assert apply_drawn(state, {"target": "all", "box": None, "n": 2})  # Clear
+    assert box_of(state) is None and [state[f"zoom_{k}"] for k in "ABC"] == [None, None, None]
+    assert apply_drawn(state, {"target": "B", "box": [1, 2, 3, 4], "n": 3}) and box_of(state) is None  # a zoom is not the main area
+
+
+@needs_streamlit
+def test_the_main_area_has_its_four_fields_always_and_no_box_choice(app_env):
+    at = run_app()
+    pick(at, "L.h5")
+    assert not any(r.key == "area_mode" for r in at.radio) and not any("box I choose" in str(r.options) for r in at.radio)
+    assert [c.label for c in at.number_input if c.key.startswith("box_")] == ["West", "South", "East", "North"]
+    for key, value in zip(("box_w", "box_s", "box_e", "box_n"), (95.0, 28.0, 94.0, 27.0), strict=True):  # west east of east: refused
+        at.number_input(key=key).set_value(value)
+    at.run()
+    assert any("West must be less than east" in e.value for e in at.error)
+    assert next(b for b in at.button if b.label == "Make the figure").disabled
 
 
 @needs_streamlit
@@ -448,11 +463,11 @@ def test_the_zoom_panels_switch_is_for_one_product_and_offers_one_to_three_panel
     pick(at, "L.h5")
     assert not at.warning
     at.checkbox(key="zoom_on").check().run()
-    assert not at.exception and at.radio(key="zoom_tool").value == "Area" and at.radio(key="zoom_n").value == 3
-    assert at.radio(key="zoom_tool").options == ["Area", "Zoom A", "Zoom B", "Zoom C"]
+    assert not at.exception and at.radio(key="zoom_tool").value == "Main area" and at.radio(key="zoom_n").value == 3
+    assert at.radio(key="zoom_tool").options == ["Main area", "Zoom A", "Zoom B", "Zoom C"]
     at.radio(key="zoom_tool").set_value("Zoom C").run()
     at.radio(key="zoom_n").set_value(2).run()  # fewer panels: the tool that went is back to the area
-    assert at.radio(key="zoom_tool").options == ["Area", "Zoom A", "Zoom B"] and at.radio(key="zoom_tool").value == "Area"
+    assert at.radio(key="zoom_tool").options == ["Main area", "Zoom A", "Zoom B"] and at.radio(key="zoom_tool").value == "Main area"
     assert [t.label for t in at.text_input if t.key.startswith("zoom_name_")] == ["Name of zoom A", "Name of zoom B"]
     pick(at, "L.h5", "S.h5")  # two products: the option is not offered
     assert not any(c.key == "zoom_on" for c in at.checkbox) and not at.exception

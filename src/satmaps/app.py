@@ -43,7 +43,7 @@ USER_ERRORS = (TooLarge, DetectError, JobError, AreaError, SourceError, LayoutEr
                ImportError)
 BOX_KEYS = ("box_w", "box_s", "box_e", "box_n")
 ZOOM_KEYS = ("A", "B", "C")
-AREA_TOOL = "Area"
+AREA_TOOL = "Main area"
 MAX_PRODUCTS = 2
 OVERLAP, BOX = "Overlap of the products", "A box I choose"
 AUTOMATIC = "Automatic"
@@ -96,7 +96,6 @@ def use_suggested_box() -> None:
     """Button callback: fill the box fields from the large-area suggestion and switch to them."""
     for key, value in zip(BOX_KEYS, st.session_state["suggestion"], strict=True):
         st.session_state[key] = float(value)
-    st.session_state["area_mode"] = BOX
     st.session_state["suggestion"] = None
 
 
@@ -157,23 +156,34 @@ def show_results(results: list[dict], key_prefix: str = "", show_job: bool = Tru
             st.code(results[0]["toml"], language="toml")
 
 
+def box_of(state) -> tuple | None:
+    """The main area's box (west, south, east, north) when all four fields are filled in, else None: the figure then covers
+    what the products share."""
+    values = tuple(state[k] for k in BOX_KEYS)
+    return values if all(values) else None
+
+
 def apply_drawn(state, drawn: dict | None) -> bool:
-    """Write what the map sent back into the session: a new rectangle fills the four fields and switches the area to the box;
-    Clear switches it back to the overlap. A value already applied (the map keeps sending its last one) is ignored.
-    Returns whether anything changed."""
+    """Write what the map sent back into the session: a new rectangle fills the four fields of the main area; a zoom box is kept
+    on its own; Clear removes everything drawn (the main area and the zoom boxes) and leaves the products' own coverage.
+    A value already applied (the map keeps sending its last one) is ignored. Returns whether anything changed."""
     if not drawn or drawn["n"] == state["last_draw"]:
         return False
     state["last_draw"] = drawn["n"]
     target = drawn.get("target", "area")
-    if target in ZOOM_KEYS:  # a zoom box: it does not touch the area
+    if target == "all":
+        for key in BOX_KEYS:
+            state[key] = 0.0
+        for k in ZOOM_KEYS:
+            state[f"zoom_{k}"] = None
+    elif target in ZOOM_KEYS:  # a zoom box: it does not touch the main area
         state[f"zoom_{target}"] = tuple(round(float(v), 5) for v in drawn["box"]) if drawn["box"] else None
-        return True
-    if drawn["box"]:
+    elif drawn["box"]:
         for key, value in zip(BOX_KEYS, drawn["box"], strict=True):
             state[key] = round(float(value), 4)
-        state["area_mode"] = BOX
     else:
-        state["area_mode"] = OVERLAP
+        for key in BOX_KEYS:
+            state[key] = 0.0
     return True
 
 
@@ -204,7 +214,7 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
 
     Returns (mode, box, outside, apart): `outside` names the products a drawn box does not touch (they cannot be drawn in it);
     `apart` is True when two products share no ground (a figure needs products that overlap)."""
-    st.markdown("##### 2 · Area")
+    st.markdown("##### 2 · Main area")
     prints = [{"name": r["name"][:24], **footprint_of(r["path"], Path(r["path"]).stat().st_mtime)} for r in chosen_rows]
     prints = [p for p in prints if p["ring"]]
     overlap, apart = None, False
@@ -215,8 +225,11 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     if apart:
         st.error("These two products do not overlap: they cover different ground. A figure shows products that share ground, "
                  "so choose two that do (or leave one out).")
-    box = [st.session_state[k] for k in BOX_KEYS] if st.session_state["area_mode"] == BOX and all(
-        st.session_state[k] for k in BOX_KEYS) else None
+    box = box_of(st.session_state)
+    w, s_, e, n = box or (0, 0, 1, 1)
+    st.session_state["box_bad"] = not (w < e and s_ < n)  # west must be west of east, south south of north
+    if st.session_state["box_bad"]:
+        box = None
     st.session_state["zoom_ok"] = len(chosen_rows) == 1  # zoom panels go with a single product
     on = bool(st.session_state["zoom_on"] and st.session_state["zoom_ok"])
     n_zoom = int(st.session_state["zoom_n"])
@@ -236,9 +249,7 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
         return OVERLAP, None, [], False
     st.caption("Drag to draw the area · wheel to zoom · right-drag or shift-drag to move. The dashed rectangle is what is drawn "
                "when you draw nothing.")
-    a, b = st.columns([3, 2])
-    mode = a.radio("Area", [OVERLAP, BOX], key="area_mode", horizontal=True, label_visibility="collapsed")
-    b.checkbox("OpenStreetMap basemap", value=True, key="basemap",
+    st.checkbox("OpenStreetMap basemap", value=True, key="basemap",
                help="Your browser fetches map tiles from openstreetmap.org, which sees roughly where you look. Untick to keep "
                     "the map to your data alone: nothing is then fetched.")
     if st.session_state["zoom_ok"]:
@@ -254,13 +265,18 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
                 col.text_input(f"Name of zoom {k}", key=f"zoom_name_{k}", placeholder="optional, e.g. Hill edge")
             count = len(drawn_zooms(st.session_state))
             st.caption(f"{count} of {n_zoom} drawn. Pick a zoom above, then drag a box on the map." if count < n_zoom
-                       else "All drawn. Drag again to move one; Clear removes it.")
-    box, outside = None, []
-    if mode == BOX:
-        cols = st.columns(4)
-        for col, key, name in zip(cols, BOX_KEYS, ("West", "South", "East", "North"), strict=True):
-            col.number_input(name, key=key, format="%.4f", step=0.05)
-        box = tuple(st.session_state[k] for k in BOX_KEYS)
+                       else "All drawn. Drag again to move one; Clear removes every box you drew.")
+    outside = []
+    st.caption("Main area, in degrees. Drag on the map or type it; leave it empty for the area the products share.")
+    cols = st.columns(4)
+    for col, key, name in zip(cols, BOX_KEYS, ("West", "South", "East", "North"), strict=True):
+        col.number_input(name, key=key, format="%.4f", step=0.05,
+                         help="The main area's edges in degrees: filled in when you drag on the map, or type them. "
+                              "Empty (0) means the area the products share.")
+    if st.session_state["box_bad"]:
+        st.error("West must be less than east, and south less than north.")
+    mode = BOX if box else OVERLAP
+    if box:
         for row in chosen_rows:  # say so before drawing: a box that misses a product leaves its panel empty
             ring = footprint_of(row["path"], Path(row["path"]).stat().st_mtime)["ring"]
             share = coverage(ring, box) if ring else 1.0
@@ -279,10 +295,13 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     return mode, box, outside, apart
 
 
-def summary(chosen_rows: list[dict], mode: str, box: tuple | None, outside: bool, apart: bool) -> tuple[bool, str]:
+def summary(chosen_rows: list[dict], mode: str, box: tuple | None, outside: bool, apart: bool,
+            bad: bool = False) -> tuple[bool, str]:
     """(ready, message): ready with no message, or what to do first. `mode` and `box` are kept for callers that say more."""
     if not chosen_rows:
         return False, ""  # the button is off and the sidebar says step 1: no message needed
+    if bad:
+        return False, "Not yet: the main area's west must be less than its east, and its south less than its north."
     if apart:
         return False, "Not yet: the two products cover different ground. Choose two that overlap."
     if outside:
@@ -386,7 +405,8 @@ HELP = """
 **Make a figure in four steps**
 
 1. **Products** (sidebar): pick the folder, then one or two products. Two must cover the same ground.
-2. **Area**: leave it, and the figure covers what the products share. Or drag a rectangle on the map to choose a place.
+2. **Main area**: leave it, and the figure covers what the products share. Or drag a rectangle on the map,
+   or type its west, south, east and north.
 3. **Make the figure** (top left). The page below shows what you will get; press the button to draw it with your data.
 4. **Download** the PNG (and a PDF at publication quality), or the job file that reproduces it.
 
@@ -441,7 +461,7 @@ def main() -> None:
     title.title("satmaps")
     dark = mode_switch.toggle("Dark mode", key="dark", label_visibility="collapsed", help="Dark mode")
     st.markdown(stylesheet(dark), unsafe_allow_html=True)
-    defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "area_mode": OVERLAP, "last_draw": 0,
+    defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "box_bad": False, "last_draw": 0,
                 "folder": os.environ.get("SATMAPS_DATA_DIR", "data"), "folder_note": "", "made_with": None, "picked": [],
                 "dark": False, "zoom_on": False, "zoom_tool": AREA_TOOL, "zoom_n": 3, "zoom_ok": False,
                 **dict.fromkeys(WORDS, "")}
@@ -493,7 +513,7 @@ def main() -> None:
 
     with top:
         cells = st.columns(6)  # an equal grid: every control the same width and height
-        ready, said = summary(chosen_rows, mode, box, bool(outside), apart)
+        ready, said = summary(chosen_rows, mode, box, bool(outside), apart, st.session_state["box_bad"])
         go = cells[0].button("Make the figure", type="primary", disabled=not ready, use_container_width=True)
         with cells[1]:
             quality = quality_choice()

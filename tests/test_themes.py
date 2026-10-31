@@ -113,3 +113,24 @@ def test_data_pixels_are_identical_in_every_theme(scene, tmp_path, monkeypatch):
     for name, (left, right) in patches.items():
         assert left.shape == ref[0].shape
         assert np.array_equal(left, ref[0]) and np.array_equal(right, ref[1]), f"{name} changed the data pixels"
+
+
+@pytest.mark.parametrize("theme", sorted(THEMES))
+@pytest.mark.parametrize("layout", ["single", "compare", "grid", "bands"])
+def test_every_figure_carries_the_made_with_banner_in_its_top_right_corner(layout, theme, monkeypatch):
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from satmaps.preview import render_example
+    from satmaps.themes import base
+
+    def corner():
+        page = np.asarray(Image.open(io.BytesIO(render_example(None, layout, theme))).convert("RGB"))
+        return page[:46, 900:]  # above the header box, right of centre
+
+    with_banner = corner()
+    monkeypatch.setattr(base, "MADE_WITH", "")
+    assert base.MADE_WITH == "" and (with_banner != corner()).any()  # the banner is what fills that corner
+    assert (with_banner != with_banner[0, 0]).any()
