@@ -184,12 +184,35 @@ def details(title: str | None = None, subtitle: str | None = None, place: str | 
     return scene, text
 
 
+MAX_ZOOMS = 3
+
+
+def zoom_tables(zooms) -> list[dict]:
+    """The `[[zooms]]` tables of a job for up to three zoom windows, each a (west, south, east, north) box in degrees or a dict
+    with `center` (lat, lon) and `size_km` (width, height). Keys are A, B, C in order."""
+    import math
+
+    if len(zooms) > MAX_ZOOMS:
+        raise ValueError(f"{len(zooms)} zooms: a page has room for three")
+    out = []
+    for key, z in zip("ABC", zooms, strict=False):
+        if isinstance(z, dict):
+            keep = {k: [float(x) for x in v] if isinstance(v, (list, tuple)) else v for k, v in z.items() if k != "key"}
+            out.append({"key": key, **keep})
+            continue
+        w, s, e, n = (float(v) for v in z)
+        lat = (s + n) / 2
+        out.append({"key": key, "center": [round(lat, 6), round((w + e) / 2, 6)],
+                    "size_km": [round(abs(e - w) * 111.32 * math.cos(math.radians(lat)), 3), round(abs(n - s) * 110.57, 3)]})
+    return out
+
+
 def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick", title: str | None = None,
               template: str | None = None, arrangement: str | None = None, bands: bool = False, resolution_m: float | None = None,
               allow_large: bool = False, data_dir=None, subtitle: str | None = None,
               place: str | None = None, author: str | None = None, website: str | None = None, credits: str | None = None,
               notices: str | None = None, legend: str | None = None, grid: bool = False, north: bool = False,
-              scalebar: bool = True, channels: dict | None = None):
+              scalebar: bool = True, channels: dict | None = None, zooms=None):
     """The `Job` for some paths, with sensors detected, ids chosen, template and arrangement picked from what the inputs are, and
     the area and pixel size resolved. Also returns the job-file tables that reproduce it."""
     import dataclasses
@@ -227,7 +250,8 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
     table = _area_table(area)
     if resolution_m:
         table["resolution_m"] = float(resolution_m)
-    raw = {"quality": quality, "scene": {"name": "", **scene_fields}, "area": table, "inputs": inputs, "figures": [fig]}
+    raw = {"quality": quality, "scene": {"name": "", **scene_fields}, "area": table, "inputs": inputs, "figures": [fig],
+           **({"zooms": zoom_tables(zooms)} if zooms else {})}
     root = Path(data_dir) if data_dir else Path.cwd()
     job = job_from_dict(raw, root / f"{name}.toml", root)
     try:

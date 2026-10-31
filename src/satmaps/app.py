@@ -42,6 +42,8 @@ load_builtin()
 USER_ERRORS = (TooLarge, DetectError, JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError,
                ImportError)
 BOX_KEYS = ("box_w", "box_s", "box_e", "box_n")
+ZOOM_KEYS = ("A", "B", "C")
+AREA_TOOL = "Area"
 MAX_PRODUCTS = 2
 OVERLAP, BOX = "Overlap of the products", "A box I choose"
 AUTOMATIC = "Automatic"
@@ -69,12 +71,12 @@ def footprint_of(path: str, mtime: float) -> dict:
 
 @st.cache_data(show_spinner=False)
 def example_page(kinds: tuple, layout: str, theme: str, words: tuple = (), furniture: tuple = (True, False, False),
-                 channels: tuple = ()) -> bytes:
+                 channels: tuple = (), zoom_panels: bool = False) -> bytes:
     """The example page for a layout, a theme, the kinds of products chosen, the wording typed so far, the map furniture and the
     false-colour channels picked."""
     scale, north, grid = furniture
     return render_example(list(kinds), layout, theme, furniture=Furniture(scale=scale, north=north, grid=grid),
-                          channels={k: v for k, v in channels}, **dict(words))
+                          channels={k: v for k, v in channels}, zoom_panels=zoom_panels, **dict(words))
 
 
 def browse() -> None:
@@ -162,6 +164,10 @@ def apply_drawn(state, drawn: dict | None) -> bool:
     if not drawn or drawn["n"] == state["last_draw"]:
         return False
     state["last_draw"] = drawn["n"]
+    target = drawn.get("target", "area")
+    if target in ZOOM_KEYS:  # a zoom box: it does not touch the area
+        state[f"zoom_{target}"] = tuple(round(float(v), 5) for v in drawn["box"]) if drawn["box"] else None
+        return True
     if drawn["box"]:
         for key, value in zip(BOX_KEYS, drawn["box"], strict=True):
             state[key] = round(float(value), 4)
@@ -169,6 +175,24 @@ def apply_drawn(state, drawn: dict | None) -> bool:
     else:
         state["area_mode"] = OVERLAP
     return True
+
+
+def zooms_outside(state, area: tuple | None) -> list[str]:
+    """Names of the zoom boxes whose centre is not inside the area (west, south, east, north); none if the area is not known."""
+    if not area:
+        return []
+    w, s, e, n = area
+    out = []
+    for k in ZOOM_KEYS:
+        z = state.get(f"zoom_{k}") if state.get("zoom_on") else None
+        if z and not (w <= (z[0] + z[2]) / 2 <= e and s <= (z[1] + z[3]) / 2 <= n):
+            out.append(k)
+    return out
+
+
+def zoom_boxes(state) -> list[tuple]:
+    """The zoom boxes drawn so far (up to three, in A, B, C order), or none when the zoom panels are switched off."""
+    return [state[f"zoom_{k}"] for k in ZOOM_KEYS if state.get("zoom_on") and state.get(f"zoom_{k}")]
 
 
 def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | None, list[str], bool]:
@@ -189,9 +213,13 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
                  "so choose two that do (or leave one out).")
     box = [st.session_state[k] for k in BOX_KEYS] if st.session_state["area_mode"] == BOX and all(
         st.session_state[k] for k in BOX_KEYS) else None
+    on = bool(st.session_state.get("zoom_on"))
+    tool = st.session_state["zoom_tool"].removeprefix("Zoom ") if on and st.session_state["zoom_tool"] != AREA_TOOL else "area"
     drawn = area_map(footprints=[{"name": p["name"], "kind": p["kind"], "ring": p["ring"]} for p in prints], overlap=overlap,
                      box=box, basemap=bool(st.session_state.get("basemap", True)),
-                     dark=bool(st.session_state.get("dark", False)), key="area_map", default=None)
+                     dark=bool(st.session_state.get("dark", False)), key="area_map", default=None,
+                     zooms=({k: st.session_state.get(f"zoom_{k}") for k in ZOOM_KEYS} if on else {}),
+                     tool=tool)
     apply_drawn(st.session_state, drawn)
     if not chosen_rows:  # the map of India waits for products; drawing a box before choosing any would have nothing to apply to
         st.caption("Choose one or two products in the sidebar (step 1): they appear here, and you can draw the area you want.")
@@ -204,6 +232,15 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     b.checkbox("OpenStreetMap basemap", value=True, key="basemap",
                help="Your browser fetches map tiles from openstreetmap.org, which sees roughly where you look. Untick to keep "
                     "the map to your data alone: nothing is then fetched.")
+    z1, z2 = st.columns([2, 3])
+    z1.checkbox("Zoom side panels", key="zoom_on",
+                help="Up to three small windows beside the picture, each marked on it. One product or two side by side.")
+    if st.session_state["zoom_on"]:
+        z2.radio("Draw", [AREA_TOOL, *(f"Zoom {k}" for k in ZOOM_KEYS)], key="zoom_tool", horizontal=True,
+                 label_visibility="collapsed", help="What a drag on the map draws: the area, or a zoom box.")
+        drawn_zooms = zoom_boxes(st.session_state)
+        st.caption(f"{len(drawn_zooms)} of 3 zoom boxes drawn. Pick Zoom A, B or C, then drag a box on the map."
+                   if len(drawn_zooms) < 3 else "Three zoom boxes drawn. Drag again to move one; Clear removes it.")
     box, outside = None, []
     if mode == BOX:
         cols = st.columns(4)
@@ -221,6 +258,10 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
             names = ", ".join(by_label[x]["name"][:30] for x in outside)
             st.error(f"This box is outside {names}: there is nothing of it to draw here.")
             st.button("Leave out the products outside the box", on_click=leave_out, args=(outside,))
+    area = box or (tuple(overlap) if overlap else (prints[0]["bbox"] if len(prints) == 1 and prints[0].get("bbox") else None))
+    if lost := zooms_outside(st.session_state, area):
+        st.warning(f"Zoom {', '.join(lost)} {'is' if len(lost) == 1 else 'are'} outside the area: draw it inside the area, "
+                   "or pick a larger area.")
     return mode, box, outside, apart
 
 
@@ -373,7 +414,7 @@ def figure_pane(kinds: list[str], words: dict, look: dict, channels: dict, signa
         st.info("The settings have changed since this figure was made. This is the page they give: press **Make the figure** "
                 "to draw it with your data.")
     st.image(example_page(tuple(kinds), layout, look["theme"], tuple(sorted((k, v) for k, v in words.items() if v)),
-                          (look["scalebar"], look["north"], look["grid"]), tuple(sorted(channels.items()))),
+                          (look["scalebar"], look["north"], look["grid"]), tuple(sorted(channels.items())), look["zoom_panels"]),
              use_column_width=True)
     if results:
         with st.expander("The figure made before the change"):
@@ -388,9 +429,9 @@ def main() -> None:
     st.markdown(stylesheet(dark), unsafe_allow_html=True)
     defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "area_mode": OVERLAP, "last_draw": 0,
                 "folder": os.environ.get("SATMAPS_DATA_DIR", "data"), "folder_note": "", "made_with": None, "picked": [],
-                "dark": False,
+                "dark": False, "zoom_on": False, "zoom_tool": AREA_TOOL,
                 **dict.fromkeys(WORDS, "")}
-    for key, default in {**defaults, **dict.fromkeys(BOX_KEYS, 0.0)}.items():
+    for key, default in {**defaults, **dict.fromkeys(BOX_KEYS, 0.0), **{f"zoom_{k}": None for k in ZOOM_KEYS}}.items():
         st.session_state.setdefault(key, default)
 
     top = st.container()  # the button and the pop-ups sit at the top; they are filled in once the area is known
@@ -452,12 +493,14 @@ def main() -> None:
         if said:
             st.warning(said)
 
-    signature = (tuple(chosen), mode, box, quality, tuple(sorted(words.items(), key=lambda kv: kv[0])), tuple(sorted(
-        (k, str(v)) for k, v in look.items())), tuple(sorted(channels.items())))
+    zooms = zoom_boxes(st.session_state)
+    look = {**look, "zoom_panels": bool(st.session_state["zoom_on"])}
+    signature = (tuple(chosen), mode, box, quality, tuple(zooms), tuple(sorted(words.items(), key=lambda kv: kv[0])),
+                 tuple(sorted((k, str(v)) for k, v in look.items())), tuple(sorted(channels.items())))
     if go:
         options = dict(theme=look["theme"], quality=quality, area=box, arrangement=look["layout"],
                        bands=look["layout"] == "bands", grid=look["grid"], north=look["north"], scalebar=look["scalebar"],
-                       channels=channels, **words)
+                       channels=channels, zooms=zooms or None, **words)
         with right, st.spinner("Reading the products and drawing…"):
             render(chosen, options)
         st.session_state["made_with"] = signature

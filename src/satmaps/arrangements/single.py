@@ -18,6 +18,7 @@ from satmaps.layout import Layout, LayoutError, build_context_products
 from satmaps.quality import Profile, save
 from satmaps.registry import load_builtin
 from satmaps.themes.base import chip, img_axes, social_footer, social_header
+from satmaps.zoompanels import mark, title, window
 
 FILENAME = "{scene}_{key}band_Social_{tag}.png"
 
@@ -53,12 +54,13 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
         social_header(fig, t, lay)
 
         # Hero
-        hy, hw, hx = 0.255, (0.677 if r.components else 0.92), 0.04
+        side = bool(r.components or scene.zooms)  # a column of small panels beside the hero
+        hy, hw, hx = 0.255, (0.677 if side else 0.92), 0.04
         hh = hw * 12 / 15 * (H / W)
-        if hh > 0.585:  # no side panels: keep the picture's aspect ratio inside the page
+        if hh > 0.585:  # keep the picture's aspect ratio inside the page
             hh = 0.585
             hw = hh * 15 / 12 * (W / H)
-            hx = 0.04 + (0.92 - hw) / 2
+            hx = 0.04 + (0.92 - (hw + 0.02 + 0.223 if side else hw)) / 2  # the picture and its column are centred together
         elif 0.585 - hh > 0.04:  # a clearly landscape scene is much shorter than the box: centre it and its side panels
             hy += (0.585 - hh) / 2
         ax = img_axes(fig, t, hx, hy, hw, hh)
@@ -69,6 +71,11 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
             xy = project(P.epsg, *scene.callouts[co["key"]])
             _sticker(ax, t, lay.render(co["text"], f"callouts[{i}]"), xy, (co.get("dx", -60), co.get("dy", 60)),
                      t.card if co.get("fill", "card") == "card" else chip_color)
+        zgap, zlab = 0.009, 0.019
+        zh = (hh - 2 * zgap) / 3 - zlab  # the picture of a zoom cell (three of them, each with a title above)
+        zcell = (min(0.96 - (hx + hw + 0.02), 0.223) * 12) / (zh * 15)  # width / height of a zoom picture, as printed
+        if scene.zooms and not r.components:
+            mark(ax, t, scene.zooms, ext, (H, W), lambda z: zcell)
         decorate(ax, t, ext, P.epsg, furniture, first=True)
         chip(fig, t, hx + 0.012, hy + hh - 0.014, (lay.text("panels.band") if lay.get("panels.band") is not None else f"{P.meta['platform']} {P.meta['label']}".upper()), chip_color, va="top", ha="left")
         chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, (lay.text("panels.composite") if lay.get("panels.composite") is not None else r.title), t.card, va="top", ha="right")
@@ -87,6 +94,16 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
                 a = img_axes(fig, t, px, py, pw, ph)
                 a.imshow(comp.img, extent=r.components_extent, origin="upper", aspect="auto", interpolation="nearest")
                 chip(fig, t, px + 0.008, py + ph - 0.01, lay.render(labels[i], f"channels.labels[{i}]"), comp.color, fs=10.5, va="top")
+
+        # The optional zoom panels: windows onto the hero, a lettered box on the hero for each (not beside the channel panels)
+        if scene.zooms and not r.components:
+            px, pw = hx + hw + 0.02, min(0.96 - (hx + hw + 0.02), 0.223)
+            for i, z in enumerate(scene.zooms):
+                (r0, r1), (c0, c1) = window(z, zcell, (H, W))
+                top = hy + hh - i * (zh + zlab + zgap)
+                fig.text(px + 0.002, top - zlab / 2, title(z), fontsize=10.5, color=t.ink, weight="semibold", va="center", zorder=20)
+                za = img_axes(fig, t, px, top - zlab - zh, pw, zh)
+                za.imshow(r.rgba[r0:r1, c0:c1], aspect="auto", interpolation="antialiased")
 
         social_footer(fig, t, lay, legend=r.legend, caveats=[*r.caveats, *extra_caveats], required_credits=[(P.meta["attribution"], P.meta["credit"])])
         out = Path(out_dir) / (f"{stem}.png" if stem else FILENAME.format(scene=f"{platforms([P])}_{scene.name}", key=input, tag=t.tag))

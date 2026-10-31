@@ -35,6 +35,17 @@ STREAMLIT_LAUNCH = ("import sys, streamlit.version as v; v.should_show_new_versi
                     "from streamlit.web.cli import main; sys.exit(main())")
 
 
+def _zoom(text: str) -> dict:
+    """`--zoom LAT,LON,KM` (a square) or `LAT,LON,W_KM,H_KM`, as a job-file zoom table."""
+    try:
+        v = [float(x) for x in text.split(",")]
+    except ValueError:
+        v = []
+    if len(v) not in (3, 4) or min(v[2:]) <= 0:
+        raise ValueError(f"--zoom {text!r}: give LAT,LON,KM or LAT,LON,W_KM,H_KM")
+    return {"center": v[:2], "size_km": v[2:] * 2 if len(v) == 3 else v[2:]}
+
+
 def _app(args) -> int:
     """Start Streamlit on localhost with the app script. Settings go by environment: the script has no command line of its own."""
     import importlib.util
@@ -78,6 +89,8 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--grid", action="store_true", help="draw a lat/lon grid with its labels on every panel")
     qk.add_argument("--north", action="store_true", help="draw a north arrow")
     qk.add_argument("--no-scale", action="store_true", help="leave the scale bar out")
+    qk.add_argument("--zoom", action="append", default=[], metavar="LAT,LON,KM",
+                    help="a zoom side panel centred here, KM wide and high (or LAT,LON,W_KM,H_KM); up to three, repeat the flag")
     qk.add_argument("--bbox", nargs=4, type=float, metavar=("W", "S", "E", "N"),
                     help="draw this box (degrees) instead of the overlap of the inputs")
     qk.add_argument("--resolution", type=float, default=None, metavar="M", help="pixel size in metres (default: from --quality)")
@@ -172,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
 
         channels = {k: tuple(v.split(",")) for k, v in (("sar", args.sar_fcc), ("optical", args.optical_fcc)) if v}
         try:
+            zooms = [_zoom(z) for z in args.zoom]
             paths = render(args.paths, out=args.out, cache=None if args.no_cache else args.cache,
                            save_job=args.save_job, area=args.bbox, theme=args.theme, quality=args.quality, title=args.title,
                            template=args.template,
@@ -179,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
                            allow_large=args.allow_large, channels=channels,
                            data_dir=args.data_dir, subtitle=args.subtitle, place=args.place, author=args.author,
                            website=args.website, credits=args.credit, grid=args.grid, north=args.north,
-                           scalebar=not args.no_scale)
+                           scalebar=not args.no_scale, zooms=zooms)
         except (DetectError, JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError,
                 ImportError) as e:
             print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)

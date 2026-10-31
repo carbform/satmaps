@@ -8,7 +8,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Rectangle
 
 from satmaps.config import Scene
 from satmaps.core import RECIPES, THEMES, check_recipe
@@ -18,6 +17,7 @@ from satmaps.legend import named_legend
 from satmaps.quality import Profile, save
 from satmaps.registry import load_builtin
 from satmaps.themes.base import chip, img_axes, social_footer, social_header
+from satmaps.zoompanels import mark, title, window
 
 FILENAME = "{scene}_{a}vs{b}_Social_{tag}.png"
 
@@ -88,40 +88,31 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tu
         # Hero: first input left, second right, same pixels
         hy, hw, hx = 0.255, (0.677 if scene.zooms else 0.92), 0.04
         hh = hw * 12 / 15 * (H / W)
-        if hh > 0.585:  # no zoom column: keep the picture's aspect ratio inside the page
+        if hh > 0.585:  # keep the picture's aspect ratio inside the page
             hh = 0.585
             hw = hh * 15 / 12 * (W / H)
-            hx = 0.04 + (0.92 - hw) / 2
+            hx = 0.04 + (0.92 - (hw + 0.02 + 0.223 if scene.zooms else hw)) / 2  # the picture and its column are centred together
         ax = img_axes(fig, t, hx, hy, hw, hh)
         ax.imshow(hero, extent=ext, origin="upper", aspect="auto", interpolation="antialiased")
         ax.axvline(xsplit, color=t.card, lw=t.lw(2.2), zorder=12)
         ax.text(xsplit, ext[2] + 0.5 * (ext[3] - ext[2]), f"◄ {a.upper()}   {b.upper()} ►", ha="center", va="center", fontsize=10.5, color=t.ink,
                 zorder=13, bbox=dict(boxstyle="square,pad=0.45", fc=t.card, ec=t.ink, lw=t.lw(1.3)))
 
-        def xx0(c):
-            return ext[0] + (ext[1] - ext[0]) * c / W
-
-        def yy0(r):
-            return ext[3] - (ext[3] - ext[2]) * r / H
-
-        for z in scene.zooms:
-            (r0, r1), (c0, c1) = z.rows, z.cols
-            ax.add_patch(Rectangle((xx0(c0), yy0(r1)), xx0(c1) - xx0(c0), yy0(r0) - yy0(r1), fc="none", ec=t.card, lw=t.lw(1.4), zorder=11))
-            ax.text(xx0(c0), yy0(r0) + 0.006 * (ext[3] - ext[2]), z.key, ha="left", va="bottom", fontsize=10.5, color=t.ink, zorder=13,
-                    bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=t.lw(1.0)))
+        # Zoom cells: first input above second for each window (their shape is needed to mark the windows on the hero)
+        px, pw = hx + hw + 0.02, min(0.96 - (hx + hw + 0.02), 0.223)
+        gap, lab = 0.009, 0.019
+        ch = (hh - 2 * gap) / 3
+        ih = (ch - lab) / 2
+        cell = (pw * 12) / (ih * 15)  # width / height of a zoom picture, as printed
+        mark(ax, t, scene.zooms, ext, (H, W), lambda z: cell)
         decorate(ax, t, ext, A.epsg, furniture, first=True)
         chip(fig, t, hx + 0.012, hy + hh - 0.014, panel_text(lay, a, A), t.chip_a, va="top", ha="left")
         chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, panel_text(lay, b, B), t.chip_b, va="top", ha="right")
 
-        # Zoom cells: first input above second for each window
-        px, pw = hx + hw + 0.02, 0.96 - (hx + hw + 0.02)
-        gap, lab = 0.009, 0.019
-        ch = (hh - 2 * gap) / 3
-        ih = (ch - lab) / 2
         for i, z in enumerate(scene.zooms):
-            (r0, r1), (c0, c1) = z.rows, z.cols
+            (r0, r1), (c0, c1) = window(z, cell, (H, W))
             top = hy + hh - i * (ch + gap)
-            fig.text(px + 0.002, top - lab / 2, f"{z.key}  {z.name}", fontsize=10.5, color=t.ink, weight="semibold", va="center", zorder=20)
+            fig.text(px + 0.002, top - lab / 2, title(z), fontsize=10.5, color=t.ink, weight="semibold", va="center", zorder=20)
             for j, (rg, bandname, col) in enumerate(((rA_, a, t.chip_a), (rB_, b, t.chip_b))):
                 py = top - lab - (j + 1) * ih
                 za = img_axes(fig, t, px, py, pw, ih - (0.003 if j == 0 else 0))

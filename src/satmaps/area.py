@@ -76,15 +76,33 @@ class Canvas:
         return slice(r0, r1), slice(c0, c1)
 
 
-    def window_around(self, lat: float, lon: float, size_km: tuple[float, float]) -> tuple[tuple[int, int], tuple[int, int]]:
-        """((row0, row1), (col0, col1)) of a w x h km box centred on a point; raises if it is not inside the canvas."""
+    def window_around(self, lat: float, lon: float, size_km: tuple[float, float],
+                      clamp: bool = False) -> tuple[tuple[int, int], tuple[int, int]]:
+        """((row0, row1), (col0, col1)) of a w x h km box centred on a point; raises if it is not inside the canvas.
+        With `clamp` only the centre has to be inside: a box that overhangs is moved (and, if need be, trimmed) to fit."""
         cx, cy = _tf(4326, self.epsg).transform(lon, lat)
         hw, hh = size_km[0] * 500 / self.res, size_km[1] * 500 / self.res
         col, row = (cx - self.x0) / self.res, (self.y0 - cy) / self.res
         c0, c1, r0, r1 = round(col - hw), round(col + hw), round(row - hh), round(row + hh)
+        if clamp:
+            if not (0 <= col < self.width and 0 <= row < self.height):
+                raise AreaError(f"lat {lat:.4f}, lon {lon:.4f} is outside the area")
+            c0, c1 = _slide(c0, c1, self.width)
+            r0, r1 = _slide(r0, r1, self.height)
         if c0 < 0 or r0 < 0 or c1 > self.width or r1 > self.height or c1 <= c0 or r1 <= r0:
             raise AreaError(f"a {size_km[0]:g} x {size_km[1]:g} km box around lat {lat}, lon {lon} is not inside the area")
         return (r0, r1), (c0, c1)
+
+
+def _slide(a: int, b: int, limit: int) -> tuple[int, int]:
+    """The span a..b moved inside 0..limit (trimmed if it is longer than that)."""
+    if b - a >= limit:
+        return 0, limit
+    if a < 0:
+        return 0, b - a
+    if b > limit:
+        return limit - (b - a), limit
+    return a, b
 
 
 @dataclass(frozen=True)

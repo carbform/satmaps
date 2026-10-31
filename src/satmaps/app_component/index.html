@@ -10,7 +10,9 @@
 
   Arguments: footprints [{name, kind, ring: [[lon, lat], ...]}]; overlap [w, s, e, n] or null (what the app uses on its own);
   box [w, s, e, n] or null (the rectangle now chosen); basemap true/false; dark true/false (the app's colour mode); tile_url (default: OpenStreetMap's), with {z}/{x}/{y}.
-  Value sent back on every change of the rectangle: {box: [w, s, e, n] or null, n: counter}.
+  zooms {A: [w, s, e, n] or null, B: ..., C: ...} and tool "area" | "A" | "B" | "C": the zoom boxes drawn on the map, and what a drag
+  draws now (the area rectangle or that zoom's box); Clear clears that one.
+  Value sent back on every change: {target: "area" | "A" | "B" | "C", box: [w, s, e, n] or null, n: counter}.
 
   The only network use is the browser fetching map tiles, and only when the basemap is on: the tile server sees which tiles
   (so roughly which place) you look at. Switch the basemap off and the page makes no requests at all.
@@ -18,7 +20,7 @@
   Mouse: drag = draw the area · wheel = zoom · right-drag, middle-drag or shift-drag = move the map.
 -->
 <style>
-  :root { --ink: #1c1c1e; --muted: #6b6f76; --line: #d9dbe0; --bg: #f3f4f6; --sar: #1f7a76; --optical: #c46a12; --box: #e0245e; --pill: rgba(255,255,255,.85); }
+  :root { --ink: #1c1c1e; --muted: #6b6f76; --line: #d9dbe0; --bg: #f3f4f6; --sar: #1f7a76; --optical: #c46a12; --box: #e0245e; --za: #7a3cc4; --zb: #1f6fd1; --zc: #d4840a; --pill: rgba(255,255,255,.85); }
   :root[data-theme="dark"] { --ink: #cdd9e5; --muted: #8892b0; --line: #444c56; --bg: #1c2128; --pill: rgba(34,39,46,.85); }
   html, body { margin: 0; font: 13px system-ui, sans-serif; color: var(--ink); background: transparent; }
   canvas { display: block; width: 100%; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); cursor: crosshair; touch-action: none; }
@@ -37,7 +39,7 @@
 "use strict";
 const OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const H = 460, cv = document.getElementById("map"), ctx = cv.getContext("2d"), readout = document.getElementById("readout");
-let args = {footprints: [], overlap: null, box: null, basemap: false, tile_url: OSM}, box = null, drag = null, panning = null, hover = null;
+let args = {footprints: [], overlap: null, box: null, zooms: {}, tool: "area", basemap: false, tile_url: OSM}, box = null, zbox = {}, drag = null, panning = null, hover = null;
 let counter = 0, view = {cx: 0.5, cy: 0.5, z: 1}, fitKey = null, tiles = new Map(), tilesOk = 0, tilesFailed = 0, pending = false;
 
 const send = (type, data) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, data), "*");
@@ -115,15 +117,22 @@ function draw() {
     halo(f.name, Math.max(4, px(c[0]) - ctx.measureText(f.name).width / 2), py(c[1]), col);
   });
   if (args.overlap) { ctx.setLineDash([6, 4]); ctx.strokeStyle = css("--ink"); ctx.lineWidth = 1.6; rect(args.overlap); ctx.stroke(); ctx.setLineDash([]); }
-  const shown = drag ? ordered(drag) : box;
-  if (shown) { ctx.strokeStyle = css("--box"); ctx.lineWidth = 2.5; rect(shown); ctx.globalAlpha = 0.14; ctx.fillStyle = css("--box"); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); }
+  const tool = args.tool || "area", colour = t => css(t === "area" ? "--box" : "--z" + t.toLowerCase());
+  const paint = (b, t, label) => {
+    ctx.strokeStyle = colour(t); ctx.lineWidth = 2.5; rect(b); ctx.globalAlpha = 0.14; ctx.fillStyle = colour(t); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
+    if (label) { ctx.font = "bold 12px system-ui, sans-serif"; halo(label, px(b[0]) + 3, py(b[3]) - 4, colour(t)); ctx.font = "11px system-ui, sans-serif"; }
+  };
+  Object.keys(zbox).forEach(k => { if (zbox[k] && !(drag && tool === k)) paint(zbox[k], k, k); });
+  const shown = drag ? ordered(drag) : (tool === "area" ? box : zbox[tool] || null);
+  if (box && tool !== "area" && !drag) { ctx.setLineDash([5, 4]); ctx.strokeStyle = css("--box"); ctx.lineWidth = 1.6; rect(box); ctx.stroke(); ctx.setLineDash([]); }
+  if (shown) paint(shown, tool, tool === "area" ? "" : tool);
   if (args.basemap) {
     const note = tilesFailed && !tilesOk ? "Basemap not available (offline?): data only" : "© OpenStreetMap contributors";
     ctx.font = "10px system-ui, sans-serif"; const w = ctx.measureText(note).width + 10;
     ctx.fillStyle = css("--pill"); ctx.fillRect(W() - w, H - 17, w, 17); ctx.fillStyle = css("--ink"); ctx.fillText(note, W() - w + 5, H - 5);
   }
   readout.textContent = shown ? "W " + shown[0].toFixed(3) + "  S " + shown[1].toFixed(3) + "  E " + shown[2].toFixed(3) + "  N " + shown[3].toFixed(3)
-    : hover ? hover[0].toFixed(3) + "°E  " + hover[1].toFixed(3) + "°N" : "drag on the map to draw the area";
+    : hover ? hover[0].toFixed(3) + "°E  " + hover[1].toFixed(3) + "°N" : tool === "area" ? "drag on the map to draw the area" : "drag on the map to draw zoom " + tool;
   const kinds = [...new Set(args.footprints.map(f => f.kind))];
   document.getElementById("legend").innerHTML = kinds.map(k => '<span><i style="background:' + css(k === "optical" ? "--optical" : "--sar") + '"></i>' + (k === "optical" ? "optical" : "radar") + ' data</span>').join("")
     + (args.overlap ? '<span><i style="border:1.5px dashed ' + css("--ink") + '"></i>overlap (the default)</span>' : "");
@@ -149,7 +158,8 @@ cv.addEventListener("pointerup", ev => {
   if (!drag) return;
   const b = ordered(drag); drag = null;
   const tiny = (px(b[2]) - px(b[0])) < 6 || (py(b[1]) - py(b[3])) < 6;   // a click, not a rectangle
-  if (!tiny) { box = b; counter += 1; send("streamlit:setComponentValue", {value: {box: b, n: counter}, dataType: "json"}); }
+  const tool = args.tool || "area";
+  if (!tiny) { if (tool === "area") box = b; else zbox[tool] = b; counter += 1; send("streamlit:setComponentValue", {value: {target: tool, box: b, n: counter}, dataType: "json"}); }
   redraw();
 });
 cv.addEventListener("pointerleave", () => { hover = null; redraw(); });
@@ -161,16 +171,19 @@ cv.addEventListener("wheel", ev => {
   redraw();
 }, {passive: false});
 document.getElementById("fit").addEventListener("click", () => { fit(); redraw(); });
-document.getElementById("clear").addEventListener("click", () => { box = null; counter += 1; send("streamlit:setComponentValue", {value: {box: null, n: counter}, dataType: "json"}); redraw(); });
+document.getElementById("clear").addEventListener("click", () => {
+  const tool = args.tool || "area"; if (tool === "area") box = null; else zbox[tool] = null;
+  counter += 1; send("streamlit:setComponentValue", {value: {target: tool, box: null, n: counter}, dataType: "json"}); redraw();
+});
 window.addEventListener("resize", () => redraw());
 
 window.addEventListener("message", ev => {
   if (!ev.data || ev.data.type !== "streamlit:render") return;
-  args = Object.assign({footprints: [], overlap: null, box: null, basemap: false, tile_url: OSM}, ev.data.args);
+  args = Object.assign({footprints: [], overlap: null, box: null, zooms: {}, tool: "area", basemap: false, tile_url: OSM}, ev.data.args);
   document.documentElement.dataset.theme = args.dark ? "dark" : "light";   // the app's own switch, not the system's
   const key = JSON.stringify(args.footprints.map(f => [f.name, f.ring.length, f.ring[0]]));
   if (key !== fitKey) { fitKey = key; fit(); }          // new products: show them all; otherwise keep the view you made
-  if (!drag) box = args.box;
+  if (!drag) { box = args.box; zbox = Object.assign({}, args.zooms); }
   redraw();
 });
 send("streamlit:componentReady", {apiVersion: 1});

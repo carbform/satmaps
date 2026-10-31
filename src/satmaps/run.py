@@ -60,15 +60,22 @@ def resolve_zooms(job: Job, canvas):
     from satmaps.config import Zoom
 
     out = []
+    if len(job.zoom_specs) > 3:
+        raise JobError(f"{job.path}: {len(job.zoom_specs)} [[zooms]]; a page has room for three")
     for i, z in enumerate(job.zoom_specs, 1):
-        key, name = str(z.get("key", chr(64 + i))), str(z.get("name", ""))
+        key, name, fit = str(z.get("key", chr(64 + i))), str(z.get("name", "")), False
         if "rows" in z and "cols" in z:
             rows, cols = tuple(z["rows"]), tuple(z["cols"])
         elif "center" in z and "size_km" in z:
-            rows, cols = canvas.window_around(*[float(v) for v in z["center"]], tuple(float(v) for v in z["size_km"]))
+            try:
+                rows, cols = canvas.window_around(*[float(v) for v in z["center"]], tuple(float(v) for v in z["size_km"]),
+                                                  clamp=True)
+            except AreaError as e:
+                raise JobError(f"zoom {key}: {e}") from None
+            fit = True
         else:
             raise JobError(f"{job.path} [[zooms]] #{i}: give `center` + `size_km`, or canvas `rows` + `cols`")
-        out.append(Zoom(key, name, rows, cols))
+        out.append(Zoom(key, name, rows, cols, fit))
     return tuple(out)
 
 

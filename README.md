@@ -31,6 +31,7 @@ satmaps quick a.h5 b.SAFE                   # a small PNG of the area the two pr
 satmaps quick a.h5 b.SAFE --quality publication --theme newspaper
 satmaps quick a.h5 --sar-fcc cross,co,ratio # false colour composite: which channel goes on R, G, B
 satmaps quick b.SAFE --optical-fcc nir,red,green
+satmaps quick a.h5 --zoom 27.5,94.1,6 --zoom 27.6,94.3,6   # optional zoom side panels: LAT,LON,KM, up to three
 satmaps quick a.h5 b.SAFE --save-job fig.toml   # also save the job file; edit it, then `satmaps run fig.toml`
 ```
 

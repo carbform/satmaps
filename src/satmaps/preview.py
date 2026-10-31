@@ -13,11 +13,12 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from satmaps.config import InputSpec, Scene
+from satmaps.config import InputSpec, Scene, Zoom
 from satmaps.core import BandInfo, Product
 from satmaps.job import FigureSpec
 from satmaps.quality import PROFILES
 
+EXAMPLE_ZOOMS = (Zoom("A", "", (25, 75), (115, 165)), Zoom("B", "", (115, 165), (30, 80)), Zoom("C", "", (130, 180), (120, 170)))
 SIZE = 200  # pixels along a side of an example panel: enough for a smooth picture, quick to draw
 WHEN = datetime(2026, 1, 15, 10, 0)
 EXAMPLE_BANDS = (("B02", "blue", 490), ("B03", "green", 560), ("B04", "red", 665), ("B08", "nir", 835),
@@ -78,9 +79,10 @@ def usable_channels(channels: dict | None, products: dict) -> dict | None:
 
 
 def render_example(kinds: list[str] | None, arrangement: str, theme: str, furniture=None, channels: dict | None = None,
-                   **words) -> bytes:
+                   zoom_panels: bool = False, **words) -> bytes:
     """PNG bytes of an example page: `kinds` ('sar' / 'optical' per product; None for a typical set), the layout, the theme.
-    `words` (title, subtitle, place, author, website, credits) are the wording typed so far, shown as it will print."""
+    `words` (title, subtitle, place, author, website, credits) are the wording typed so far, shown as it will print.
+    `zoom_panels` adds the three zoom side panels, at made-up places (they only show where the panels go)."""
     from satmaps.api import channel_recipes, details
     from satmaps.arrangements import draw
     from satmaps.core import TEMPLATES, THEMES
@@ -102,7 +104,8 @@ def render_example(kinds: list[str] | None, arrangement: str, theme: str, furnit
     fields, typed = details(**words)
     fields = {"name": "Your title", "region": "Your place", "author": "", "website": "", **fields}
     scene = Scene(name=fields["name"], reach="", locality="", region=fields["region"], callout_caption="",
-                  author=fields["author"], website=fields["website"], zooms=(), callouts={}, data_dir=Path("."),
+                  author=fields["author"], website=fields["website"], zooms=EXAMPLE_ZOOMS if zoom_panels else (), callouts={},
+                  data_dir=Path("."),
                   inputs={k: InputSpec(k, "", "", {}) for k in ids})
     if arrangement == "compare" and len(ids) > 2:
         combo = (ids[0], ids[-1])  # one pair is enough to show the page

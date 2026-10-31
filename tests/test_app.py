@@ -421,3 +421,29 @@ def test_typed_notices_and_legend_items_reach_the_page():
     assert (plain != page(notices="Cloud over the north-east")).any()  # a notice is drawn
     assert (plain != page(legend="Water")).any()  # a legend item is renamed
     assert page(legend="Water", notices="{braces}").shape == plain.shape  # braces are text, not placeholders
+
+
+def test_a_zoom_box_drawn_on_the_map_is_kept_apart_from_the_area():
+    from satmaps.app import BOX_KEYS, OVERLAP, apply_drawn, zoom_boxes, zooms_outside
+
+    state = {"last_draw": 0, "area_mode": OVERLAP, "zoom_on": True, "zoom_A": None, "zoom_B": None, "zoom_C": None,
+             **dict.fromkeys(BOX_KEYS, 0.0)}
+    assert apply_drawn(state, {"target": "B", "box": [94.123456789, 27.2, 94.3, 27.4], "n": 1})
+    assert state["zoom_B"] == (94.12346, 27.2, 94.3, 27.4) and state["area_mode"] == OVERLAP  # the area is untouched
+    assert zoom_boxes(state) == [state["zoom_B"]]
+    assert zooms_outside(state, (94.0, 27.0, 94.5, 27.5)) == [] and zooms_outside(state, (95.0, 27.0, 95.5, 27.5)) == ["B"]
+    assert zooms_outside(state, None) == []  # no area known yet: nothing to say
+    assert apply_drawn(state, {"target": "B", "box": None, "n": 2}) and zoom_boxes(state) == []  # Clear removes that zoom
+    state["zoom_A"] = (1, 2, 3, 4)
+    assert zoom_boxes({**state, "zoom_on": False}) == []  # switched off: no panels, though the boxes are remembered
+
+
+@needs_streamlit
+def test_the_zoom_panels_switch_is_off_by_default_and_the_figure_is_made_without_zooms_until_asked(app_env):
+    at = run_app()
+    assert at.session_state["zoom_on"] is False
+    pick(at, "L.h5")
+    assert not at.warning
+    at.checkbox(key="zoom_on").check().run()
+    assert not at.exception and at.radio(key="zoom_tool").value == "Area"
+    assert [o for o in at.radio(key="zoom_tool").options] == ["Area", "Zoom A", "Zoom B", "Zoom C"]

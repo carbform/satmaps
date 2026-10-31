@@ -40,6 +40,7 @@ class Zoom:
     name: str
     rows: tuple[int, int]
     cols: tuple[int, int]
+    fit: bool = False  # from a centre and size: the page widens it to its panel's shape (rows/cols are drawn as given)
 
 
 @dataclass(frozen=True)
