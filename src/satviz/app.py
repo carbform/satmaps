@@ -350,9 +350,6 @@ def figure_pane(kinds: list[str], words: dict, look: dict, channels: dict, signa
     if results:
         st.info("The settings have changed since this figure was made. This is the page they give: press **Make the figure** "
                 "to draw it with your data.")
-    elif not st.session_state["error"]:
-        st.info("This is the page your settings give, with made-up pictures where your data will go. Press **Make the figure** "
-                "to draw it with your products.")
     st.image(example_page(tuple(kinds), layout, look["theme"], tuple(sorted((k, v) for k, v in words.items() if v)),
                           (look["scalebar"], look["north"], look["grid"]), tuple(sorted(channels.items()))),
              use_column_width=True)

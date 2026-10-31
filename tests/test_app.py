@@ -247,7 +247,7 @@ def test_the_example_page_is_on_show_before_anything_is_made(app_env):
     at = run_app()
     assert not at.exception and len(at.get("imgs")) == 1 and made(at) == []  # one pane, with the example page in it
     assert not at.get("tab")  # no separate preview pane
-    assert any("page your settings give" in i.value for i in at.info)
+    assert not at.info  # the example page speaks for itself: no box explaining it
     at.selectbox[1].set_value("newspaper").run()
     assert not at.exception and made(at) == []  # another theme draws another example page without making a figure
 
