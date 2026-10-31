@@ -181,7 +181,8 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     box = [st.session_state[k] for k in BOX_KEYS] if st.session_state["area_mode"] == BOX and all(
         st.session_state[k] for k in BOX_KEYS) else None
     drawn = area_map(footprints=[{"name": p["name"], "kind": p["kind"], "ring": p["ring"]} for p in prints], overlap=overlap,
-                     box=box, basemap=bool(st.session_state.get("basemap", True)), key="area_map", default=None)
+                     box=box, basemap=bool(st.session_state.get("basemap", True)),
+                     dark=bool(st.session_state.get("dark", False)), key="area_map", default=None)
     apply_drawn(st.session_state, drawn)
     if not chosen_rows:  # the map of India waits for products; drawing a box before choosing any would have nothing to apply to
         st.caption("Choose one or two products in the sidebar (step 1): they appear here, and you can draw the area you want.")
@@ -362,10 +363,13 @@ def figure_pane(kinds: list[str], words: dict, look: dict, channels: dict, signa
 
 def main() -> None:
     st.set_page_config(page_title="satviz", page_icon="🛰", layout="wide")
-    st.markdown(stylesheet(), unsafe_allow_html=True)
-    st.title("satviz")
+    title, mode_switch = st.columns([6, 1])
+    title.title("satviz")
+    dark = mode_switch.toggle("Dark mode", key="dark")
+    st.markdown(stylesheet(dark), unsafe_allow_html=True)
     defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "area_mode": OVERLAP, "last_draw": 0,
                 "folder": os.environ.get("SATVIZ_DATA_DIR", "data"), "folder_note": "", "made_with": None, "picked": [],
+                "dark": False,
                 **dict.fromkeys(("title", "subtitle", "place", "author", "website", "credits"), "")}
     for key, default in {**defaults, **dict.fromkeys(BOX_KEYS, 0.0)}.items():
         st.session_state.setdefault(key, default)

@@ -373,3 +373,15 @@ def test_a_drawn_box_fills_the_fields_and_clear_goes_back_to_the_overlap():
     assert not apply_drawn(state, {"box": [94.12345678, 27.2, 94.3, 27.4], "n": 1})  # ...and the map's old value does not undo it
     assert state["box_w"] == 90.0
     assert apply_drawn(state, {"box": None, "n": 2}) and state["area_mode"] == OVERLAP  # Clear
+
+
+@needs_streamlit
+def test_the_dark_mode_switch_restyles_the_page_and_changes_nothing_else(app_env):
+    from satviz.app_style import DARK, LIGHT, stylesheet
+
+    at = run_app()
+    assert at.toggle(key="dark").value is False
+    at.toggle(key="dark").set_value(True).run()
+    assert not at.exception and at.session_state["dark"] is True
+    assert DARK["paper"] in stylesheet(True) and LIGHT["paper"] in stylesheet(False) and stylesheet(True) != stylesheet(False)
+    assert all(f"color: {c['ink']}" in stylesheet(d) for c, d in ((LIGHT, False), (DARK, True)))  # text colours are always set
