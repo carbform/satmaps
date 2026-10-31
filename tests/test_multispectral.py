@@ -166,3 +166,24 @@ theme = ["minimal", "xkcd"]
 ''')
     paths = run_job(load_job(job, tmp_path), tmp_path / "out")
     assert [p.name for p in paths] == ["bands_Minimal.png", "bands_Xkcd.png"] and all(p.stat().st_size > 10_000 for p in paths)
+
+
+def test_any_three_bands_make_a_false_colour_composite_each_stretched_on_its_own():
+    from satviz.core import RECIPES
+
+    p = product()
+    r = RECIPES.get_or_raise("fcc:B12,B08,B03").render(p)
+    assert r.title == "FCC  ·  B12 / B08 / B03" and set(r.lims) == {"R", "G", "B"}
+    assert [i.text for i in r.legend[:3]] == ["RED = B12 SWIR 2", "GREEN = B08 NIR", "BLUE = B03 GREEN"]
+    lo, hi = r.lims["R"]
+    assert lo < hi and r.rgba.shape == p.valid.shape + (4,) and (r.rgba[3:, 3:, 0] > 0).any()
+    assert RECIPES.get_or_raise("fcc:B12,B08,B03").needs == ("B12", "B08", "B03")
+
+
+def test_the_familiar_composites_keep_their_own_recipe_and_a_bad_spec_is_refused():
+    from satviz.core import RECIPES
+
+    assert RECIPES.get_or_raise("fcc:red,green,blue") is RECIPES["true_colour"]
+    assert RECIPES.get_or_raise("fcc:nir,red,green") is RECIPES["nir_fcc"]
+    with pytest.raises(KeyError, match="three band names"):
+        RECIPES.get_or_raise("fcc:red,green")

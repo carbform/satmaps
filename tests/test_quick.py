@@ -153,8 +153,8 @@ def test_default_arrangement_follows_the_number_of_inputs(scene, tmp_path):
     two, _ = build_job([scene.data_dir / "L.h5", scene.data_dir / "S.h5"], data_dir=scene.data_dir)
     assert (one.figures[0].arrangement, two.figures[0].arrangement) == ("single", "compare")
     assert two.figures[0].template == "sar" and list(two.inputs) == ["L", "S"]
-    with pytest.raises(ValueError, match="too many"):
-        build_job([scene.data_dir / "L.h5"] * 7, data_dir=scene.data_dir)
+    with pytest.raises(ValueError, match="one product, or two that overlap"):
+        build_job([scene.data_dir / "L.h5"] * 3, data_dir=scene.data_dir)
 
 
 def test_the_saved_job_reproduces_the_figure(scene, tmp_path):
@@ -326,3 +326,23 @@ def test_products_are_grouped_by_the_ground_they_share():
     assert group_by_ground([a, far, b]) == [[0, 2], [1]]  # a and b overlap; far is a place of its own
     assert group_by_ground([a, None, far]) == [[0, 1], [2]]  # no footprint: joins the first group
     assert touches(a, (1, 1, 5, 5)) and not touches(a, (3, 3, 5, 5))
+
+
+def test_channels_become_recipes_per_input_and_the_default_adds_nothing(scene):
+    from satviz.api import band_choices, build_job, channel_recipes
+
+    assert channel_recipes({"sar": ("co", "cross", "ratio")}, {"L": "sar"}) == {}
+    assert channel_recipes({"sar": ("cross", "co", "ratio"), "optical": ("nir", "red", "green")},
+                           {"L": "sar", "S2": "optical"}) == {"L": "sar_fcc:cross,co,ratio", "S2": "fcc:nir,red,green"}
+    job, raw = build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir, channels={"sar": ("ratio", "co", "cross")})
+    assert raw["figures"][0]["recipes"] == {"L": "sar_fcc:ratio,co,cross"}
+    assert [k for k, _ in band_choices(["sentinel2"])][:4] == ["blue", "green", "red", "B05"]
+    assert [k for k, _ in band_choices(["sentinel2", "liss4"])] == ["green", "red", "nir"]  # only what both have
+
+
+def test_a_false_colour_choice_reaches_the_figure(scene, tmp_path):
+    from satviz.api import render
+
+    (png,) = render([scene.data_dir / "L.h5"], out=tmp_path, cache=None, data_dir=scene.data_dir,
+                    channels={"sar": ("cross", "co", "ratio")}, title="FCC")
+    assert png.exists()

@@ -18,6 +18,7 @@ class TooLarge(ValueError):
         self.suggestion = suggestion
 
 
+MAX_PRODUCTS = 2  # one product, or two that share ground
 MAX_TILES = 6
 MAX_AUTO_KM2 = 15_000  # an automatic area above this (about 120 x 120 km) needs --bbox or --allow-large
 
@@ -42,15 +43,6 @@ def inspect(path: str | os.PathLike) -> dict:
         bbox = (min(lons), min(lats), max(lons), max(lats))
     return {"path": str(path), "sensor": name, "kind": reader.kind, "resolution_m": info.resolution_m, "epsg": info.epsg,
             "bbox": bbox, "footprint": ring}
-
-
-def places(paths) -> list[list[str]]:
-    """The products grouped by the ground they share: each group (a list of paths, in the order given) has a common area, and no
-    two groups share one."""
-    from satviz.autoarea import group_by_ground
-
-    resolved = [str(Path(p).expanduser().resolve()) for p in paths]
-    return [[resolved[i] for i in g] for g in group_by_ground([inspect(p)["footprint"] for p in resolved])]
 
 
 def scan(folder: str | os.PathLike) -> list[dict]:
@@ -79,28 +71,57 @@ def scan(folder: str | os.PathLike) -> list[dict]:
     return rows
 
 
-LAYOUT_NAMES = {"single": "One figure per product", "compare": "Side by side", "grid": "All on one page",
-                "bands": "Band by band"}
+LAYOUT_NAMES = {"single": "One figure", "compare": "Side by side", "bands": "Band by band"}
 
 
 def layout_choices(kinds: list[str]) -> dict[str, str]:
-    """The page layouts that fit products of these kinds ('sar', 'optical'), as {arrangement: what to call it}.
+    """The page layouts that fit one or two products of these kinds ('sar', 'optical'), as {arrangement: what to call it}.
 
-    One kind of product can be shown on its own, side by side (every pair), or tiled on one page; optical products can also be
-    shown band by band. SAR and optical together are shown side by side (each radar against each optical) or tiled. With
-    nothing chosen yet, every layout is offered."""
+    One product: a single figure (optical: or band by band). Two: side by side, or, for two of one kind, one figure each.
+    With nothing chosen yet, every layout is offered."""
     kinds = list(kinds)
     if not kinds:
         return dict(LAYOUT_NAMES)
     n, mixed = len(kinds), len(set(kinds)) > 1
-    out = {} if mixed else {"single": LAYOUT_NAMES["single"] if n > 1 else "One figure"}
+    out = {} if mixed else {"single": LAYOUT_NAMES["single"] if n == 1 else "One figure per product"}
     if n >= 2:
-        out["compare"] = "Side by side (each radar against each optical)" if mixed else "Side by side (every pair)"
-    if 2 <= n <= MAX_TILES:
-        out["grid"] = LAYOUT_NAMES["grid"]
+        out["compare"] = LAYOUT_NAMES["compare"]
     if set(kinds) == {"optical"}:
         out["bands"] = LAYOUT_NAMES["bands"]
     return out
+
+
+def channel_recipes(channels: dict | None, kinds: dict[str, str]) -> dict[str, str]:
+    """Recipe names for the false-colour composites a caller asked for: ``channels`` is ``{"sar": (red, green, blue),
+    "optical": (red, green, blue)}`` (either may be missing or None for the default), ``kinds`` is input id -> 'sar'/'optical'."""
+    out = {}
+    for key, kind in kinds.items():
+        picked = (channels or {}).get(kind)
+        if picked and kind == "sar" and tuple(picked) != ("co", "cross", "ratio"):
+            out[key] = "sar_fcc:" + ",".join(picked)
+        elif picked and kind == "optical":
+            out[key] = "fcc:" + ",".join(picked)
+    return out
+
+
+SAR_CHANNELS = (("co", "Co-pol  (HH or VV)"), ("cross", "Cross-pol  (HV or VH)"), ("ratio", "Ratio  co / cross"))
+ROLE_BANDS = (("blue", "B02 blue"), ("green", "B03 green"), ("red", "B04 red"), ("nir", "B08 nir"),
+              ("swir16", "B11 swir 1"), ("swir22", "B12 swir 2"))
+BANDS_OF_SENSOR = {
+    "sentinel2": (*ROLE_BANDS[:3], ("B05", "B05 red edge 1"), ("B06", "B06 red edge 2"), ("B07", "B07 red edge 3"), ROLE_BANDS[3],
+                  ("B8A", "B8A nir narrow"), *ROLE_BANDS[4:], ("B01", "B01 coastal aerosol")),
+    "liss4": (("green", "B2 green"), ("red", "B3 red"), ("nir", "B4 nir")),
+}
+
+
+def band_choices(sensors: list[str]) -> list[tuple[str, str]]:
+    """The bands every optical product among these sensors has, as (layer, label), in wavelength order: what a person can put
+    on red, green and blue. A sensor the table does not list offers the common colour bands."""
+    lists = [dict(BANDS_OF_SENSOR.get(s, ROLE_BANDS)) for s in sensors]
+    if not lists:
+        return []
+    common = [(k, v) for k, v in lists[0].items() if all(k in other for other in lists[1:])]
+    return common
 
 
 def _area_table(area) -> dict:
@@ -123,7 +144,7 @@ def auto_layout(kinds: list[str]) -> str:
 def _default_arrangement(template: str, kinds: list[str]) -> str:
     n = len(kinds)
     if n > MAX_TILES:
-        raise ValueError(f"{n} inputs on one figure is too many (at most {MAX_TILES}); render them in groups")
+        raise ValueError(f"{n} inputs on one figure is too many (at most {MAX_TILES})")
     if template == "sar_optical":
         return "compare" if n == 2 else "grid"
     return "single" if n == 1 else "compare" if n == 2 else "grid"
@@ -155,9 +176,9 @@ def details(title: str | None = None, subtitle: str | None = None, place: str | 
 
 def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick", title: str | None = None,
               template: str | None = None, arrangement: str | None = None, bands: bool = False, resolution_m: float | None = None,
-              allow_different_passes: bool = False, allow_large: bool = False, data_dir=None, subtitle: str | None = None,
+              allow_large: bool = False, data_dir=None, subtitle: str | None = None,
               place: str | None = None, author: str | None = None, website: str | None = None, credits: str | None = None,
-              grid: bool = False, north: bool = False, scalebar: bool = True, suffix: str = ""):
+              grid: bool = False, north: bool = False, scalebar: bool = True, channels: dict | None = None):
     """The `Job` for some paths, with sensors detected, ids chosen, template and arrangement picked from what the inputs are, and
     the area and pixel size resolved. Also returns the job-file tables that reproduce it."""
     import dataclasses
@@ -168,6 +189,8 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
 
     if not paths:
         raise ValueError("give at least one product path")
+    if len(paths) > MAX_PRODUCTS:
+        raise ValueError(f"{len(paths)} products: a figure shows one product, or two that overlap")
     inputs, taken = [], set()
     for p in paths:
         p = Path(p).expanduser().resolve()
@@ -183,11 +206,11 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
     kinds = [SENSORS[i["sensor"]].kind for i in inputs]
     chosen = template or ("sar_optical" if len(set(kinds)) > 1 else kinds[0])
     arrangement = "bands" if bands else arrangement or _default_arrangement(chosen, kinds)
-    name = _figure_name([i["sensor"] for i in inputs], quality) + suffix
+    name = _figure_name([i["sensor"] for i in inputs], quality)
     scene_fields, typed = details(title, subtitle, place, author, website, credits)
     fig = {"name": name, "template": chosen, "inputs": ids, "theme": theme,
            "arrangement": arrangement, **({"text": typed} if typed else {}),
-           **({"allow_different_passes": True} if allow_different_passes else {}),
+           **({"recipes": recipes} if (recipes := channel_recipes(channels, dict(zip(ids, kinds, strict=True)))) else {}),
            **({"grid": True} if grid else {}), **({"north": True} if north else {}),
            **({"scalebar": False} if not scalebar else {})}
     table = _area_table(area)
@@ -255,38 +278,22 @@ def _resolved_area_table(area) -> dict:
 
 
 def render(paths, *, out: str | os.PathLike = "outputs", cache: str | os.PathLike | None = "cache", save_job=None,
-           per_place: bool = False, **options) -> list[Path]:
-    """Render one figure from product paths and return the PNG paths written (and a PDF beside each for ``"publication"``).
-
-    Products that share no ground cannot be drawn on one map. With ``per_place`` (and no ``area``) they are grouped by the
-    ground they share (`places`) and each group gets a figure of its own; without it, the error names the groups.
+           **options) -> list[Path]:
+    """Render one figure from one or two product paths and return the PNG paths written (and a PDF beside each for
+    ``"publication"``). Two products must share ground: the figure is drawn over what they share.
 
     Options: ``area`` (None: the overlap of the inputs; a (west, south, east, north) box; or a dict of `[area]` keys),
     ``theme``, ``quality`` ("quick", "medium" or "publication"), ``title`` (default: what the figure shows), ``template`` and
-    ``arrangement`` (normally picked from the inputs), ``bands`` (optical: one panel per band), ``resolution_m``,
-    ``allow_different_passes``, ``allow_large`` (draw an automatic area above 15,000 km²), ``data_dir``.
+    ``arrangement`` (normally picked from the inputs), ``bands`` (optical: one panel per band), ``channels`` (the false-colour
+    composite: ``{"sar": ("co", "cross", "ratio"), "optical": ("nir", "red", "green")}`` for red, green and blue),
+    ``resolution_m``, ``allow_large`` (draw an automatic area above 15,000 km²), ``data_dir``.
     ``save_job`` writes the job file that reproduces the figure."""
     from satviz.run import run_job
 
-    groups = places(paths) if per_place and options.get("area") is None and len(paths) > 1 else [list(paths)]
-    written = []
-    for n, group in enumerate(groups, 1):
-        job, raw = build_job(group, **place_options(options, group, n if len(groups) > 1 else 0))
-        if save_job:
-            write_job(raw, Path(save_job) if len(groups) == 1 else Path(save_job).with_stem(f"{Path(save_job).stem}_place{n}"))
-        written += run_job(job, out, cache)
-    return written
-
-
-def place_options(options: dict, group: list, n: int) -> dict:
-    """The options for one place of several: its figure is named for it (`_place2`), and a layout that needs more products than
-    the place has (side by side for one product) gives way to the automatic one."""
-    out = dict(options)
-    if n:
-        out["suffix"] = f"_place{n}"
-    if len(group) == 1 and out.get("arrangement") in ("compare", "grid"):
-        out["arrangement"] = None
-    return out
+    job, raw = build_job(paths, **options)
+    if save_job:
+        write_job(raw, Path(save_job))
+    return run_job(job, out, cache)
 
 
 def job_toml(raw: dict) -> str:

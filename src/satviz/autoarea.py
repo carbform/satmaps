@@ -16,8 +16,7 @@ from satviz.area import Area, AreaError, _tf, utm_epsg
 GRID = 400  # cells along the longer side of the overlap's bounding box
 ERODE = 2  # cells shaved off the overlap so the canvas edge stays inside the data
 MIN_SIDE_KM = 1.0
-NO_OVERLAP_FIX = ("Draw each place on its own (satviz quick --per-place; in a job file, one figure per place), "
-                  "or give an [area] to draw one place anyway.")
+NO_OVERLAP_FIX = "A figure shows products that cover the same ground: choose products that overlap."
 NICE_M = (10, 20, 30, 50, 60, 100, 150, 200, 250, 300, 500, 1000, 2000)
 
 

@@ -68,10 +68,20 @@ def example_product(key: str, kind: str, index: int) -> Product:
     return Product(layers=layers, meta=meta, kind="optical", bands=tuple(infos), **common)
 
 
-def render_example(kinds: list[str] | None, arrangement: str, theme: str, furniture=None, **words) -> bytes:
+def usable_channels(channels: dict | None, products: dict) -> dict | None:
+    """The false-colour choices the stand-in products can show (they have the six colour bands, not every band a sensor has)."""
+    if not channels:
+        return None
+    have = set.intersection(*(set(p.layers) for p in products.values() if p.kind == "optical")) if any(
+        p.kind == "optical" for p in products.values()) else set()
+    return {kind: picked for kind, picked in channels.items() if kind == "sar" or all(c in have for c in picked)}
+
+
+def render_example(kinds: list[str] | None, arrangement: str, theme: str, furniture=None, channels: dict | None = None,
+                   **words) -> bytes:
     """PNG bytes of an example page: `kinds` ('sar' / 'optical' per product; None for a typical set), the layout, the theme.
     `words` (title, subtitle, place, author, website, credits) are the wording typed so far, shown as it will print."""
-    from satviz.api import details
+    from satviz.api import channel_recipes, details
     from satviz.arrangements import draw
     from satviz.core import TEMPLATES, THEMES
     from satviz.layout import apply_text, default_layout
@@ -98,7 +108,8 @@ def render_example(kinds: list[str] | None, arrangement: str, theme: str, furnit
         combo = (ids[0], ids[-1])  # one pair is enough to show the page
     else:
         combo = tuple(ids)
-    fig = FigureSpec(template=template, inputs=combo, arrangement=arrangement, themes=(theme,))
+    recipes = channel_recipes(usable_channels(channels, products), {k: products[k].kind for k in combo})
+    fig = FigureSpec(template=template, inputs=combo, arrangement=arrangement, themes=(theme,), recipes=recipes)
     resolved = TEMPLATES[template].resolve(fig, combo, products, scene)
     layout = apply_text(default_layout(resolved.arrangement), {**resolved.text, **typed})
     with tempfile.TemporaryDirectory() as tmp:

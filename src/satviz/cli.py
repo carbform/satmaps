@@ -81,13 +81,14 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--resolution", type=float, default=None, metavar="M", help="pixel size in metres (default: from --quality)")
     qk.add_argument("--template", choices=("sar", "optical", "sar_optical"), default=None, help="default: from the inputs")
     qk.add_argument("--arrangement", choices=("single", "compare", "grid", "bands"), default=None,
-                    help="default: one input single, two compare, three to six grid")
+                    help="default: one input single, two compare")
     qk.add_argument("--bands", action="store_true", help="optical: one panel per spectral band (same as --arrangement bands)")
-    qk.add_argument("--per-place", action="store_true",
-                    help="products that share no ground: one figure for each place, instead of an error")
+    qk.add_argument("--sar-fcc", metavar="R,G,B", default=None,
+                    help="SAR false-colour composite: three of co, cross, ratio for red, green, blue (default: co,cross,ratio)")
+    qk.add_argument("--optical-fcc", metavar="R,G,B", default=None,
+                    help="optical false-colour composite: three band names, e.g. nir,red,green or B12,B08,B03")
     qk.add_argument("--allow-large", action="store_true",
                     help="draw an automatic area even above 15,000 km2 (a whole frame: slow); the default asks for --bbox")
-    qk.add_argument("--allow-different-passes", action="store_true", help=argparse.SUPPRESS)  # no longer needed: always allowed
     qk.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
     qk.add_argument("--data-dir", default=None)
     qk.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")
@@ -167,12 +168,13 @@ def main(argv: list[str] | None = None) -> int:
         from satviz.layout import LayoutError
         from satviz.sources import SourceError
 
+        channels = {k: tuple(v.split(",")) for k, v in (("sar", args.sar_fcc), ("optical", args.optical_fcc)) if v}
         try:
-            paths = render(args.paths, per_place=args.per_place, out=args.out, cache=None if args.no_cache else args.cache,
+            paths = render(args.paths, out=args.out, cache=None if args.no_cache else args.cache,
                            save_job=args.save_job, area=args.bbox, theme=args.theme, quality=args.quality, title=args.title,
                            template=args.template,
                            arrangement=args.arrangement, bands=args.bands, resolution_m=args.resolution,
-                           allow_different_passes=args.allow_different_passes, allow_large=args.allow_large,
+                           allow_large=args.allow_large, channels=channels,
                            data_dir=args.data_dir, subtitle=args.subtitle, place=args.place, author=args.author,
                            website=args.website, credits=args.credit, grid=args.grid, north=args.north,
                            scalebar=not args.no_scale)

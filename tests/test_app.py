@@ -98,15 +98,24 @@ def test_the_app_lists_the_products_and_makes_a_figure(app_env):
 
 
 @needs_streamlit
-def test_products_that_share_no_ground_get_a_figure_for_each_place(app_env, tmp_path):
+def test_two_products_that_share_no_ground_are_refused_before_anything_is_drawn(app_env, tmp_path):
     far = make_raw(seed=5)
     far["x"] = far["x"] + 400_000  # a few degrees east: the same zone, no shared ground
     write_granule(app_env.data_dir / "F.h5", "science/LSAR/GCOV", far, instrument="LSAR", freq_hz=1.239e9)
     at = run_app()
     pick(at, "L.h5", "F.h5")
-    assert any("2 different places" in i.value for i in at.info)  # said before anything is drawn
-    press(at, "Make the figure")
-    assert not at.exception and not at.error and len(made(at)) == 2
+    assert any("do not overlap" in e.value for e in at.error)
+    assert any("different ground" in w.value for w in at.warning)  # and the button says why it waits
+    assert next(b for b in at.button if b.label == "Make the figure").disabled
+
+
+@needs_streamlit
+def test_only_two_products_can_be_chosen(app_env):
+    assert at_max(run_app()) == 2
+
+
+def at_max(at) -> int:
+    return at.sidebar.multiselect[0].proto.max_selections
 
 
 @needs_streamlit
@@ -180,14 +189,13 @@ def test_the_launcher_makes_no_outside_connection_for_the_version_check():
 def test_layout_choices_follow_what_is_chosen():
     from satviz.api import auto_layout, layout_choices
 
-    assert list(layout_choices([])) == ["single", "compare", "grid", "bands"]  # nothing chosen yet: every layout
+    assert list(layout_choices([])) == ["single", "compare", "bands"]  # nothing chosen yet: every layout
     assert list(layout_choices(["sar"])) == ["single"]
-    assert list(layout_choices(["sar", "sar"])) == ["single", "compare", "grid"]
+    assert list(layout_choices(["sar", "sar"])) == ["single", "compare"]
     assert list(layout_choices(["optical"])) == ["single", "bands"]
-    assert list(layout_choices(["optical", "optical"])) == ["single", "compare", "grid", "bands"]
-    assert list(layout_choices(["sar", "optical"])) == ["compare", "grid"]  # mixed kinds are never one figure each
-    assert "grid" not in layout_choices(["sar"] * 7) and "grid" in layout_choices(["sar"] * 6)
-    assert [auto_layout(k) for k in (["sar"], ["sar", "optical"], ["sar"] * 3)] == ["single", "compare", "grid"]
+    assert list(layout_choices(["optical", "optical"])) == ["single", "compare", "bands"]
+    assert list(layout_choices(["sar", "optical"])) == ["compare"]  # mixed kinds are never one figure each
+    assert [auto_layout(k) for k in (["sar"], ["sar", "optical"])] == ["single", "compare"]
 
 
 @pytest.mark.parametrize("theme", ["minimal", "neo_retro", "neo_brutal", "newspaper", "xkcd"])
@@ -225,10 +233,11 @@ def test_the_theme_and_layout_controls(app_env):
     at = run_app()
     assert [s.label for s in at.selectbox] == ["Theme", "Layout"]
     assert at.selectbox[0].value == "minimal" and "xkcd" in at.selectbox[0].options
-    assert at.selectbox[1].options[0] == "Automatic" and len(at.selectbox[1].options) == 5  # Automatic + the four layouts
+    assert at.selectbox[1].options[0] == "Automatic" and len(at.selectbox[1].options) == 4  # Automatic + the three layouts
     pick(at, "L.h5", "S.h5")
-    assert at.selectbox[1].options == ["Automatic", "One figure per product", "Side by side (every pair)", "All on one page"]
-    at.selectbox[1].set_value("One figure per product").run()
+    layout = next(s for s in at.selectbox if s.label == "Layout")
+    assert layout.options == ["Automatic", "One figure per product", "Side by side"]
+    layout.set_value("One figure per product").run()
     press(at, "Make the figure")
     assert not at.exception and not at.error and len(made(at)) == 2  # a figure for each product
 

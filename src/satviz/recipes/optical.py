@@ -6,10 +6,12 @@ product's caveat says how much there is).
 """
 from __future__ import annotations
 
+from functools import cache
+
 import matplotlib
 import numpy as np
 
-from satviz.core import LegendItem, Product, Recipe, Rendered, recipe
+from satviz.core import RECIPES, LegendItem, Product, Recipe, Rendered, recipe
 from satviz.geo import utm_extent
 from satviz.recipes.bands import STRETCH_NOTE, cloud_left_out, usable
 
@@ -63,6 +65,52 @@ NIR_FCC = _rgb_recipe("nir_fcc", ("nir", "red", "green"), "NIR FALSE COLOUR",
                       ("RED = NEAR-INFRARED (VEGETATION)", "GREEN = RED BAND", "BLUE = GREEN BAND"))
 SWIR_FCC = _rgb_recipe("swir_fcc", ("swir22", "nir", "red"), "SWIR FALSE COLOUR",
                        ("RED = SHORTWAVE INFRARED", "GREEN = NEAR-INFRARED", "BLUE = RED BAND"))
+
+
+PRESETS = {("red", "green", "blue"): "true_colour", ("nir", "red", "green"): "nir_fcc", ("swir22", "nir", "red"): "swir_fcc"}
+
+
+def band_label(product: Product, layer: str) -> str:
+    """'B08 NIR': a band's id and common name as the product states them; the layer name when it states none."""
+    for b in product.bands:
+        if b.layer == layer or (layer in product.layers and product.layers.get(b.layer) is product.layers[layer]):  # a role alias
+            return f"{b.id} {b.name}".upper() if b.name and b.name.upper() != b.id.upper() else b.id.upper()
+    return layer.upper()
+
+
+def _fcc_recipe(channels: tuple[str, str, str]) -> Recipe:
+    """A false-colour composite of any three bands (red, green, blue). Each band is stretched on its own: bands of different
+    kinds (shortwave infrared, blue) have different ranges, and one shared stretch would crush the dimmer ones."""
+    keys = ("R", "G", "B")
+
+    def render(product: Product, lims_in: dict | None = None) -> Rendered:
+        lims = {k: lims_in[k] if lims_in else _pooled_percentiles([product], (c,)) for k, c in zip(keys, channels, strict=True)}
+        chans = [np.power(np.clip((product.layers[c] - lims[k][0]) / (lims[k][1] - lims[k][0] + 1e-9), 0, 1), GAMMA)
+                 for k, c in zip(keys, channels, strict=True)]
+        names = [band_label(product, c) for c in channels]
+        legend = [LegendItem(hexed, f"{word} = {n}")
+                  for hexed, word, n in zip(CHANNEL_HEX, ("RED", "GREEN", "BLUE"), names, strict=True)]
+        legend.append(LegendItem("noise", "EACH BAND STRETCHED ON ITS OWN (2–98%)"))
+        caveats = [*product.caveats, *([STRETCH_NOTE] if cloud_left_out(product) else [])]
+        title = "FCC  ·  " + " / ".join(n.split()[0] for n in names)
+        return Rendered(rgba=_finish(np.stack(chans, axis=-1), product.valid), extent=_extent(product), legend=legend,
+                        caveats=caveats, lims=lims, title=title)
+
+    def pooled(products: list[Product]) -> dict:
+        return {k: _pooled_percentiles(products, (c,)) for k, c in zip(keys, channels, strict=True)}
+
+    return Recipe(render=render, kind="optical", needs=tuple(dict.fromkeys(channels)), shared_lims=pooled)
+
+
+@cache
+def _fcc(spec: str) -> Recipe:
+    channels = tuple(x.strip() for x in spec.split(","))
+    if len(channels) != 3 or not all(channels):
+        raise KeyError(f"recipe 'fcc:{spec}': give three band names for red, green and blue, e.g. fcc:nir,red,green")
+    return RECIPES.get_or_raise(PRESETS[channels]) if channels in PRESETS else _fcc_recipe(channels)  # type: ignore[index]
+
+
+RECIPES.factory("fcc")(_fcc)
 
 
 def _index_recipe(name: str, title: str, fn, cmap: str, vmin: float, vmax: float, ends: tuple[str, str],
