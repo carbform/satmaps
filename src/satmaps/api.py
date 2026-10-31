@@ -6,6 +6,7 @@ same figures. Importing `satmaps` stays light: the heavy modules load when a fun
 """
 from __future__ import annotations
 
+import numbers
 import os
 from pathlib import Path
 
@@ -324,8 +325,10 @@ def _key(k: str) -> str:
 def _value(v) -> str:
     if isinstance(v, bool):
         return "true" if v else "false"
-    if isinstance(v, (int, float)):
-        return repr(v)
+    if isinstance(v, numbers.Integral):
+        return repr(int(v))  # plain numbers: NumPy 2 would write `np.float64(1.5)`, which is not TOML
+    if isinstance(v, numbers.Real):
+        return repr(float(v))
     if isinstance(v, str):
         return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
     if isinstance(v, (list, tuple)):

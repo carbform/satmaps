@@ -178,8 +178,12 @@ def test_the_launcher_makes_no_outside_connection_for_the_version_check():
     import subprocess
     import sys
 
+    from streamlit.web import bootstrap
+
     from satmaps.cli import STREAMLIT_LAUNCH
 
+    if not hasattr(bootstrap, "_print_new_version_message"):
+        pytest.skip("this Streamlit no longer has the PyPI version check: nothing to turn off")
     disable = "v.should_show_new_version_notice = lambda: False\n"
     assert disable.strip() in STREAMLIT_LAUNCH
     head = ("import socket\nattempts = []\n"

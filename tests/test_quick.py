@@ -346,3 +346,12 @@ def test_a_false_colour_choice_reaches_the_figure(scene, tmp_path):
     (png,) = render([scene.data_dir / "L.h5"], out=tmp_path, cache=None, data_dir=scene.data_dir,
                     channels={"sar": ("cross", "co", "ratio")}, title="FCC")
     assert png.exists()
+
+
+def test_a_saved_job_has_plain_numbers_even_for_numpy_values():
+    """NumPy 2 writes `np.float64(1.5)` for repr(): that is not TOML, and a saved job would not load."""
+    import numpy as np
+
+    from satmaps.api import _value
+
+    assert _value([np.float64(1.5), np.float32(2.0), np.int64(3), 4, 0.25, True]) == "[1.5, 2.0, 3, 4, 0.25, true]"

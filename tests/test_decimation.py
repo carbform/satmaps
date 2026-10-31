@@ -69,6 +69,7 @@ def test_nearest_read_of_a_mask_takes_every_kth_pixel(tmp_path):
     assert read_window(str(tmp_path / "m.tif"), AREA.canvas(10.0), nearest=True)[0].shape == (64, 64)  # as fine: whole window
 
 
+@needs_rasterio
 def test_sentinel1_strips_equal_the_full_calibration_then_block_mean(monkeypatch):
     from rasterio.windows import Window
 

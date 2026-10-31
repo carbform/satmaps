@@ -40,6 +40,7 @@ def lspec(**opts):
     return InputSpec("liss", "liss4", "", {"source": {"path": "R2F_scene"}, **opts})
 
 
+@needs_rasterio
 def test_registered_and_meta_parsed(tmp_path):
     assert "liss4" in SENSORS
     meta = liss4.read_meta(product_folder(tmp_path))
