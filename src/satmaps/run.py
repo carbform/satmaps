@@ -173,7 +173,7 @@ def _write_lock(job: Job, out: Path, canvas, infos: dict, products: dict, writte
                    for k, i in infos.items()},
         "figures": [p.name for p in written],
     }
-    (out / f"{job.path.stem}.lock.json").write_text(json.dumps(lock, indent=2) + "\n")
+    (out / f"{job.path.stem}.lock.json").write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
 
 
 __all__ = ["AreaError", "LayoutError", "run_job"]

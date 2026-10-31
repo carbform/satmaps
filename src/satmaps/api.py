@@ -313,7 +313,7 @@ def job_toml(raw: dict) -> str:
 
 def write_job(raw: dict, dest: Path) -> None:
     """Write job-file tables as a TOML file."""
-    dest.write_text(_toml(raw))
+    dest.write_text(_toml(raw), encoding="utf-8")
 
 
 def _key(k: str) -> str:

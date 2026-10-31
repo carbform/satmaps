@@ -15,7 +15,7 @@ def _init(args) -> int:
     presets = {p.name.removesuffix(".toml"): p for p in found if p.name.endswith(".toml")}
     if not args.preset:
         for name, p in presets.items():
-            print(f"{name:16} {p.read_text().splitlines()[0].lstrip('# ')}")
+            print(f"{name:16} {p.read_text(encoding='utf-8').splitlines()[0].lstrip('# ')}")
         return 0
     if args.preset not in presets:
         print(f"error: unknown preset {args.preset!r}; available: {', '.join(presets)}", file=sys.stderr)
@@ -24,7 +24,7 @@ def _init(args) -> int:
     if dest.exists() and not args.force:
         print(f"error: {dest} exists; pass --force to overwrite", file=sys.stderr)
         return 2
-    dest.write_text(presets[args.preset].read_text())
+    dest.write_text(presets[args.preset].read_text(encoding="utf-8"), encoding="utf-8")
     print(dest)
     return 0
 

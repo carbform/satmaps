@@ -2,14 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false  # a failure on one system should not hide the result on the other
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
@@ -18,8 +20,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install
-        run: pip install -e ".[dev,optical]"
+        run: pip install -e ".[dev,rasters,app]"
       - name: Lint
+        if: runner.os == 'Linux'
         run: ruff check .
       - name: Test
         run: pytest -q
