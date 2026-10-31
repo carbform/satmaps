@@ -1,4 +1,5 @@
-# Social posts from NISAR with their own wording files (relative to this job file) and zoom windows: L against S, and S alone.
+# Social posts from NISAR with their own wording files (relative to this job file): L against S, and S alone. The zoom windows go
+# beside the S-alone figure only; a side-by-side figure has no zoom panels.
 # The wording file's text wins over the template's default wording. Run:  satmaps run jobs/social.toml --out outputs/social/
 extends = "brahmaputra.toml"
 

@@ -28,7 +28,7 @@ Fonts: Gillius ADF Bold for the title, IBM Plex Mono for labels. Both are option
 ## Structure
 
 - Outlines 1.5 px in ink; hard shadow (no blur) offset a few pixels.
-- Bento layout: header, one hero, supporting zoom panels, legend, notice, credits.
+- Bento layout: header, one hero, optional zoom panels (one product only), legend, notice, credits.
 - One soft offset behind the title, nothing else decorative.
 
 ## Wording
