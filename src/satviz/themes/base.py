@@ -183,6 +183,14 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
     items = lay.get("how_to_read.items")
     if items is None:
         items = [{"color": i.color, "text": i.text} for i in legend or []]
+    typed = lay.get("how_to_read.texts")  # the person's own wording, by position; an empty line keeps the item
+    if typed:
+        items = [dict(it) for it in items]
+        for i, line in enumerate(typed):
+            if line and i < len(items):
+                items[i]["text"] = line.replace("{", "{{").replace("}", "}}")
+            elif line:
+                items.append({"color": "noise", "text": line.replace("{", "{{").replace("}", "}}")})
     if len(items) > 6:
         raise LayoutError(f"{lay.path} [how_to_read.items]: {len(items)} items, at most 6 fit")
     for i, item in enumerate(items):
@@ -199,6 +207,7 @@ def social_footer(fig, t: Theme, lay: Layout, legend=None, caveats=None, require
         notes = lay.lines("notes.lines")
     else:
         notes = [shout(c) for c in caveats or []]
+    notes = [*notes, *(shout(x) for x in lay.get("notes.extra") or [])]  # the person's notices follow the products' own
     # The strip is 0.0705 of the page high. A line of type needs about fs / 669.6 of it, so 5 lines fit at full size and
     # smaller type fits more (7 at 6.5 pt, the floor); 3 lines or fewer keep the standard spacing.
     raw_notes = notes

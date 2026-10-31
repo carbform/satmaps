@@ -66,7 +66,10 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{ min-width: 0
 .stButton button:disabled * {{ color: {c['muted']} !important; }}
 
 /* the dark-mode switch: a track you can see on either page, whatever Streamlit's own theme */
-label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) p {{ color: {c['ink']} !important; font-size: 0.88rem !important; }}
+label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) {{ transform: scale(1.6); transform-origin: right center; margin: 0.35rem 0.5rem 0 0; cursor: pointer; }}
+[data-testid="stSidebar"] .stCheckbox p {{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }}
+/* the sidebar stays: no button to fold it away */
+[data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"], [data-testid="stSidebarNavCollapseButton"], [data-testid="stSidebar"] button[kind="header"] {{ display: none !important; }}
 label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) > div:first-child {{ background: {c['line']} !important; border: 1px solid {c['muted']}; }}
 label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]):has(input:checked) > div:first-child {{ background: {c['accent']} !important; border-color: {c['accent']}; }}
 label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) > div:first-child > div {{ background: {c['paper']} !important; border: 1px solid {c['muted']}; }}
@@ -87,8 +90,19 @@ div[data-baseweb="select"] > div, div[data-baseweb="input"], div[data-baseweb="b
 div[data-baseweb="select"] > div {{ min-height: {CONTROL_H}; }}
 div[data-baseweb="select"] *, .stTextInput input, .stNumberInput input {{ font-size: 0.95rem !important; color: {c['ink']} !important; }}
 div[data-baseweb="select"] svg {{ fill: {c['muted']} !important; }}
-div[data-baseweb="popover"] > div, ul[role="listbox"], [data-testid="stPopoverBody"] {{
-  background: {c['paper']} !important; border: 1px solid {c['line']}; color: {c['ink']}; }}
+div[data-baseweb="popover"] > div, ul[role="listbox"] {{ background: {c['paper']} !important; color: {c['ink']}; }}
+div[data-baseweb="popover"], ul[role="listbox"] {{ border: 1px solid {c['line']}; border-radius: 8px; }}
+[data-testid="stPopoverBody"] {{ background: {c['paper']} !important; color: {c['ink']}; border: 0 !important; }}
+/* a text field reads as live: a legible hint, a text cursor, the accent on focus */
+.stTextInput input, .stNumberInput input {{ cursor: text !important; }}
+.stTextInput input::placeholder, .stNumberInput input::placeholder {{ color: {c['muted']} !important; opacity: 1 !important; }}
+div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within {{ border-color: {c['accent']} !important; box-shadow: 0 0 0 1px {c['accent']}; }}
+/* the field being typed in changes colour, so it is plain which one is live */
+div[data-baseweb="input"]:focus-within, div[data-baseweb="base-input"]:focus-within, div[data-baseweb="textarea"]:focus-within,
+.stTextInput input:focus, .stNumberInput input:focus, .stTextArea textarea:focus {{ background: color-mix(in srgb, {c['accent']} 20%, {c['field']}) !important; }}
+.stTextArea textarea {{ cursor: text !important; font-size: 0.95rem !important; color: {c['ink']} !important; background: {c['field']} !important; }}
+.stTextArea textarea::placeholder {{ color: {c['muted']} !important; opacity: 1 !important; }}
+div[data-baseweb="textarea"] {{ border-radius: 8px; border-color: {c['line']}; background: {c['field']} !important; }}
 ul[role="listbox"] li {{ background: {c['paper']} !important; }}
 ul[role="listbox"] li:hover, ul[role="listbox"] li[aria-selected="true"] {{ background: {c['tint']} !important; }}
 [data-testid="stTooltipContent"], div[data-baseweb="tooltip"] div {{ background: {c['field']} !important; color: {c['ink']} !important; }}

@@ -67,9 +67,19 @@ def run_app():
     return at
 
 
+def ticks(at) -> list:
+    """The sidebar's tick boxes, one per product."""
+    return [c for c in at.sidebar.checkbox if c.key.startswith("pick::")]
+
+
+def name_of(box) -> str:
+    return box.label.split("  ·  ")[1]
+
+
 def pick(at, *names):
-    multi = at.sidebar.multiselect[0]
-    multi.set_value([o for o in multi.options if o.split("  ·  ")[1] in names]).run()
+    for box in ticks(at):
+        box.set_value(name_of(box) in names)
+    at.run()
     return at
 
 
@@ -87,9 +97,9 @@ def press(at, label):
 def test_the_app_lists_the_products_and_makes_a_figure(app_env):
     at = run_app()
     assert not at.exception and at.title[0].value == "satviz"
-    assert {o.split("  ·  ")[1] for o in at.sidebar.multiselect[0].options} == {"L.h5", "S.h5"}
+    assert {name_of(b) for b in ticks(at)} == {"L.h5", "S.h5"}
     assert next(b for b in at.button if b.label == "Make the figure").disabled  # nothing chosen yet
-    assert any("choose a product" in c.value for c in at.warning)  # and the page says what to do
+    assert not at.warning  # no message: the sidebar already says step 1
     pick(at, "L.h5", "S.h5")
     assert not at.warning and not at.success  # ready says nothing: the button is simply live
     press(at, "Make the figure")
@@ -111,11 +121,12 @@ def test_two_products_that_share_no_ground_are_refused_before_anything_is_drawn(
 
 @needs_streamlit
 def test_only_two_products_can_be_chosen(app_env):
-    assert at_max(run_app()) == 2
-
-
-def at_max(at) -> int:
-    return at.sidebar.multiselect[0].proto.max_selections
+    third = make_raw(seed=6)
+    write_granule(app_env.data_dir / "T.h5", "science/LSAR/GCOV", third, instrument="LSAR", freq_hz=1.239e9)
+    at = run_app()
+    assert not any(b.disabled for b in ticks(at))
+    pick(at, "L.h5", "S.h5")
+    assert [name_of(b) for b in ticks(at) if b.disabled] == ["T.h5"]  # two are ticked: the rest wait
 
 
 @needs_streamlit
@@ -135,7 +146,7 @@ def test_a_box_that_misses_a_product_says_so_and_can_leave_it_out(app_env):
     assert any("outside" in e.value for e in at.error)
     assert next(b for b in at.button if b.label == "Make the figure").disabled
     press(at, "Leave out the products outside the box")
-    assert not at.error and len(at.multiselect[0].value) == 1
+    assert not at.error and [name_of(b) for b in ticks(at) if b.value] == ["L.h5"]
 
 
 @needs_streamlit
@@ -323,7 +334,7 @@ def test_the_browse_button_sets_the_folder_from_the_system_dialog(app_env, tmp_p
     at = run_app()
     press(at, "Browse…")
     assert at.sidebar.text_input[0].value == str(other)
-    assert [o.split("  ·  ")[1] for o in at.sidebar.multiselect[0].options] == ["X.h5"]
+    assert [name_of(b) for b in ticks(at)] == ["X.h5"]
 
 
 @needs_streamlit
@@ -385,3 +396,24 @@ def test_the_dark_mode_switch_restyles_the_page_and_changes_nothing_else(app_env
     assert not at.exception and at.session_state["dark"] is True
     assert DARK["paper"] in stylesheet(True) and LIGHT["paper"] in stylesheet(False) and stylesheet(True) != stylesheet(False)
     assert all(f"color: {c['ink']}" in stylesheet(d) for c, d in ((LIGHT, False), (DARK, True)))  # text colours are always set
+
+
+def test_typed_notices_and_legend_items_reach_the_page():
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from satviz.api import details
+    from satviz.preview import render_example
+
+    assert details(notices="  \nOne {x}\n\nTwo", legend="A\n\nC")[1] == {"notes.extra": ["One {x}", "Two"], "how_to_read.texts": ["A", "", "C"]}
+    assert details(notices=" \n ", legend="  ") == ({}, {})
+
+    def page(**words):
+        return np.asarray(Image.open(io.BytesIO(render_example(["sar"], "single", "minimal", **words))).convert("RGB"))
+
+    plain = page()
+    assert (plain != page(notices="Cloud over the north-east")).any()  # a notice is drawn
+    assert (plain != page(legend="Water")).any()  # a legend item is renamed
+    assert page(legend="Water", notices="{braces}").shape == plain.shape  # braces are text, not placeholders

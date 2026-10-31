@@ -151,12 +151,17 @@ def _default_arrangement(template: str, kinds: list[str]) -> str:
 
 
 def details(title: str | None = None, subtitle: str | None = None, place: str | None = None, author: str | None = None,
-            website: str | None = None, credits: str | None = None) -> tuple[dict, dict]:
+            website: str | None = None, credits: str | None = None, notices: str | None = None,
+            legend: str | None = None) -> tuple[dict, dict]:
     """The wording a person types, as (scene fields, figure text) for a job: the same for every sensor.
 
     `credits` is one extra credit. It goes on the author's line (`VIZ  AUTHOR · website · your credit`), or on a line of its own
     when there is no author, so it takes no extra room on a page with many notices. The credits the sensors require are always
-    appended on their own DATA line, never replaced. Curly braces are written literally, not read as placeholders."""
+    appended on their own DATA line, never replaced. Curly braces are written literally, not read as placeholders.
+
+    `notices` is one notice per line, added after the notices the products carry (those are never dropped). `legend` is one line
+    per how-to-read item, in order: a line replaces that item's text and keeps its colour, an empty
+    line keeps the item as it is."""
     given = (("name", title), ("region", place), ("author", author), ("website", website))
     scene = {k: v.strip() for k, v in given if v and v.strip()}
     text = {}
@@ -171,6 +176,10 @@ def details(title: str | None = None, subtitle: str | None = None, place: str | 
         byline = "  ·  ".join(x for x in ((author or "").strip().upper(), (website or "").strip()) if x)
         extra = literal(credits.strip())
         text["credits.lines"] = [f"VIZ   {literal(byline)}   ·   {extra}" if byline else extra]
+    if notices and (lines := [x.strip() for x in notices.splitlines() if x.strip()]):
+        text["notes.extra"] = lines
+    if legend and legend.strip():
+        text["how_to_read.texts"] = [x.strip() for x in legend.splitlines()]
     return scene, text
 
 
@@ -178,7 +187,8 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
               template: str | None = None, arrangement: str | None = None, bands: bool = False, resolution_m: float | None = None,
               allow_large: bool = False, data_dir=None, subtitle: str | None = None,
               place: str | None = None, author: str | None = None, website: str | None = None, credits: str | None = None,
-              grid: bool = False, north: bool = False, scalebar: bool = True, channels: dict | None = None):
+              notices: str | None = None, legend: str | None = None, grid: bool = False, north: bool = False,
+              scalebar: bool = True, channels: dict | None = None):
     """The `Job` for some paths, with sensors detected, ids chosen, template and arrangement picked from what the inputs are, and
     the area and pixel size resolved. Also returns the job-file tables that reproduce it."""
     import dataclasses
@@ -207,7 +217,7 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
     chosen = template or ("sar_optical" if len(set(kinds)) > 1 else kinds[0])
     arrangement = "bands" if bands else arrangement or _default_arrangement(chosen, kinds)
     name = _figure_name([i["sensor"] for i in inputs], quality)
-    scene_fields, typed = details(title, subtitle, place, author, website, credits)
+    scene_fields, typed = details(title, subtitle, place, author, website, credits, notices, legend)
     fig = {"name": name, "template": chosen, "inputs": ids, "theme": theme,
            "arrangement": arrangement, **({"text": typed} if typed else {}),
            **({"recipes": recipes} if (recipes := channel_recipes(channels, dict(zip(ids, kinds, strict=True)))) else {}),

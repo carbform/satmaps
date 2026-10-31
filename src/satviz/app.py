@@ -102,6 +102,14 @@ def label(row: dict) -> str:
     return f"{row['sensor']} ({row['kind']})  ·  {row['name']}"  # the sensor first: the name is long and the tag cuts it off
 
 
+def shorten(text: str, width: int = 26) -> str:
+    """A product's tick-box label with the middle of its long name left out (the tooltip has the whole of it)."""
+    head, sep, name = text.partition("  ·  ")
+    if len(name) > width:
+        name = f"{name[:width // 2]}…{name[-(width // 2 - 1):]}"
+    return f"{head}{sep}{name}"
+
+
 def render(chosen: list[str], options: dict) -> None:
     """Draw the figure for the chosen products and keep it in the session; an error is kept as a message instead."""
     out, cache = Path(os.environ["SATVIZ_OUT_DIR"]), Path(os.environ["SATVIZ_CACHE_DIR"])
@@ -124,7 +132,8 @@ def render(chosen: list[str], options: dict) -> None:
 
 def leave_out(labels: list[str]) -> None:
     """Button callback: take these products out of the selection."""
-    st.session_state["picked"] = [x for x in st.session_state["picked"] if x not in labels]
+    for name in labels:
+        st.session_state[PICK + name] = False
 
 
 def show_results(results: list[dict], key_prefix: str = "", show_job: bool = True) -> None:
@@ -218,12 +227,16 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
 def summary(chosen_rows: list[dict], mode: str, box: tuple | None, outside: bool, apart: bool) -> tuple[bool, str]:
     """(ready, message): ready with no message, or what to do first. `mode` and `box` are kept for callers that say more."""
     if not chosen_rows:
-        return False, "Not yet: choose a product in the sidebar (step 1)."
+        return False, ""  # the button is off and the sidebar says step 1: no message needed
     if apart:
         return False, "Not yet: the two products cover different ground. Choose two that overlap."
     if outside:
         return False, "Not yet: the box misses some products. Redraw the box on the map, or leave those products out."
     return True, ""
+
+
+PICK = "pick::"  # session-state key prefix of a product's tick box
+WORDS = ("title", "subtitle", "place", "author", "website", "credits", "notices", "legend")
 
 
 def details_section() -> dict:
@@ -237,7 +250,12 @@ def details_section() -> dict:
     st.text_input("Extra credit", key="credits", placeholder="e.g. Field photos by …",
                   help="One more credit line. The credits the products require (Copernicus, NISAR, NRSC/ISRO…) are always "
                        "printed.")
-    return {k: st.session_state[k] or None for k in ("title", "subtitle", "place", "author", "website", "credits")}
+    st.text_area("Notices", key="notices", height=68, placeholder="one per line, added to the notices your products carry",
+                 help="Printed in the notice strip after the notices the products require, which are always kept.")
+    st.text_area("Legend items", key="legend", height=68, placeholder="one per line, in the order of the legend",
+                 help="Replaces the text of each legend item in order and keeps its colour. An empty line keeps that item "
+                      "as it is. Up to six items fit.")
+    return {k: st.session_state[k] or None for k in WORDS}
 
 
 def look_section(kinds: list[str]) -> dict:
@@ -363,15 +381,15 @@ def figure_pane(kinds: list[str], words: dict, look: dict, channels: dict, signa
 
 
 def main() -> None:
-    st.set_page_config(page_title="satviz", page_icon="🛰", layout="wide")
+    st.set_page_config(page_title="satviz", page_icon="🛰", layout="wide", initial_sidebar_state="expanded")
     title, mode_switch = st.columns([6, 1])
     title.title("satviz")
-    dark = mode_switch.toggle("Dark mode", key="dark")
+    dark = mode_switch.toggle("Dark mode", key="dark", label_visibility="collapsed", help="Dark mode")
     st.markdown(stylesheet(dark), unsafe_allow_html=True)
     defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "area_mode": OVERLAP, "last_draw": 0,
                 "folder": os.environ.get("SATVIZ_DATA_DIR", "data"), "folder_note": "", "made_with": None, "picked": [],
                 "dark": False,
-                **dict.fromkeys(("title", "subtitle", "place", "author", "website", "credits"), "")}
+                **dict.fromkeys(WORDS, "")}
     for key, default in {**defaults, **dict.fromkeys(BOX_KEYS, 0.0)}.items():
         st.session_state.setdefault(key, default)
 
@@ -394,14 +412,21 @@ def main() -> None:
             rows = []
         products = [r for r in rows if r["sensor"]]
         by_label = {label(r): r for r in products}
-        picked = st.multiselect("Choose one or two", list(by_label), key="picked", max_selections=MAX_PRODUCTS)
+        taken = sum(bool(st.session_state.get(PICK + name)) for name in by_label)
+        picked = []
+        for name in by_label:
+            on = bool(st.session_state.get(PICK + name))
+            if st.checkbox(shorten(name), key=PICK + name, help=name, disabled=taken >= MAX_PRODUCTS and not on):
+                picked.append(name)
+        st.session_state["picked"] = picked
+        if products:
+            st.caption(f"Tick one or two that overlap ({len(picked)} of {MAX_PRODUCTS}).")
         chosen_rows = [by_label[name] for name in picked]
         chosen = [r["path"] for r in chosen_rows]
         zips = [r["name"] for r in rows if not r["sensor"]]
         if zips:
-            with st.expander(f"{len(zips)} zip{'s' if len(zips) > 1 else ''} skipped"):
-                st.caption("The readers take unzipped folders: unzip these into the folder, then press Rescan.")
-                st.write("\n".join(f"- {z}" for z in zips))
+            st.caption(f"{len(zips)} zip{'s' if len(zips) > 1 else ''} not shown: the readers take unzipped folders. "
+                       "Unzip into the folder, then press Rescan.")
         if not products and not zips:
             st.info("No products found in this folder.")
 
@@ -424,7 +449,7 @@ def main() -> None:
             channels = channels_section(chosen_rows)
         with cells[5].popover("Help", use_container_width=True):
             st.markdown(HELP)
-        if not ready:
+        if said:
             st.warning(said)
 
     signature = (tuple(chosen), mode, box, quality, tuple(sorted(words.items(), key=lambda kv: kv[0])), tuple(sorted(
