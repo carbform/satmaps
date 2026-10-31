@@ -30,5 +30,5 @@ def test_nisar_product_and_recipe(scene):
     assert any("calibration" in c for c in p.caveats)  # S fixture is uncalibrated
     assert not to_product(load_roi(scene, "L")).caveats  # L fixture is calibrated
     r = RECIPES["sar_fcc"].render(p)
-    assert len(r.components) == 3 and r.lims and r.rgba.shape == p.valid.shape + (4,) and len(r.extent) == 4 and r.caveats[: len(p.caveats)] == p.caveats
+    assert not r.components and r.title.startswith("FCC") and r.lims and r.rgba.shape == p.valid.shape + (4,) and len(r.extent) == 4 and r.caveats[: len(p.caveats)] == p.caveats
     assert THEMES["neo_retro"].paper.startswith("#")

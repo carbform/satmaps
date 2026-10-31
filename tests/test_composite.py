@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from satviz.recipes.sar_fcc import NOISE_RGB, OUTSIDE_RGB, fcc_rgba, shared_lims
 from satviz.sensors.sar.nisar.io import assemble
@@ -47,3 +48,26 @@ def test_pooled_stretch_makes_same_input_same_colour(ds):
     r1 = fcc_rgba(ds, lims_in=lims)[0]
     r2 = fcc_rgba(ds, lims_in=lims)[0]
     assert np.array_equal(r1, r2)
+
+
+def test_the_channels_can_be_assigned_in_any_order(ds):
+    default, lims, _ = fcc_rgba(ds)
+    swapped, lims2, _ = fcc_rgba(ds, channels=("cross", "co", "ratio"))
+    assert lims2 == lims  # the stretch belongs to the quantity, not to the colour it is drawn in
+    ok = (default[..., :3] != NOISE_RGB).any(-1) & (default[..., :3] != OUTSIDE_RGB).any(-1)
+    assert (swapped[..., 0][ok] == default[..., 1][ok]).all() and (swapped[..., 1][ok] == default[..., 0][ok]).all()
+    assert (swapped[..., 2][ok] == default[..., 2][ok]).all()
+
+
+def test_a_recipe_name_with_channels_gives_a_composite_that_says_what_is_where(scene):
+    from satviz.core import RECIPES, SENSORS
+    from satviz.registry import load_builtin
+
+    load_builtin()
+    p = SENSORS["nisar"].load(scene, "S")
+    r = RECIPES.get_or_raise("sar_fcc:cross,co,cross").render(p)
+    assert r.title == "FCC  ·  HV / HH / HV" and not r.components
+    assert [i.text for i in r.legend[:3]] == ["RED = HV", "GREEN = HH", "BLUE = HV"]
+    assert (RECIPES["sar_fcc"].render(p).rgba != r.rgba).any()
+    with pytest.raises(KeyError, match="three of co, cross, ratio"):
+        RECIPES.get_or_raise("sar_fcc:co,cross")

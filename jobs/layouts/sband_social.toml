@@ -14,7 +14,7 @@ info_line = "NASA-ISRO NISAR   ·   S ≈{S.wavelength_cm:.0f} CM  ·  {S.freq_g
 
 [panels]   # chips on the hero map
 band = "S-BAND  ≈{S.wavelength_cm:.0f} CM"
-composite = "R+G+B  COMPOSITE"
+composite = "FALSE COLOUR COMPOSITE"
 
 [channels]   # chips on the three band panels (the bands the composite is built from)
 labels = ["CH1  HH", "CH2  HV", "CH3  HH−HV"]

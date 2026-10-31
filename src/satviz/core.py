@@ -18,6 +18,7 @@ class Registry(dict):
     def __init__(self, kind: str):
         super().__init__()
         self.kind = kind
+        self.factories: dict[str, Callable] = {}  # base name -> builds an entry from the text after the colon
 
     def register(self, name: str) -> Callable:
         def deco(obj):
@@ -28,10 +29,24 @@ class Registry(dict):
 
         return deco
 
+    def factory(self, name: str) -> Callable:
+        """Register a builder for names like ``name:spec`` (e.g. ``sar_fcc:cross,co,ratio``): the entry is made from the spec."""
+        def deco(fn):
+            self.factories[name] = fn
+            return fn
+
+        return deco
+
     def get_or_raise(self, name: str):
-        if name not in self:
-            raise KeyError(f"unknown {self.kind} {name!r}; available: {', '.join(sorted(self)) or 'none'}")
-        return self[name]
+        if name in self:
+            return dict.__getitem__(self, name)
+        base, _, spec = name.partition(":")
+        if spec and base in self.factories:
+            return self.factories[base](spec)
+        raise KeyError(f"unknown {self.kind} {name!r}; available: {', '.join(sorted(self)) or 'none'}")
+
+    def __missing__(self, name: str):
+        return self.get_or_raise(name)
 
 
 SENSORS = Registry("sensor")
@@ -136,7 +151,7 @@ class Rendered:
     caveats: list[str] = field(default_factory=list)
     components: list[Component] = field(default_factory=list)
     components_extent: list[float] | None = None
-    title: str = ""  # default chip text for the hero ("R+G+B  COMPOSITE", "TRUE COLOUR")
+    title: str = ""  # default chip text for the hero ("FCC · HH / HV / HH/HV", "TRUE COLOUR")
     lims: dict | None = None  # stretch limits used, as placeholders ({lim.HH_lo}); None if the recipe has none
 
 

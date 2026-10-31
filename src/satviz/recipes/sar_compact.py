@@ -15,10 +15,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from satviz.core import Component, LegendItem, Product, Recipe, Rendered, recipe
+from satviz.core import LegendItem, Product, Recipe, Rendered, recipe
 from satviz.geo import utm_extent
-from satviz.recipes.sar_fcc import CHANNEL_COLORS, NOISE_RGB, OUTSIDE_RGB
-from satviz.sensors.sar.nisar.processing import coarsen, db
+from satviz.recipes.sar_fcc import NOISE_RGB, OUTSIDE_RGB
+from satviz.sensors.sar.nisar.processing import db
 
 CHANNELS = (("DBL", "R"), ("VOL", "G"), ("ODD", "B"))
 GAMMA = 0.94
@@ -61,17 +61,6 @@ def rgba_of(d: dict, lims_in: dict | None = None):
     return rgba, lims, ok
 
 
-def _components(c: dict, lims: dict) -> list[Component]:
-    ok, ch = decompose(c)
-    comps = []
-    for (name, key), label in zip(CHANNELS, ("CH1  DOUBLE BOUNCE", "CH2  VOLUME", "CH3  SURFACE"), strict=True):
-        lo, hi = lims[name]
-        v = np.where(ok, np.power(np.clip((_db(ch[name]) - lo) / (hi - lo + 1e-6), 0, 1), GAMMA), np.nan)
-        tint = np.array([int(CHANNEL_COLORS[key][q:q + 2], 16) for q in (1, 3, 5)]) / 255.0
-        comps.append(Component(key, np.where(np.isfinite(v)[..., None], v[..., None] * tint, 0.12), CHANNEL_COLORS[key], label))
-    return comps
-
-
 def legend() -> list[LegendItem]:
     return [LegendItem("#d4574f", "RED = DOUBLE BOUNCE  (BUILDINGS, TRUNKS)"), LegendItem("#5fb673", "GREEN = VOLUME  (CANOPY)"),
             LegendItem("#6580d6", "BLUE = SURFACE  (WATER, BARE GROUND)"), LegendItem("noise", "GREY = NOISE (SNR < 3 dB)")]
@@ -80,12 +69,11 @@ def legend() -> list[LegendItem]:
 def render_product(product: Product, lims_in: dict | None = None) -> Rendered:
     d = product.native
     rgba, lims, _ = rgba_of(d, lims_in)
-    c = coarsen(d, 4)
     return Rendered(
         rgba=rgba, extent=utm_extent(d), legend=legend(),
         caveats=[*product.caveats, "NISAR compact-pol (RH + RV): m-chi decomposition, noise-screened (SNR < 3 dB shown grey); "
                                    "no speckle filter; hues drifting across a swath are RH/RV channel imbalance."],
-        components=_components(c, lims), components_extent=utm_extent(c), lims=lims, title="m-χ  COMPOSITE")
+        lims=lims, title="FCC  ·  m-χ")
 
 
 def pooled_lims(products: list[Product]) -> dict:

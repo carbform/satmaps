@@ -86,4 +86,4 @@ def test_a_vv_vh_product_is_drawn_with_its_own_labels(tmp_path):
     p = to_product(load_compact(tmp_path / "V.h5"))
     assert default_recipe(p) == "sar_fcc"
     texts = [i.text for i in RECIPES["sar_fcc"].render(p).legend]
-    assert texts[:3] == ["RED = VV  (SURFACE)", "GREEN = VH  (VOLUME)", "BLUE = VV−VH  (RATIO)"]
+    assert texts[:3] == ["RED = VV  (SURFACE)", "GREEN = VH  (VOLUME)", "BLUE = VV/VH  (RATIO)"]
