@@ -38,13 +38,13 @@ html, body, .stApp, [class*="st-"], button, input, textarea, select {{
 .block-container {{ padding-top: 1.6rem; padding-bottom: 2rem; max-width: 1500px; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 header[data-testid="stHeader"] *, [data-testid="stToolbar"] * {{ color: {c['muted']} !important; }}
-h1 {{ font-size: 1.5rem !important; letter-spacing: 0.04em; font-weight: 400 !important; padding: 0 0 0.9rem 0 !important;
+h1 {{ font-size: 1.7rem !important; letter-spacing: 0.04em; font-weight: 400 !important; padding: 0 0 0.9rem 0 !important;
   border-bottom: 1px solid {c['line']}; margin-bottom: 1rem; }}
-h5, h2, h3 {{ font-size: 0.8rem !important; text-transform: uppercase; letter-spacing: 0.12em; color: {c['muted']} !important;
+h5, h2, h3 {{ font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.12em; color: {c['muted']} !important;
   font-weight: 400 !important; padding: 0.2rem 0 0.4rem 0 !important; }}
 [data-testid="stSidebar"] {{ background: {c['tint']}; border-right: 1px solid {c['line']}; }}
-[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p, .stCaption {{ color: {c['muted']}; font-size: 0.74rem; }}
-label, [data-testid="stWidgetLabel"] p {{ font-size: 0.74rem !important; color: {c['muted']} !important; letter-spacing: 0.04em; }}
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p, .stCaption {{ color: {c['muted']}; font-size: 0.85rem; }}
+label, [data-testid="stWidgetLabel"] p {{ font-size: 0.85rem !important; color: {c['muted']} !important; letter-spacing: 0.04em; }}
 [data-testid="stCheckbox"] label p, [data-testid="stRadio"] label p {{ color: {c['ink']} !important; }}
 
 /* buttons, and the pop-up buttons: one height, one text colour set on the button and everything inside it */
@@ -53,7 +53,7 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{ min-width: 0
   width: 100%; height: {CONTROL_H}; min-height: {CONTROL_H}; border-radius: 8px; border: 1px solid {c['line']};
   background: {c['field']}; transition: border-color .2s ease, background .2s ease; }}
 .stButton button *, [data-testid="stPopover"] button *, .stDownloadButton button * {{
-  color: {c['ink']} !important; font-size: 0.82rem !important; letter-spacing: 0.04em; white-space: nowrap; }}
+  color: {c['ink']} !important; font-size: 0.95rem !important; letter-spacing: 0.04em; white-space: nowrap; }}
 .stButton button:hover, [data-testid="stPopover"] button:hover, .stDownloadButton button:hover {{
   border-color: {c['accent']}; background: {c['tint']}; }}
 .stButton button:hover *, [data-testid="stPopover"] button:hover *, .stDownloadButton button:hover * {{
@@ -66,16 +66,26 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{ min-width: 0
 .stButton button:disabled * {{ color: {c['muted']} !important; }}
 
 /* the dark-mode switch: a track you can see on either page, whatever Streamlit's own theme */
-label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) p {{ color: {c['ink']} !important; font-size: 0.78rem !important; }}
+label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) p {{ color: {c['ink']} !important; font-size: 0.88rem !important; }}
 label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) > div:first-child {{ background: {c['line']} !important; border: 1px solid {c['muted']}; }}
 label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]):has(input:checked) > div:first-child {{ background: {c['accent']} !important; border-color: {c['accent']}; }}
 label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) > div:first-child > div {{ background: {c['paper']} !important; border: 1px solid {c['muted']}; }}
+
+/* a select is a menu, not a text box: the pointer says so, and the caret stays out of it */
+[data-testid="stSelectbox"] div[data-baseweb="select"], [data-testid="stSelectbox"] div[data-baseweb="select"] * {{ cursor: pointer !important; }}
+[data-testid="stSelectbox"] input {{ caret-color: transparent; }}
+
+/* the credits banner at the foot of the page */
+.credits {{ margin-top: 2.5rem; padding: 0.9rem 0 0.4rem; border-top: 1px solid {c['line']}; text-align: center; font-size: 0.85rem; letter-spacing: 0.06em; color: {c['muted']}; }}
+.credits a {{ color: {c['accent']} !important; text-decoration: none; border-bottom: 1px solid transparent; }}
+.credits a:hover {{ border-bottom-color: {c['accent']}; }}
+.credits b {{ color: {c['ink']}; font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase; }}
 
 /* fields and menus */
 div[data-baseweb="select"] > div, div[data-baseweb="input"], div[data-baseweb="base-input"], .stTextInput input, .stNumberInput input {{
   border-radius: 8px; border-color: {c['line']}; background: {c['field']} !important; color: {c['ink']} !important; }}
 div[data-baseweb="select"] > div {{ min-height: {CONTROL_H}; }}
-div[data-baseweb="select"] *, .stTextInput input, .stNumberInput input {{ font-size: 0.82rem !important; color: {c['ink']} !important; }}
+div[data-baseweb="select"] *, .stTextInput input, .stNumberInput input {{ font-size: 0.95rem !important; color: {c['ink']} !important; }}
 div[data-baseweb="select"] svg {{ fill: {c['muted']} !important; }}
 div[data-baseweb="popover"] > div, ul[role="listbox"], [data-testid="stPopoverBody"] {{
   background: {c['paper']} !important; border: 1px solid {c['line']}; color: {c['ink']}; }}
@@ -84,7 +94,7 @@ ul[role="listbox"] li:hover, ul[role="listbox"] li[aria-selected="true"] {{ back
 [data-testid="stTooltipContent"], div[data-baseweb="tooltip"] div {{ background: {c['field']} !important; color: {c['ink']} !important; }}
 span[data-baseweb="tag"] {{ background: {c['accent']} !important; }}
 span[data-baseweb="tag"] * {{ color: {c['on_accent']} !important; }}
-[data-testid="stAlert"] {{ border-radius: 8px; font-size: 0.78rem; padding: 0.5rem 0.8rem; background: {c['info']}; }}
+[data-testid="stAlert"] {{ border-radius: 8px; font-size: 0.88rem; padding: 0.5rem 0.8rem; background: {c['info']}; }}
 [data-testid="stAlert"] * {{ color: {c['ink']} !important; }}
 [data-testid="stAlert"] > div {{ background: transparent !important; }}
 [data-testid="stExpander"] {{ border: 1px solid {c['line']}; border-radius: 8px; background: {c['paper']}; }}

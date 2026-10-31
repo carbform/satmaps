@@ -156,7 +156,7 @@ def test_a_large_area_offers_the_suggested_box(app_env, monkeypatch):
 def test_publication_offers_a_pdf(app_env):
     at = run_app()
     pick(at, "L.h5")
-    next(r for r in at.selectbox if r.label == "Quality").set_value("Quality: publication").run()
+    next(r for r in at.selectbox if r.label == "Quality").set_value("Publication").run()
     press(at, "Make the figure")
     assert [b.proto.label for b in at.get("download_button")] == ["Download PNG", "Download PDF", "Download job file"]
 

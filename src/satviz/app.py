@@ -299,11 +299,15 @@ def channels_section(rows: list[dict]) -> dict:
 
 
 def quality_choice() -> str:
-    """The quality profile, as a select that fits the top bar (its label is the first words of the option)."""
-    picked = st.selectbox("Quality", [f"Quality: {name}" for name in PROFILES], label_visibility="collapsed",
-                          help="quick: a small PNG in seconds · medium: finer · publication: full size, with a PDF")
-    return picked.split(": ")[1]
+    """The quality profile, as a select that fits the top bar (the option names are short: the cell is one sixth of the page)."""
+    picked = st.selectbox("Quality", [name.capitalize() for name in PROFILES], label_visibility="collapsed",
+                          help="Quality. Quick: a small PNG in seconds · Medium: finer · Publication: full size, with a PDF")
+    return picked.lower()
 
+
+CREDITS = ('<div class="credits"><b>Carbform</b> &nbsp;·&nbsp; '
+           '<a href="https://carbform.github.io" target="_blank" rel="noopener">carbform.github.io</a> &nbsp;·&nbsp; '
+           '<a href="https://github.com/carbform/nisar-ls-viz" target="_blank" rel="noopener">Find this on GitHub</a></div>')
 
 HELP = """
 **Make a figure in four steps**
@@ -435,6 +439,7 @@ def main() -> None:
     with right:
         st.markdown("##### Figure")
         figure_pane(kinds, words, look, channels, signature)
+    st.markdown(CREDITS, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":  # Streamlit runs the script as __main__; importing the module (the tests do) draws nothing
