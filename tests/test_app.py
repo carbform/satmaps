@@ -91,7 +91,7 @@ def test_the_app_lists_the_products_and_makes_a_figure(app_env):
     assert next(b for b in at.button if b.label == "Make the figure").disabled  # nothing chosen yet
     assert any("choose a product" in c.value for c in at.warning)  # and the page says what to do
     pick(at, "L.h5", "S.h5")
-    assert any(c.value.startswith("Ready: 2 products in one figure") for c in at.success)
+    assert not at.warning and not at.success  # ready says nothing: the button is simply live
     press(at, "Make the figure")
     assert not at.exception and not at.error and len(made(at)) == 1
     assert [b.proto.label for b in at.get("download_button")] == ["Download PNG", "Download job file"]  # quick: no PDF
@@ -156,7 +156,7 @@ def test_a_large_area_offers_the_suggested_box(app_env, monkeypatch):
 def test_publication_offers_a_pdf(app_env):
     at = run_app()
     pick(at, "L.h5")
-    next(r for r in at.radio if r.label == "Quality").set_value("publication").run()
+    next(r for r in at.selectbox if r.label == "Quality").set_value("Quality: publication").run()
     press(at, "Make the figure")
     assert [b.proto.label for b in at.get("download_button")] == ["Download PNG", "Download PDF", "Download job file"]
 
@@ -231,9 +231,9 @@ def test_the_example_page_follows_the_kinds_chosen_and_says_it_is_an_example():
 @needs_streamlit
 def test_the_theme_and_layout_controls(app_env):
     at = run_app()
-    assert [s.label for s in at.selectbox] == ["Theme", "Layout"]
-    assert at.selectbox[0].value == "minimal" and "xkcd" in at.selectbox[0].options
-    assert at.selectbox[1].options[0] == "Automatic" and len(at.selectbox[1].options) == 4  # Automatic + the three layouts
+    assert [s.label for s in at.selectbox] == ["Quality", "Theme", "Layout"]
+    assert at.selectbox[1].value == "minimal" and "xkcd" in at.selectbox[1].options
+    assert at.selectbox[2].options[0] == "Automatic" and len(at.selectbox[2].options) == 4  # Automatic + the three layouts
     pick(at, "L.h5", "S.h5")
     layout = next(s for s in at.selectbox if s.label == "Layout")
     assert layout.options == ["Automatic", "One figure per product", "Side by side"]
@@ -248,7 +248,7 @@ def test_the_example_page_is_on_show_before_anything_is_made(app_env):
     assert not at.exception and len(at.get("imgs")) == 1 and made(at) == []  # one pane, with the example page in it
     assert not at.get("tab")  # no separate preview pane
     assert any("page your settings give" in i.value for i in at.info)
-    at.selectbox[0].set_value("newspaper").run()
+    at.selectbox[1].set_value("newspaper").run()
     assert not at.exception and made(at) == []  # another theme draws another example page without making a figure
 
 
@@ -258,10 +258,10 @@ def test_the_figure_gives_way_to_the_example_when_settings_change(app_env):
     pick(at, "L.h5")
     press(at, "Make the figure")
     assert len(made(at)) == 1 and len(at.get("imgs")) == 1 and not any("settings have changed" in i.value for i in at.info)
-    at.selectbox[0].set_value("xkcd").run()  # a new theme: the figure on show is out of date
+    at.selectbox[1].set_value("xkcd").run()  # a new theme: the figure on show is out of date
     assert not at.exception and any("settings have changed" in i.value for i in at.info)
     assert len(at.get("imgs")) >= 2  # the example page in this theme, and the earlier figure kept under "made before"
-    at.selectbox[0].set_value("minimal").run()  # back to what the figure was made with: it is current again
+    at.selectbox[1].set_value("minimal").run()  # back to what the figure was made with: it is current again
     assert not any("settings have changed" in i.value for i in at.info) and len(at.get("imgs")) == 1
 
 

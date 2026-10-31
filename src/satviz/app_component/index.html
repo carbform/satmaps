@@ -60,7 +60,7 @@ function fit() {
   const take = (lon, lat) => { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat); };
   args.footprints.forEach(f => f.ring.forEach(p => take(p[0], p[1])));
   if (args.box) { take(args.box[0], args.box[1]); take(args.box[2], args.box[3]); }
-  if (w > e) { w = 60; e = 100; s = 5; n = 35; }
+  if (w > e) { w = 67; e = 99; s = 6; n = 37.5; }   // nothing to show yet: India
   const dx = Math.max(mx(e) - mx(w), 1e-6), dy = Math.max(my(s) - my(n), 1e-6);
   view.z = Math.max(1, Math.min(17, Math.log2(Math.min(W() / (dx * 256), H / (dy * 256)) * 0.85)));
   view.cx = (mx(w) + mx(e)) / 2; view.cy = (my(n) + my(s)) / 2;

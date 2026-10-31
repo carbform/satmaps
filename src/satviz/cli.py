@@ -53,7 +53,9 @@ def _app(args) -> int:
                SATVIZ_OUT_DIR=absolute(args.out), SATVIZ_CACHE_DIR=absolute(args.cache))
     cmd = [sys.executable, "-c", STREAMLIT_LAUNCH, "run", str(script), "--server.address", "localhost",
            "--server.port", str(args.port), "--browser.gatherUsageStats", "false",
-           "--server.headless", str(args.no_browser).lower()]
+           "--server.headless", str(args.no_browser).lower(),
+           "--theme.base", "light", "--theme.primaryColor", "#3d82cc", "--theme.backgroundColor", "#ffffff",
+           "--theme.secondaryBackgroundColor", "#f8f9fa", "--theme.textColor", "#2c3e50", "--theme.font", "monospace"]
     return subprocess.call(cmd, env=env)
 
 

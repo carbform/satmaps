@@ -30,7 +30,7 @@ satviz = "satviz.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-satviz = ["layouts/*.toml", "presets/*.toml", "app_component/*.html"]
+satviz = ["layouts/*.toml", "presets/*.toml", "app_component/*.html", "app_assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

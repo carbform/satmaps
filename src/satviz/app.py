@@ -23,6 +23,7 @@ import streamlit as st  # noqa: E402
 import streamlit.components.v1 as components  # noqa: E402
 
 from satviz.api import SAR_CHANNELS, TooLarge, auto_layout, band_choices, build_job, inspect, job_toml, layout_choices, scan  # noqa: E402
+from satviz.app_style import stylesheet  # noqa: E402
 from satviz.area import AreaError  # noqa: E402
 from satviz.autoarea import common_area, coverage, group_by_ground, touches  # noqa: E402
 from satviz.core import THEMES  # noqa: E402
@@ -167,9 +168,6 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     Returns (mode, box, outside, apart): `outside` names the products a drawn box does not touch (they cannot be drawn in it);
     `apart` is True when two products share no ground (a figure needs products that overlap)."""
     st.markdown("##### 2 · Area")
-    if not chosen_rows:
-        st.info("Start with step 1 in the sidebar: choose one or two products. They appear here on a map.")
-        return OVERLAP, None, [], False
     prints = [{"name": r["name"][:24], **footprint_of(r["path"], Path(r["path"]).stat().st_mtime)} for r in chosen_rows]
     prints = [p for p in prints if p["ring"]]
     overlap, apart = None, False
@@ -185,6 +183,10 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     drawn = area_map(footprints=[{"name": p["name"], "kind": p["kind"], "ring": p["ring"]} for p in prints], overlap=overlap,
                      box=box, basemap=bool(st.session_state.get("basemap", True)), key="area_map", default=None)
     apply_drawn(st.session_state, drawn)
+    if not chosen_rows:  # the map of India waits for products; drawing a box before choosing any would have nothing to apply to
+        st.caption("Choose one or two products in the sidebar (step 1): they appear here, and you can draw the area you want.")
+        st.checkbox("OpenStreetMap basemap", value=True, key="basemap")
+        return OVERLAP, None, [], False
     st.caption("Drag to draw the area · wheel to zoom · right-drag or shift-drag to move. The dashed rectangle is what is drawn "
                "when you draw nothing.")
     a, b = st.columns([3, 2])
@@ -213,17 +215,14 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
 
 
 def summary(chosen_rows: list[dict], mode: str, box: tuple | None, outside: bool, apart: bool) -> tuple[bool, str]:
-    """(ready, message) shown beside the button: what pressing it will draw, or the one thing to do first."""
+    """(ready, message): ready with no message, or what to do first. `mode` and `box` are kept for callers that say more."""
     if not chosen_rows:
         return False, "Not yet: choose a product in the sidebar (step 1)."
     if apart:
         return False, "Not yet: the two products cover different ground. Choose two that overlap."
     if outside:
         return False, "Not yet: the box misses some products. Redraw the box on the map, or leave those products out."
-    n = len(chosen_rows)
-    what = f"{n} product{'s' if n > 1 else ''}"
-    where = "in the box you drew" if mode == BOX and box else "where they overlap" if n > 1 else "over the whole product"
-    return True, f"Ready: {what} in one figure, {where}."
+    return True, ""
 
 
 def details_section() -> dict:
@@ -299,8 +298,40 @@ def channels_section(rows: list[dict]) -> dict:
 
 
 def quality_choice() -> str:
-    return st.radio("Quality", list(PROFILES), horizontal=True,
-                    help="quick: a small PNG in seconds · medium: finer · publication: full size, with a PDF")
+    """The quality profile, as a select that fits the top bar (its label is the first words of the option)."""
+    picked = st.selectbox("Quality", [f"Quality: {name}" for name in PROFILES], label_visibility="collapsed",
+                          help="quick: a small PNG in seconds · medium: finer · publication: full size, with a PDF")
+    return picked.split(": ")[1]
+
+
+HELP = """
+**Make a figure in four steps**
+
+1. **Products** (sidebar): pick the folder, then one or two products. Two must cover the same ground.
+2. **Area**: leave it, and the figure covers what the products share. Or drag a rectangle on the map to choose a place.
+3. **Make the figure** (top left). The page below shows what you will get; press the button to draw it with your data.
+4. **Download** the PNG (and a PDF at publication quality), or the job file that reproduces it.
+
+**The pop-ups at the top**
+
+- **Quality**: quick is a small PNG in seconds, medium is finer, publication is full size with a PDF.
+- **Title & credits**: your own wording. Left empty, the figure titles itself;
+  the credits each product requires are always printed.
+- **Look**: theme, page layout, and map furniture (lat/lon grid, north arrow, scale bar).
+- **Colours**: the false-colour composite (FCC): which radar channel or optical band is drawn in red, green and blue.
+
+**False-colour composite**
+
+Three layers are assigned to red, green and blue. For radar they are HH, HV or their ratio HH/HV (or VV, VH, VV/VH). For
+optical they are any three bands: red, green, blue is true colour; near-infrared, red, green shows vegetation in red.
+The legend on the figure says what each colour is.
+
+**Good to know**
+
+- At most two products at once.
+- A very large area is refused with a suggested box: press *Use the suggested box*.
+- Everything runs on this machine. Only the map tiles come from openstreetmap.org, and you can untick that.
+"""
 
 
 def figure_pane(kinds: list[str], words: dict, look: dict, channels: dict, signature: tuple) -> None:
@@ -331,6 +362,7 @@ def figure_pane(kinds: list[str], words: dict, look: dict, channels: dict, signa
 
 def main() -> None:
     st.set_page_config(page_title="satviz", page_icon="🛰", layout="wide")
+    st.markdown(stylesheet(), unsafe_allow_html=True)
     st.title("satviz")
     defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "area_mode": OVERLAP, "last_draw": 0,
                 "folder": os.environ.get("SATVIZ_DATA_DIR", "data"), "folder_note": "", "made_with": None, "picked": [],
@@ -374,19 +406,21 @@ def main() -> None:
         mode, box, outside, apart = area_section(chosen_rows, by_label)
 
     with top:
-        c_go, c_say, c_quality, c_words, c_look, c_colour = st.columns([1.3, 3.2, 2.3, 1.3, 0.9, 1.1])
+        cells = st.columns(6)  # an equal grid: every control the same width and height
         ready, said = summary(chosen_rows, mode, box, bool(outside), apart)
-        go = c_go.button("Make the figure", type="primary", disabled=not ready)
-        with c_say:
-            (st.success if ready else st.warning)(said)
-        with c_quality:
+        go = cells[0].button("Make the figure", type="primary", disabled=not ready, use_container_width=True)
+        with cells[1]:
             quality = quality_choice()
-        with c_words.popover("Title & credits"):
+        with cells[2].popover("Title & credits", use_container_width=True):
             words = details_section()
-        with c_look.popover("Look"):
+        with cells[3].popover("Look", use_container_width=True):
             look = look_section(kinds)
-        with c_colour.popover("Colours"):
+        with cells[4].popover("Colours", use_container_width=True):
             channels = channels_section(chosen_rows)
+        with cells[5].popover("Help", use_container_width=True):
+            st.markdown(HELP)
+        if not ready:
+            st.warning(said)
 
     signature = (tuple(chosen), mode, box, quality, tuple(sorted(words.items(), key=lambda kv: kv[0])), tuple(sorted(
         (k, str(v)) for k, v in look.items())), tuple(sorted(channels.items())))
