@@ -49,14 +49,14 @@ label, [data-testid="stWidgetLabel"] p {{ font-size: 0.74rem !important; color: 
 
 /* buttons, and the pop-up buttons: one height, one text colour set on the button and everything inside it */
 div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{ min-width: 0; }}
-.stButton button, [data-testid="stPopover"] button, .stDownloadButton > button {{
+.stButton button, [data-testid="stPopover"] button, .stDownloadButton button {{
   width: 100%; height: {CONTROL_H}; min-height: {CONTROL_H}; border-radius: 8px; border: 1px solid {c['line']};
   background: {c['field']}; transition: border-color .2s ease, background .2s ease; }}
-.stButton button *, [data-testid="stPopover"] button *, .stDownloadButton > button * {{
+.stButton button *, [data-testid="stPopover"] button *, .stDownloadButton button * {{
   color: {c['ink']} !important; font-size: 0.82rem !important; letter-spacing: 0.04em; white-space: nowrap; }}
-.stButton button:hover, [data-testid="stPopover"] button:hover, .stDownloadButton > button:hover {{
+.stButton button:hover, [data-testid="stPopover"] button:hover, .stDownloadButton button:hover {{
   border-color: {c['accent']}; background: {c['tint']}; }}
-.stButton button:hover *, [data-testid="stPopover"] button:hover *, .stDownloadButton > button:hover * {{
+.stButton button:hover *, [data-testid="stPopover"] button:hover *, .stDownloadButton button:hover * {{
   color: {c['accent']} !important; }}
 .stButton button[kind="primary"] {{ background: {c['accent']}; border-color: {c['accent']}; }}
 .stButton button[kind="primary"] * {{ color: {c['on_accent']} !important; }}
@@ -64,6 +64,12 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{ min-width: 0
 .stButton button[kind="primary"]:hover * {{ color: {c['on_accent']} !important; }}
 .stButton button:disabled {{ background: {c['tint']}; border-color: {c['line']}; opacity: .75; }}
 .stButton button:disabled * {{ color: {c['muted']} !important; }}
+
+/* the dark-mode switch: a track you can see on either page, whatever Streamlit's own theme */
+label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) p {{ color: {c['ink']} !important; font-size: 0.78rem !important; }}
+label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) > div:first-child {{ background: {c['line']} !important; border: 1px solid {c['muted']}; }}
+label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]):has(input:checked) > div:first-child {{ background: {c['accent']} !important; border-color: {c['accent']}; }}
+label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) > div:first-child > div {{ background: {c['paper']} !important; border: 1px solid {c['muted']}; }}
 
 /* fields and menus */
 div[data-baseweb="select"] > div, div[data-baseweb="input"], div[data-baseweb="base-input"], .stTextInput input, .stNumberInput input {{
