@@ -325,7 +325,7 @@ def quality_choice() -> str:
 
 CREDITS = ('<div class="credits"><b>Carbform</b> &nbsp;·&nbsp; '
            '<a href="https://carbform.github.io" target="_blank" rel="noopener">carbform.github.io</a> &nbsp;·&nbsp; '
-           '<a href="https://github.com/carbform/nisar-ls-viz" target="_blank" rel="noopener">Find this on GitHub</a></div>')
+           '<a href="https://github.com/carbform/satmaps" target="_blank" rel="noopener">Find this on GitHub</a></div>')
 
 HELP = """
 **Make a figure in four steps**

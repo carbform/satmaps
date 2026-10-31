@@ -12,7 +12,7 @@ Print-ready figures from satellite data, one product or two that overlap: **SAR*
 Python 3.11 or newer.
 
 ```bash
-git clone https://github.com/carbform/nisar-ls-viz && cd nisar-ls-viz
+git clone https://github.com/carbform/satmaps && cd satmaps
 pip install -e ".[rasters,app]"
 ```
 
