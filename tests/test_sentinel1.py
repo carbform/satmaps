@@ -117,6 +117,31 @@ def test_open_on_canvas_geolocates_calibrates_and_credits(tmp_path):
     assert info.resolution_m == 10
 
 
+@needs_rasterio
+def test_a_second_read_comes_from_the_cache_and_a_changed_file_is_read_again(tmp_path, monkeypatch):
+    import os
+
+    folder = safe_folder(tmp_path)
+    area = Area.from_config(dict(center=[LAT0 - 100 * STEP, LON0 + 120 * STEP], size_km=[0.8, 0.8], resolution_m=10))
+    canvas = area.canvas(10)
+    spec = InputSpec("S1", "sentinel1", "", {"source": {"path": folder.name}})
+    cache = tmp_path / "cache"
+    first = g.open_on_canvas(spec, canvas, area, tmp_path, cache)
+    assert len(list(cache.glob("s1_*.npz"))) == 2  # one file per polarisation
+
+    def refuse(*a, **k):
+        raise AssertionError("the product was read again")
+
+    monkeypatch.setattr(g, "canvas_to_image", refuse)
+    again = g.open_on_canvas(spec, canvas, area, tmp_path, cache)  # answered from the cache, without opening the product
+    assert all(np.array_equal(first.layers[k], again.layers[k], equal_nan=True) for k in ("co", "cross"))
+    assert again.caveats == first.caveats  # the share of dropped pixels is cached too
+    tif = next((folder / "measurement").glob("*.tiff"))
+    os.utime(tif, ns=(tif.stat().st_atime_ns, tif.stat().st_mtime_ns + 10**9))  # the file changed: read it again
+    with pytest.raises(AssertionError, match="read again"):
+        g.open_on_canvas(spec, canvas, area, tmp_path, cache)
+
+
 def test_missing_measurement_and_unknown_key(tmp_path):
     (tmp_path / "empty.SAFE").mkdir()
     with pytest.raises(SourceError, match="measurement"):

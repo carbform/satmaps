@@ -17,10 +17,12 @@ ellipsoid with the GCP heights, not terrain-flattened, so slopes facing the rada
 """
 from __future__ import annotations
 
+import hashlib
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from typing import NamedTuple
 
 import numpy as np
 from pyproj import Transformer
@@ -69,10 +71,20 @@ def read_azimuth_noise(path: Path) -> list[dict]:
     return out
 
 
+class Profile(NamedTuple):
+    """A set of range-sampled vectors already interpolated to the window's columns (the same for every strip of rows)."""
+    lines: np.ndarray
+    at_cols: np.ndarray
+
+
+def range_profile(vectors, cols: np.ndarray) -> Profile:
+    return Profile(np.array([v[0] for v in vectors]), np.stack([np.interp(cols, px, val) for _, px, val in vectors]))
+
+
 def lut_on_grid(vectors, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
-    """A set of range-sampled vectors, each at one line, interpolated linearly to every (row, col) of the window."""
-    at_cols = np.stack([np.interp(cols, px, val) for _, px, val in vectors])
-    lines = np.array([v[0] for v in vectors])
+    """A set of range-sampled vectors (or their `Profile` on these columns), each at one line, interpolated linearly to every
+    (row, col) of the window."""
+    lines, at_cols = vectors if isinstance(vectors, Profile) else range_profile(vectors, cols)
     if len(lines) == 1:
         return np.repeat(at_cols, len(rows), axis=0)
     i = np.clip(np.searchsorted(lines, rows, side="right") - 1, 0, len(lines) - 2)
@@ -115,6 +127,8 @@ def sigma0_decimated(src, r0: int, r1: int, c0: int, c1: int, k: int, cal, noise
     from rasterio.windows import Window
 
     n_cols = (c1 - c0) // k * k
+    cols = np.arange(c0, c0 + n_cols, dtype=np.float64)
+    cal, noise_range = range_profile(cal, cols), range_profile(noise_range, cols)  # the same for every strip: once
     strips, below, inside = [], 0, 0
     for a in range(r0, r1 - (r1 - r0) % k, STRIP * k):
         b = min(a + STRIP * k, r1 - (r1 - r0) % k)
@@ -233,6 +247,18 @@ def describe(spec, data_dir, area: Area | None = None) -> SourceInfo:
                       footprint=None if area is not None else _best_footprint(folder, co["measurement"]))
 
 
+CACHE_VERSION = "v1"  # change it when the calibration maths changes: older cache files are then not read
+
+
+def _cache_file(cache_dir, f: dict, pol: str, canvas: Canvas) -> Path:
+    """Where one polarisation's finished layer on this canvas is kept; the key changes when any file it came from does."""
+    parts = [CACHE_VERSION, pol, canvas.epsg, canvas.extent, canvas.res, MARGIN, STRIP]
+    for key in ("measurement", "calibration", "noise"):
+        st = f[key].stat()
+        parts += [f[key].resolve(), st.st_size, st.st_mtime_ns]
+    return Path(cache_dir) / f"s1_{hashlib.sha1(repr(parts).encode()).hexdigest()[:20]}.npz"
+
+
 def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, tag="job") -> Product:
     _check(spec)
     folder = _folder(spec, data_dir)
@@ -245,6 +271,12 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
     for name, pol in zip(("co", "cross"), pols, strict=True):
         f = files[pol]
         used.append(str(f["measurement"]))
+        cached = _cache_file(cache_dir, f, pol, canvas) if cache_dir is not None else None
+        if cached is not None and cached.exists():
+            with np.load(cached) as z:
+                layers[name], share = z["layer"], float(z["share"])
+            dropped.append((pol, 100 * share))
+            continue
         with rio.open(f["measurement"]) as src:
             if img_rows is None:
                 img_rows, img_cols = canvas_to_image(src.gcps[0], canvas)
@@ -272,6 +304,9 @@ def open_on_canvas(spec, canvas: Canvas, area: Area, data_dir, cache_dir=None, t
         layer = np.where(wgt > 0.99, val / np.maximum(wgt, 1e-6), np.nan).astype(np.float32)
         layers[name] = layer
         dropped.append((pol, 100 * share))
+        if cached is not None:
+            cached.parent.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(cached, layer=layer, share=share)
     valid = np.isfinite(layers["co"])
     if not valid.any():
         raise AreaError(f"input {spec.key!r}: {folder.name} has no usable data in the area")
