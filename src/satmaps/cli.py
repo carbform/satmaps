@@ -36,14 +36,15 @@ STREAMLIT_LAUNCH = ("import sys, streamlit.version as v; v.should_show_new_versi
 
 
 def _zoom(text: str) -> dict:
-    """`--zoom LAT,LON,KM` (a square) or `LAT,LON,W_KM,H_KM`, as a job-file zoom table."""
+    """`--zoom LAT,LON,KM` (a square) or `LAT,LON,W_KM,H_KM`, with an optional `=NAME`, as a job-file zoom table."""
+    spec, _, name = text.partition("=")
     try:
-        v = [float(x) for x in text.split(",")]
+        v = [float(x) for x in spec.split(",")]
     except ValueError:
         v = []
     if len(v) not in (3, 4) or min(v[2:]) <= 0:
-        raise ValueError(f"--zoom {text!r}: give LAT,LON,KM or LAT,LON,W_KM,H_KM")
-    return {"center": v[:2], "size_km": v[2:] * 2 if len(v) == 3 else v[2:]}
+        raise ValueError(f"--zoom {text!r}: give LAT,LON,KM or LAT,LON,W_KM,H_KM, then =NAME if you like")
+    return {"center": v[:2], "size_km": v[2:] * 2 if len(v) == 3 else v[2:], **({"name": name.strip()} if name.strip() else {})}
 
 
 def _app(args) -> int:
@@ -89,8 +90,9 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--grid", action="store_true", help="draw a lat/lon grid with its labels on every panel")
     qk.add_argument("--north", action="store_true", help="draw a north arrow")
     qk.add_argument("--no-scale", action="store_true", help="leave the scale bar out")
-    qk.add_argument("--zoom", action="append", default=[], metavar="LAT,LON,KM",
-                    help="a zoom side panel centred here, KM wide and high (or LAT,LON,W_KM,H_KM); up to three, repeat the flag")
+    qk.add_argument("--zoom", action="append", default=[], metavar="LAT,LON,KM[=NAME]",
+                    help="a zoom side panel (one product only) centred here, KM wide and high (or LAT,LON,W_KM,H_KM), "
+                         "named if you add =NAME; up to three, repeat the flag")
     qk.add_argument("--bbox", nargs=4, type=float, metavar=("W", "S", "E", "N"),
                     help="draw this box (degrees) instead of the overlap of the inputs")
     qk.add_argument("--resolution", type=float, default=None, metavar="M", help="pixel size in metres (default: from --quality)")

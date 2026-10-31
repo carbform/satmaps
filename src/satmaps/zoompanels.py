@@ -36,9 +36,10 @@ def title(z: Zoom) -> str:
     return f"{z.key}  {z.name}" if z.name else f"ZOOM {z.key}"
 
 
-def mark(ax, t, zooms, ext, shape, aspect_of) -> None:
+def mark(ax, t, zooms, ext, shape, aspect_of, named: bool = False) -> None:
     """The lettered boxes on the hero, over `ext` = (left, right, bottom, top) of a picture `shape` = (rows, cols) pixels.
-    `aspect_of(z)` is the panel shape of that zoom, so the box is the window its panel shows."""
+    `aspect_of(z)` is the panel shape of that zoom, so the box is the window its panel shows. `named` draws a heavier outline
+    (dark under light, so it shows on any picture) and puts the zoom's name beside its letter."""
     H, W = shape
 
     def xx(c):
@@ -49,6 +50,10 @@ def mark(ax, t, zooms, ext, shape, aspect_of) -> None:
 
     for z in zooms:
         (r0, r1), (c0, c1) = window(z, aspect_of(z), shape)
-        ax.add_patch(Rectangle((xx(c0), yy(r1)), xx(c1) - xx(c0), yy(r0) - yy(r1), fc="none", ec=t.card, lw=t.lw(1.4), zorder=11))
-        ax.text(xx(c0), yy(r0) + 0.006 * (ext[3] - ext[2]), z.key, ha="left", va="bottom", fontsize=10.5, color=t.ink, zorder=13,
+        box = (xx(c0), yy(r1)), xx(c1) - xx(c0), yy(r0) - yy(r1)
+        if named:
+            ax.add_patch(Rectangle(*box, fc="none", ec=t.ink, lw=t.lw(3.6), zorder=10))
+        ax.add_patch(Rectangle(*box, fc="none", ec=t.card, lw=t.lw(2.0 if named else 1.4), zorder=11))
+        label = f"{z.key}  {z.name}" if named and z.name else z.key
+        ax.text(xx(c0), yy(r0) + 0.006 * (ext[3] - ext[2]), label, ha="left", va="bottom", fontsize=10.5, color=t.ink, zorder=13,
                 bbox=dict(boxstyle="square,pad=0.2", fc=t.card, ec=t.ink, lw=t.lw(1.0)))

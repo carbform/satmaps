@@ -34,8 +34,9 @@ def test_a_box_that_overhangs_the_area_is_moved_in_and_one_whose_centre_is_outsi
 def test_zoom_tables_from_boxes_and_from_centres_and_the_limit_of_three():
     from satmaps.api import zoom_tables
 
-    out = zoom_tables([(94.0, 27.0, 94.1, 27.1), {"center": (27.5, 94.5), "size_km": (3, 2)}])
-    assert [z["key"] for z in out] == ["A", "B"]
+    out = zoom_tables([(94.0, 27.0, 94.1, 27.1), {"center": (27.5, 94.5), "size_km": (3, 2)},
+                       {"box": (94.0, 27.0, 94.1, 27.1), "name": " hill edge "}])
+    assert [z["key"] for z in out] == ["A", "B", "C"] and out[2]["name"] == "HILL EDGE" and out[2]["center"] == out[0]["center"]
     assert out[0]["center"] == [27.05, 94.05] and out[0]["size_km"][1] == pytest.approx(11.057, abs=0.01)
     assert out[1] == {"key": "B", "center": [27.5, 94.5], "size_km": [3.0, 2.0]}
     with pytest.raises(ValueError, match="room for three"):
@@ -47,6 +48,7 @@ def test_the_command_line_zoom_flag():
 
     assert _zoom("27.5,94.1,6") == {"center": [27.5, 94.1], "size_km": [6.0, 6.0]}
     assert _zoom("27.5,94.1,6,3") == {"center": [27.5, 94.1], "size_km": [6.0, 3.0]}
+    assert _zoom("27.5,94.1,6=Hill edge") == {"center": [27.5, 94.1], "size_km": [6.0, 6.0], "name": "Hill edge"}
     for bad in ("27.5,94.1", "a,b,c", "27.5,94.1,0"):
         with pytest.raises(ValueError, match="LAT,LON,KM"):
             _zoom(bad)
@@ -58,13 +60,20 @@ def page(arrangement, kinds, **kw):
     return np.asarray(Image.open(io.BytesIO(render_example(kinds, arrangement, "minimal", **kw))).convert("RGB"))
 
 
-@pytest.mark.parametrize(("arrangement", "kinds"), [("single", ["sar"]), ("single", ["optical"]), ("compare", ["sar", "optical"])])
-def test_zoom_panels_are_optional_for_sar_and_optical_and_change_the_page_only_when_asked(arrangement, kinds):
-    plain, with_zooms = page(arrangement, kinds), page(arrangement, kinds, zoom_panels=True)
-    assert plain.shape == with_zooms.shape and (plain != with_zooms).any()
-    assert (page(arrangement, kinds) == plain).all()  # nothing random: the same page again
-    right = with_zooms[300:1150, 1000:1160]  # where the column of panels sits
-    assert (right != 255).mean() > 0.3 and (plain[300:1150, 1000:1160] != 255).mean() < (right != 255).mean()
+@pytest.mark.parametrize("kind", ["sar", "optical"])
+def test_zoom_panels_are_optional_one_to_three_of_them_for_a_single_product_sar_or_optical(kind):
+    plain = page("single", [kind])
+    pages = {n: page("single", [kind], zoom_panels=n) for n in (1, 2, 3)}
+    assert (page("single", [kind], zoom_panels=0) == plain).all()  # none asked for: the page is as before
+    assert all(p.shape == plain.shape and (p != plain).any() for p in pages.values())
+    assert not (pages[1] == pages[2]).all() and not (pages[2] == pages[3]).all()  # each extra panel shows
+    column = lambda p: (p[300:1150, 1000:1160] != 255).mean()  # noqa: E731  where the column of panels sits
+    assert column(pages[1]) < column(pages[2]) < column(pages[3])
+
+
+def test_side_by_side_figures_have_no_zoom_panels():
+    plain = page("compare", ["sar", "sar"])
+    assert (page("compare", ["sar", "sar"], zoom_panels=3) == plain).all()
 
 
 def test_the_job_file_keeps_the_zooms_and_runs(scene, tmp_path):
@@ -90,3 +99,20 @@ def test_a_figure_with_zoom_panels_is_drawn_from_a_product_and_a_zoom_outside_th
     assert plain[0].read_bytes() != zoomed[0].read_bytes()
     with pytest.raises(JobError, match="zoom B: .*outside the area"):
         render([scene.data_dir / "L.h5"], out=tmp_path / "c", cache=None, zooms=[here, {"center": (s - 5, w - 5), "size_km": (1, 1)}])
+
+
+def test_zoom_panels_are_refused_for_two_products(scene):
+    from satmaps.api import build_job
+
+    with pytest.raises(ValueError, match="one product at a time"):
+        build_job([scene.data_dir / "L.h5", scene.data_dir / "S.h5"], data_dir=scene.data_dir, zooms=[(94.0, 27.0, 94.1, 27.1)])
+
+
+def test_a_named_zoom_is_annotated_on_the_main_picture(scene, tmp_path):
+    from satmaps.api import inspect, render
+
+    w, s, e, n = inspect(scene.data_dir / "L.h5")["bbox"]
+    at = {"center": ((s + n) / 2, (w + e) / 2), "size_km": (0.3, 0.3)}
+    a = render([scene.data_dir / "L.h5"], out=tmp_path / "a", cache=None, zooms=[at])
+    b = render([scene.data_dir / "L.h5"], out=tmp_path / "b", cache=None, zooms=[{**at, "name": "Hill edge"}])
+    assert a[0].read_bytes() != b[0].read_bytes()  # the name is printed above the panel and beside the letter on the picture

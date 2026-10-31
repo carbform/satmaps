@@ -75,7 +75,7 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
         zh = (hh - 2 * zgap) / 3 - zlab  # the picture of a zoom cell (three of them, each with a title above)
         zcell = (min(0.96 - (hx + hw + 0.02), 0.223) * 12) / (zh * 15)  # width / height of a zoom picture, as printed
         if scene.zooms and not r.components:
-            mark(ax, t, scene.zooms, ext, (H, W), lambda z: zcell)
+            mark(ax, t, scene.zooms, ext, (H, W), lambda z: zcell, named=True)
         decorate(ax, t, ext, P.epsg, furniture, first=True)
         chip(fig, t, hx + 0.012, hy + hh - 0.014, (lay.text("panels.band") if lay.get("panels.band") is not None else f"{P.meta['platform']} {P.meta['label']}".upper()), chip_color, va="top", ha="left")
         chip(fig, t, hx + hw - 0.012, hy + hh - 0.014, (lay.text("panels.composite") if lay.get("panels.composite") is not None else r.title), t.card, va="top", ha="right")
@@ -98,9 +98,10 @@ def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str
         # The optional zoom panels: windows onto the hero, a lettered box on the hero for each (not beside the channel panels)
         if scene.zooms and not r.components:
             px, pw = hx + hw + 0.02, min(0.96 - (hx + hw + 0.02), 0.223)
+            stack = len(scene.zooms) * (zh + zlab) + (len(scene.zooms) - 1) * zgap  # one or two panels sit centred beside the picture
             for i, z in enumerate(scene.zooms):
                 (r0, r1), (c0, c1) = window(z, zcell, (H, W))
-                top = hy + hh - i * (zh + zlab + zgap)
+                top = hy + hh - (hh - stack) / 2 - i * (zh + zlab + zgap)
                 fig.text(px + 0.002, top - zlab / 2, title(z), fontsize=10.5, color=t.ink, weight="semibold", va="center", zorder=20)
                 za = img_axes(fig, t, px, top - zlab - zh, pw, zh)
                 za.imshow(r.rgba[r0:r1, c0:c1], aspect="auto", interpolation="antialiased")

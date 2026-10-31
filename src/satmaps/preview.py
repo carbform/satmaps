@@ -79,10 +79,10 @@ def usable_channels(channels: dict | None, products: dict) -> dict | None:
 
 
 def render_example(kinds: list[str] | None, arrangement: str, theme: str, furniture=None, channels: dict | None = None,
-                   zoom_panels: bool = False, **words) -> bytes:
+                   zoom_panels: int = 0, **words) -> bytes:
     """PNG bytes of an example page: `kinds` ('sar' / 'optical' per product; None for a typical set), the layout, the theme.
     `words` (title, subtitle, place, author, website, credits) are the wording typed so far, shown as it will print.
-    `zoom_panels` adds the three zoom side panels, at made-up places (they only show where the panels go)."""
+    `zoom_panels` (0 to 3) adds that many zoom side panels beside a single product, at made-up places (to show where they go)."""
     from satmaps.api import channel_recipes, details
     from satmaps.arrangements import draw
     from satmaps.core import TEMPLATES, THEMES
@@ -104,7 +104,8 @@ def render_example(kinds: list[str] | None, arrangement: str, theme: str, furnit
     fields, typed = details(**words)
     fields = {"name": "Your title", "region": "Your place", "author": "", "website": "", **fields}
     scene = Scene(name=fields["name"], reach="", locality="", region=fields["region"], callout_caption="",
-                  author=fields["author"], website=fields["website"], zooms=EXAMPLE_ZOOMS if zoom_panels else (), callouts={},
+                  author=fields["author"], website=fields["website"],
+                  zooms=EXAMPLE_ZOOMS[:zoom_panels] if arrangement == "single" else (), callouts={},
                   data_dir=Path("."),
                   inputs={k: InputSpec(k, "", "", {}) for k in ids})
     if arrangement == "compare" and len(ids) > 2:

@@ -71,7 +71,7 @@ def footprint_of(path: str, mtime: float) -> dict:
 
 @st.cache_data(show_spinner=False)
 def example_page(kinds: tuple, layout: str, theme: str, words: tuple = (), furniture: tuple = (True, False, False),
-                 channels: tuple = (), zoom_panels: bool = False) -> bytes:
+                 channels: tuple = (), zoom_panels: int = 0) -> bytes:
     """The example page for a layout, a theme, the kinds of products chosen, the wording typed so far, the map furniture and the
     false-colour channels picked."""
     scale, north, grid = furniture
@@ -177,22 +177,26 @@ def apply_drawn(state, drawn: dict | None) -> bool:
     return True
 
 
+def drawn_zooms(state) -> list[tuple[str, tuple, str]]:
+    """The zoom boxes to use, (letter, (west, south, east, north), name) in A, B, C order: those drawn among the first
+    `zoom_n`, and none unless the zoom panels are on and exactly one product is chosen."""
+    if not (state.get("zoom_on") and state.get("zoom_ok")):
+        return []
+    return [(k, state[f"zoom_{k}"], (state.get(f"zoom_name_{k}") or "").strip())
+            for k in ZOOM_KEYS[:int(state.get("zoom_n", 3))] if state.get(f"zoom_{k}")]
+
+
+def zoom_boxes(state) -> list[dict]:
+    """`drawn_zooms` as the job asks for them: {"box": ..., "name": ...}."""
+    return [{"box": box, "name": name} for _, box, name in drawn_zooms(state)]
+
+
 def zooms_outside(state, area: tuple | None) -> list[str]:
-    """Names of the zoom boxes whose centre is not inside the area (west, south, east, north); none if the area is not known."""
+    """Letters of the zoom boxes whose centre is not inside the area (west, south, east, north); none if the area is not known."""
     if not area:
         return []
     w, s, e, n = area
-    out = []
-    for k in ZOOM_KEYS:
-        z = state.get(f"zoom_{k}") if state.get("zoom_on") else None
-        if z and not (w <= (z[0] + z[2]) / 2 <= e and s <= (z[1] + z[3]) / 2 <= n):
-            out.append(k)
-    return out
-
-
-def zoom_boxes(state) -> list[tuple]:
-    """The zoom boxes drawn so far (up to three, in A, B, C order), or none when the zoom panels are switched off."""
-    return [state[f"zoom_{k}"] for k in ZOOM_KEYS if state.get("zoom_on") and state.get(f"zoom_{k}")]
+    return [k for k, z, _ in drawn_zooms(state) if not (w <= (z[0] + z[2]) / 2 <= e and s <= (z[1] + z[3]) / 2 <= n)]
 
 
 def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | None, list[str], bool]:
@@ -213,12 +217,17 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
                  "so choose two that do (or leave one out).")
     box = [st.session_state[k] for k in BOX_KEYS] if st.session_state["area_mode"] == BOX and all(
         st.session_state[k] for k in BOX_KEYS) else None
-    on = bool(st.session_state.get("zoom_on"))
+    st.session_state["zoom_ok"] = len(chosen_rows) == 1  # zoom panels go with a single product
+    on = bool(st.session_state["zoom_on"] and st.session_state["zoom_ok"])
+    n_zoom = int(st.session_state["zoom_n"])
+    tools = [AREA_TOOL, *(f"Zoom {k}" for k in ZOOM_KEYS[:n_zoom])]
+    if st.session_state["zoom_tool"] not in tools:  # fewer panels than before: the tool that went is no longer there
+        st.session_state["zoom_tool"] = AREA_TOOL
     tool = st.session_state["zoom_tool"].removeprefix("Zoom ") if on and st.session_state["zoom_tool"] != AREA_TOOL else "area"
     drawn = area_map(footprints=[{"name": p["name"], "kind": p["kind"], "ring": p["ring"]} for p in prints], overlap=overlap,
                      box=box, basemap=bool(st.session_state.get("basemap", True)),
                      dark=bool(st.session_state.get("dark", False)), key="area_map", default=None,
-                     zooms=({k: st.session_state.get(f"zoom_{k}") for k in ZOOM_KEYS} if on else {}),
+                     zooms=({k: st.session_state.get(f"zoom_{k}") for k in ZOOM_KEYS[:n_zoom]} if on else {}),
                      tool=tool)
     apply_drawn(st.session_state, drawn)
     if not chosen_rows:  # the map of India waits for products; drawing a box before choosing any would have nothing to apply to
@@ -232,15 +241,20 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     b.checkbox("OpenStreetMap basemap", value=True, key="basemap",
                help="Your browser fetches map tiles from openstreetmap.org, which sees roughly where you look. Untick to keep "
                     "the map to your data alone: nothing is then fetched.")
-    z1, z2 = st.columns([2, 3])
-    z1.checkbox("Zoom side panels", key="zoom_on",
-                help="Up to three small windows beside the picture, each marked on it. One product or two side by side.")
-    if st.session_state["zoom_on"]:
-        z2.radio("Draw", [AREA_TOOL, *(f"Zoom {k}" for k in ZOOM_KEYS)], key="zoom_tool", horizontal=True,
-                 label_visibility="collapsed", help="What a drag on the map draws: the area, or a zoom box.")
-        drawn_zooms = zoom_boxes(st.session_state)
-        st.caption(f"{len(drawn_zooms)} of 3 zoom boxes drawn. Pick Zoom A, B or C, then drag a box on the map."
-                   if len(drawn_zooms) < 3 else "Three zoom boxes drawn. Drag again to move one; Clear removes it.")
+    if st.session_state["zoom_ok"]:
+        z1, z2 = st.columns([2, 3])
+        z1.checkbox("Zoom side panels", key="zoom_on",
+                    help="Small windows beside the picture, each marked and named on it. For one product at a time.")
+        if st.session_state["zoom_on"]:
+            z2.radio("How many", [1, 2, 3], key="zoom_n", horizontal=True, help="Up to this many zoom panels (1, 2 or 3).")
+            st.radio("Draw", tools, key="zoom_tool", horizontal=True, label_visibility="collapsed",
+                     help="What a drag on the map draws: the area, or a zoom box.")
+            names = st.columns(n_zoom)
+            for col, k in zip(names, ZOOM_KEYS, strict=False):
+                col.text_input(f"Name of zoom {k}", key=f"zoom_name_{k}", placeholder="optional, e.g. Hill edge")
+            count = len(drawn_zooms(st.session_state))
+            st.caption(f"{count} of {n_zoom} drawn. Pick a zoom above, then drag a box on the map." if count < n_zoom
+                       else "All drawn. Drag again to move one; Clear removes it.")
     box, outside = None, []
     if mode == BOX:
         cols = st.columns(4)
@@ -429,9 +443,10 @@ def main() -> None:
     st.markdown(stylesheet(dark), unsafe_allow_html=True)
     defaults = {"results": None, "error": None, "suggestion": None, "stamp": 0, "area_mode": OVERLAP, "last_draw": 0,
                 "folder": os.environ.get("SATMAPS_DATA_DIR", "data"), "folder_note": "", "made_with": None, "picked": [],
-                "dark": False, "zoom_on": False, "zoom_tool": AREA_TOOL,
+                "dark": False, "zoom_on": False, "zoom_tool": AREA_TOOL, "zoom_n": 3, "zoom_ok": False,
                 **dict.fromkeys(WORDS, "")}
-    for key, default in {**defaults, **dict.fromkeys(BOX_KEYS, 0.0), **{f"zoom_{k}": None for k in ZOOM_KEYS}}.items():
+    for key, default in {**defaults, **dict.fromkeys(BOX_KEYS, 0.0), **{f"zoom_{k}": None for k in ZOOM_KEYS},
+                                    **{f"zoom_name_{k}": "" for k in ZOOM_KEYS}}.items():
         st.session_state.setdefault(key, default)
 
     top = st.container()  # the button and the pop-ups sit at the top; they are filled in once the area is known
@@ -494,9 +509,11 @@ def main() -> None:
             st.warning(said)
 
     zooms = zoom_boxes(st.session_state)
-    look = {**look, "zoom_panels": bool(st.session_state["zoom_on"])}
-    signature = (tuple(chosen), mode, box, quality, tuple(zooms), tuple(sorted(words.items(), key=lambda kv: kv[0])),
-                 tuple(sorted((k, str(v)) for k, v in look.items())), tuple(sorted(channels.items())))
+    shown = bool(st.session_state["zoom_on"]) and len(chosen_rows) == 1
+    look = {**look, "zoom_panels": int(st.session_state["zoom_n"]) if shown else 0}
+    signature = (tuple(chosen), mode, box, quality, tuple((tuple(z["box"]), z["name"]) for z in zooms),
+                 tuple(sorted(words.items(), key=lambda kv: kv[0])), tuple(sorted((k, str(v)) for k, v in look.items())),
+                 tuple(sorted(channels.items())))
     if go:
         options = dict(theme=look["theme"], quality=quality, area=box, arrangement=look["layout"],
                        bands=look["layout"] == "bands", grid=look["grid"], north=look["north"], scalebar=look["scalebar"],

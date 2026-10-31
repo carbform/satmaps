@@ -424,26 +424,35 @@ def test_typed_notices_and_legend_items_reach_the_page():
 
 
 def test_a_zoom_box_drawn_on_the_map_is_kept_apart_from_the_area():
-    from satmaps.app import BOX_KEYS, OVERLAP, apply_drawn, zoom_boxes, zooms_outside
+    from satmaps.app import BOX_KEYS, OVERLAP, apply_drawn, drawn_zooms, zoom_boxes, zooms_outside
 
-    state = {"last_draw": 0, "area_mode": OVERLAP, "zoom_on": True, "zoom_A": None, "zoom_B": None, "zoom_C": None,
-             **dict.fromkeys(BOX_KEYS, 0.0)}
+    state = {"last_draw": 0, "area_mode": OVERLAP, "zoom_on": True, "zoom_ok": True, "zoom_n": 3, "zoom_A": None, "zoom_B": None,
+             "zoom_C": None, "zoom_name_B": " hill edge ", **dict.fromkeys(BOX_KEYS, 0.0)}
     assert apply_drawn(state, {"target": "B", "box": [94.123456789, 27.2, 94.3, 27.4], "n": 1})
     assert state["zoom_B"] == (94.12346, 27.2, 94.3, 27.4) and state["area_mode"] == OVERLAP  # the area is untouched
-    assert zoom_boxes(state) == [state["zoom_B"]]
+    assert drawn_zooms(state) == [("B", state["zoom_B"], "hill edge")]
+    assert zoom_boxes(state) == [{"box": state["zoom_B"], "name": "hill edge"}]
     assert zooms_outside(state, (94.0, 27.0, 94.5, 27.5)) == [] and zooms_outside(state, (95.0, 27.0, 95.5, 27.5)) == ["B"]
     assert zooms_outside(state, None) == []  # no area known yet: nothing to say
+    assert zoom_boxes({**state, "zoom_n": 1}) == []  # only the first panel is wanted: B is left out
+    assert zoom_boxes({**state, "zoom_ok": False}) == []  # two products: no zoom panels
     assert apply_drawn(state, {"target": "B", "box": None, "n": 2}) and zoom_boxes(state) == []  # Clear removes that zoom
     state["zoom_A"] = (1, 2, 3, 4)
     assert zoom_boxes({**state, "zoom_on": False}) == []  # switched off: no panels, though the boxes are remembered
 
 
 @needs_streamlit
-def test_the_zoom_panels_switch_is_off_by_default_and_the_figure_is_made_without_zooms_until_asked(app_env):
+def test_the_zoom_panels_switch_is_for_one_product_and_offers_one_to_three_panels(app_env):
     at = run_app()
     assert at.session_state["zoom_on"] is False
     pick(at, "L.h5")
     assert not at.warning
     at.checkbox(key="zoom_on").check().run()
-    assert not at.exception and at.radio(key="zoom_tool").value == "Area"
-    assert [o for o in at.radio(key="zoom_tool").options] == ["Area", "Zoom A", "Zoom B", "Zoom C"]
+    assert not at.exception and at.radio(key="zoom_tool").value == "Area" and at.radio(key="zoom_n").value == 3
+    assert at.radio(key="zoom_tool").options == ["Area", "Zoom A", "Zoom B", "Zoom C"]
+    at.radio(key="zoom_tool").set_value("Zoom C").run()
+    at.radio(key="zoom_n").set_value(2).run()  # fewer panels: the tool that went is back to the area
+    assert at.radio(key="zoom_tool").options == ["Area", "Zoom A", "Zoom B"] and at.radio(key="zoom_tool").value == "Area"
+    assert [t.label for t in at.text_input if t.key.startswith("zoom_name_")] == ["Name of zoom A", "Name of zoom B"]
+    pick(at, "L.h5", "S.h5")  # two products: the option is not offered
+    assert not any(c.key == "zoom_on" for c in at.checkbox) and not at.exception

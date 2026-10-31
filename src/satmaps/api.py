@@ -188,21 +188,26 @@ MAX_ZOOMS = 3
 
 
 def zoom_tables(zooms) -> list[dict]:
-    """The `[[zooms]]` tables of a job for up to three zoom windows, each a (west, south, east, north) box in degrees or a dict
-    with `center` (lat, lon) and `size_km` (width, height). Keys are A, B, C in order."""
+    """The `[[zooms]]` tables of a job for up to three zoom windows. Each is a (west, south, east, north) box in degrees, or a
+    dict with `box` (the same) or `center` (lat, lon) and `size_km` (width, height), and optionally a `name`. Keys: A, B, C."""
     import math
 
     if len(zooms) > MAX_ZOOMS:
         raise ValueError(f"{len(zooms)} zooms: a page has room for three")
     out = []
     for key, z in zip("ABC", zooms, strict=False):
+        name = ""
         if isinstance(z, dict):
-            keep = {k: [float(x) for x in v] if isinstance(v, (list, tuple)) else v for k, v in z.items() if k != "key"}
-            out.append({"key": key, **keep})
-            continue
+            name = str(z.get("name") or "").strip().upper()
+            if "box" not in z:
+                keep = {k: [float(x) for x in v] if isinstance(v, (list, tuple)) else v
+                        for k, v in z.items() if k not in ("key", "name")}
+                out.append({"key": key, **keep, **({"name": name} if name else {})})
+                continue
+            z = z["box"]
         w, s, e, n = (float(v) for v in z)
         lat = (s + n) / 2
-        out.append({"key": key, "center": [round(lat, 6), round((w + e) / 2, 6)],
+        out.append({"key": key, **({"name": name} if name else {}), "center": [round(lat, 6), round((w + e) / 2, 6)],
                     "size_km": [round(abs(e - w) * 111.32 * math.cos(math.radians(lat)), 3), round(abs(n - s) * 110.57, 3)]})
     return out
 
@@ -225,6 +230,8 @@ def build_job(paths, *, area=None, theme: str = "minimal", quality: str = "quick
         raise ValueError("give at least one product path")
     if len(paths) > MAX_PRODUCTS:
         raise ValueError(f"{len(paths)} products: a figure shows one product, or two that overlap")
+    if zooms and len(paths) != 1:
+        raise ValueError("zoom panels are for one product at a time: choose a single product, or leave the zooms out")
     inputs, taken = [], set()
     for p in paths:
         p = Path(p).expanduser().resolve()
