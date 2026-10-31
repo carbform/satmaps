@@ -4,13 +4,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from satviz.config import InputSpec
-from satviz.core import TEMPLATES, Product
-from satviz.job import FigureSpec, JobError, load_job
-from satviz.registry import load_builtin
-from satviz.relations import relate, time_gap
-from satviz.run import run_job
-from satviz.templates import TemplateError, default_recipe, pick_recipes
+from satmaps.config import InputSpec
+from satmaps.core import TEMPLATES, Product
+from satmaps.job import FigureSpec, JobError, load_job
+from satmaps.registry import load_builtin
+from satmaps.relations import relate, time_gap
+from satmaps.run import run_job
+from satmaps.templates import TemplateError, default_recipe, pick_recipes
 from tests.rasters import needs_rasterio
 from tests.test_eos04 import product_folder as eos_folder
 from tests.test_liss4 import product_folder as liss_folder
@@ -177,12 +177,12 @@ def test_template_error_becomes_a_job_error(tmp_path):
 
 
 def test_every_shipped_preset_loads_and_plans(tmp_path):
-    """The starter job files (`satviz init <preset>`) must name templates and inputs that fit together."""
+    """The starter job files (`satmaps init <preset>`) must name templates and inputs that fit together."""
     from importlib.resources import files
 
-    from satviz.run import plan_figure
+    from satmaps.run import plan_figure
 
-    found = [p for p in files("satviz").joinpath("presets").iterdir() if p.name.endswith(".toml")]
+    found = [p for p in files("satmaps").joinpath("presets").iterdir() if p.name.endswith(".toml")]
     assert len(found) == 3
     for preset in found:
         copy = tmp_path / preset.name
@@ -246,9 +246,9 @@ def test_backscatter_warning_compares_conventions_not_labels():
 
 
 def test_notices_fit_one_per_line_then_run_together_and_only_too_much_text_is_refused(scene, tmp_path):
-    from satviz.arrangements import grid
-    from satviz.layout import LayoutError, default_layout
-    from satviz.sensors.sar.nisar import load as load_product
+    from satmaps.arrangements import grid
+    from satmaps.layout import LayoutError, default_layout
+    from satmaps.sensors.sar.nisar import load as load_product
 
     prods = {b: load_product(scene, b) for b in "LS"}  # three notices of their own (two NISAR lines and "colours not comparable")
 

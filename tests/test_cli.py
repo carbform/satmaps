@@ -1,6 +1,6 @@
 import pytest
 
-from satviz.cli import build_parser, main
+from satmaps.cli import build_parser, main
 from tests.test_job import JOB
 
 

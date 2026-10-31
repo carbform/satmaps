@@ -1,5 +1,5 @@
 # SAR over the Brahmaputra: NISAR L and S, Sentinel-1 and EOS-04. Every pair says how its two products relate (band, sensor,
-# days apart, gamma0 or sigma0). Run:  satviz run jobs/sar.toml --out outputs/sar/
+# days apart, gamma0 or sigma0). Run:  satmaps run jobs/sar.toml --out outputs/sar/
 extends = "brahmaputra.toml"
 
 # every pair of the four radars: six figures

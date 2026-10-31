@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
 
-from satviz.config import InputSpec
-from satviz.core import RECIPES, SENSORS
-from satviz.registry import load_builtin
-from satviz.sensors.sar import eos04
-from satviz.sources import SourceError
+from satmaps.config import InputSpec
+from satmaps.core import RECIPES, SENSORS
+from satmaps.registry import load_builtin
+from satmaps.sensors.sar import eos04
+from satmaps.sources import SourceError
 from tests.rasters import AREA, X0, Y0, needs_rasterio, write_tif
 
 load_builtin()
@@ -146,7 +146,7 @@ def test_sigma0_needs_a_terrain_normalised_product(tmp_path):
 
 
 def test_matching_conventions_raise_no_backscatter_warning():
-    from satviz.relations import relate
+    from satmaps.relations import relate
     from tests.test_templates import sar
 
     s1 = sar("S1", "Sentinel-1D", "C", 5.55, backscatter="sigma0, ellipsoid")

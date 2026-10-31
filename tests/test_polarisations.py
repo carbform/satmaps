@@ -2,16 +2,16 @@
 import numpy as np
 import pytest
 
-from satviz.config import BandSpec
-from satviz.core import RECIPES
-from satviz.job import load_job
-from satviz.recipes import sar_compact
-from satviz.registry import load_builtin
-from satviz.run import run_job
-from satviz.sensors.sar.nisar import to_product
-from satviz.sensors.sar.nisar.io import assemble, read_roi
-from satviz.sensors.sar.nisar.metadata import read_band_metadata
-from satviz.templates.base import default_recipe
+from satmaps.config import BandSpec
+from satmaps.core import RECIPES
+from satmaps.job import load_job
+from satmaps.recipes import sar_compact
+from satmaps.registry import load_builtin
+from satmaps.run import run_job
+from satmaps.sensors.sar.nisar import to_product
+from satmaps.sensors.sar.nisar.io import assemble, read_roi
+from satmaps.sensors.sar.nisar.metadata import read_band_metadata
+from satmaps.templates.base import default_recipe
 from tests.conftest import H, W, make_raw, write_granule
 
 

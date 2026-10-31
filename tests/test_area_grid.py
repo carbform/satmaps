@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from satviz.area import Area, AreaError, utm_epsg
-from satviz.grid import is_aligned, to_canvas
+from satmaps.area import Area, AreaError, utm_epsg
+from satmaps.grid import is_aligned, to_canvas
 
 
 def test_utm_zone_from_centre():
@@ -64,7 +64,7 @@ def _src(n=40, res=10.0):
 
 def test_aligned_copy_is_exact_and_fills_outside():
     x, y, a = _src()
-    from satviz.area import Canvas
+    from satmaps.area import Canvas
 
     c = Canvas(32646, x[0] - 5 + 10 * 5, y[0] + 5 - 10 * 3, 10.0, 50, 50)  # starts at src col 5 / row 3, runs past the edge
     out = to_canvas(a, x, y, 32646, c)
@@ -76,7 +76,7 @@ def test_aligned_copy_is_exact_and_fills_outside():
 
 def test_half_pixel_shift_is_bilinear():
     x, y, a = _src()
-    from satviz.area import Canvas
+    from satmaps.area import Canvas
 
     c = Canvas(32646, x[0] - 5 + 5, y[0] + 5, 10.0, 20, 20)  # shifted half a pixel east
     out = to_canvas(a, x, y, 32646, c)
@@ -85,7 +85,7 @@ def test_half_pixel_shift_is_bilinear():
 
 def test_coarser_canvas_block_averages_linear_values():
     x, y, a = _src()
-    from satviz.area import Canvas
+    from satmaps.area import Canvas
 
     c = Canvas(32646, x[0] - 5, y[0] + 5, 20.0, 20, 20)
     out = to_canvas(a, x, y, 32646, c)

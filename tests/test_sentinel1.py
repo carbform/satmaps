@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
 
-from satviz.area import Area
-from satviz.config import InputSpec
-from satviz.core import RECIPES, SENSORS
-from satviz.registry import load_builtin
-from satviz.sensors.sar import sentinel1 as g
-from satviz.sources import SourceError
+from satmaps.area import Area
+from satmaps.config import InputSpec
+from satmaps.core import RECIPES, SENSORS
+from satmaps.registry import load_builtin
+from satmaps.sensors.sar import sentinel1 as g
+from satmaps.sources import SourceError
 from tests.rasters import needs_rasterio
 
 load_builtin()

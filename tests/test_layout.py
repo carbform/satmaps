@@ -1,8 +1,8 @@
 import pytest
 
-from satviz.layout import Layout, LayoutError, build_context, load_layout
-from satviz.sensors.sar.nisar.io import load_roi
-from satviz.sensors.sar.nisar.processing import stats
+from satmaps.layout import Layout, LayoutError, build_context, load_layout
+from satmaps.sensors.sar.nisar.io import load_roi
+from satmaps.sensors.sar.nisar.processing import stats
 
 
 @pytest.fixture
@@ -92,8 +92,8 @@ def test_shipped_layouts_render(scene, layouts_dir, tmp_path):
 def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):
     import copy
 
-    from satviz.arrangements import compare as ls_social
-    from satviz.sensors.sar.nisar import load as load_product
+    from satmaps.arrangements import compare as ls_social
+    from satmaps.sensors.sar.nisar import load as load_product
 
     bands = {b: load_product(scene, b) for b in "LS"}
     lay = copy.deepcopy(load_layout(layouts_dir, "ls_social"))
@@ -108,8 +108,8 @@ def test_editing_a_layout_changes_the_figure_text(scene, layouts_dir, tmp_path):
 
 
 def test_products_with_differing_passes_are_allowed_when_not_strict(scene, tmp_path):
-    from satviz.layout import build_context_products
-    from satviz.sensors.sar.nisar import load as load_product
+    from satmaps.layout import build_context_products
+    from satmaps.sensors.sar.nisar import load as load_product
     from tests.conftest import make_raw, write_granule
 
     write_granule(tmp_path / "L.h5", "science/LSAR/GCOV", make_raw(2), instrument="LSAR", freq_hz=1.239e9, track=113)
@@ -124,7 +124,7 @@ def test_products_with_differing_passes_are_allowed_when_not_strict(scene, tmp_p
 
 
 def test_required_credits_are_merged_into_one_data_line_and_never_dropped():
-    from satviz.themes.base import assemble_credits
+    from satmaps.themes.base import assemble_credits
 
     lay = Layout({"_path": "x.toml", "credits": {"lines": ["VIZ  ME"]}}, {})
     need = [("NISAR", "NISAR L2 GCOV · γ⁰"), ("Copernicus Sentinel", "Contains modified Copernicus Sentinel data 2026"),
@@ -138,8 +138,8 @@ def test_required_credits_are_merged_into_one_data_line_and_never_dropped():
 def test_dates_form_a_range_and_times_are_not_listed_when_days_differ(scene):
     from datetime import datetime
 
-    from satviz.layout import _dates_label, _times, acquisition_label, build_context_products
-    from satviz.sensors.sar.nisar import load as load_product
+    from satmaps.layout import _dates_label, _times, acquisition_label, build_context_products
+    from satmaps.sensors.sar.nisar import load as load_product
 
     assert _dates_label([datetime(2026, 9, 25, 22, 57)] * 2) == "25 Sep 2026"
     assert _dates_label([datetime(2026, 9, 25, 22, 57), datetime(2026, 9, 24, 4, 30)]) == "24 – 25 Sep 2026"
@@ -156,7 +156,7 @@ def test_dates_form_a_range_and_times_are_not_listed_when_days_differ(scene):
 
 
 def test_attribution_can_require_several_fragments():
-    from satviz.themes.base import assemble_credits
+    from satmaps.themes.base import assemble_credits
 
     lay = Layout({"_path": "x.toml", "credits": {"lines": ["DATA  Contains modified Copernicus Sentinel data 2026"]}}, {})
     need = [(("Copernicus Sentinel", "Catalyst"), "Contains modified Copernicus Sentinel data 2026; RTC by Catalyst (CC BY 4.0)")]

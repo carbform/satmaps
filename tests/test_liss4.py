@@ -4,11 +4,11 @@ from datetime import datetime
 import numpy as np
 import pytest
 
-from satviz.config import InputSpec
-from satviz.core import RECIPES, SENSORS
-from satviz.registry import load_builtin
-from satviz.sensors.optical import liss4
-from satviz.sources import SourceError
+from satmaps.config import InputSpec
+from satmaps.core import RECIPES, SENSORS
+from satmaps.registry import load_builtin
+from satmaps.sensors.optical import liss4
+from satmaps.sources import SourceError
 from tests.rasters import AREA, EPSG, X0, Y0, needs_rasterio, write_tif
 
 load_builtin()
@@ -73,7 +73,7 @@ def test_open_on_canvas_layers_valid_and_credit(tmp_path):
 
 @needs_rasterio
 def test_true_colour_is_refused_without_blue(tmp_path):
-    from satviz.core import check_recipe
+    from satmaps.core import check_recipe
 
     product_folder(tmp_path)
     prod = liss4.open_on_canvas(lspec(), AREA.canvas(phase=(X0 + 5, Y0 - 5)), AREA, tmp_path)
@@ -95,7 +95,7 @@ def test_raster_epsg_falls_back_for_untagged_utm(tmp_path):
     from pyproj import CRS
     from rasterio.transform import from_origin
 
-    from satviz.cog import raster_epsg
+    from satmaps.cog import raster_epsg
 
     wkt = CRS.from_epsg(32644).to_wkt().replace(',ID["EPSG",32644]', "")
     path = tmp_path / "untagged.tif"

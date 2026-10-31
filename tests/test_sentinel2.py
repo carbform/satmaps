@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
 
-from satviz.config import InputSpec
-from satviz.core import RECIPES, SENSORS
-from satviz.registry import load_builtin
-from satviz.sensors.optical import sentinel2 as s2
-from satviz.sources import SourceError
+from satmaps.config import InputSpec
+from satmaps.core import RECIPES, SENSORS
+from satmaps.registry import load_builtin
+from satmaps.sensors.optical import sentinel2 as s2
+from satmaps.sources import SourceError
 from tests.rasters import AREA, X0, Y0, needs_rasterio, write_tif
 
 load_builtin()

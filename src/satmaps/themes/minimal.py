@@ -1,0 +1,10 @@
+"""Minimal: white page, hairline rules, no shadows, no title offset, quiet pastel chips."""
+from satmaps.core import theme
+from satmaps.themes.base import Theme
+
+MINIMAL = theme("minimal")(Theme(
+    name="minimal", tag="Minimal", paper="#ffffff", card="#ffffff", ink="#141414", muted="#6e6e6e",
+    chip_a="#efe6d2", chip_b="#d7e6e3", note="#f2f2f2",
+    title_font=("Inter", "DejaVu Sans"), body_font=("Inter", "DejaVu Sans"),
+    title_size=36, line_scale=0.55,
+))

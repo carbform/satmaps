@@ -1,17 +1,17 @@
-"""The zero-config path: detecting sensors, the automatic area, quality profiles, `render` and `satviz quick`."""
+"""The zero-config path: detecting sensors, the automatic area, quality profiles, `render` and `satmaps quick`."""
 import numpy as np
 import pytest
 from PIL import Image
 
-from satviz import render
-from satviz.area import Area, AreaError
-from satviz.autoarea import common_area, largest_rectangle, pick_resolution
-from satviz.cli import main
-from satviz.detect import DetectError, detect, input_id
-from satviz.job import JobError, load_job
-from satviz.quality import PROFILES, profile_of
-from satviz.registry import load_builtin
-from satviz.run import run_job
+from satmaps import render
+from satmaps.area import Area, AreaError
+from satmaps.autoarea import common_area, largest_rectangle, pick_resolution
+from satmaps.cli import main
+from satmaps.detect import DetectError, detect, input_id
+from satmaps.job import JobError, load_job
+from satmaps.quality import PROFILES, profile_of
+from satmaps.registry import load_builtin
+from satmaps.run import run_job
 from tests.rasters import needs_rasterio
 
 load_builtin()
@@ -81,7 +81,7 @@ def test_the_largest_rectangle_in_a_mask():
 
 def test_common_area_sits_inside_every_footprint():
     a = common_area({"a": ring(94.0, 27.0, 95.0, 28.0), "b": ring(94.4, 27.3, 95.4, 28.3)})
-    from satviz.area import _tf
+    from satmaps.area import _tf
 
     w, s, e, n = a.lonlat_bbox()
     assert 94.4 <= w < e <= 95.0 and 27.3 <= s < n <= 28.0  # the overlap of the two boxes
@@ -94,7 +94,7 @@ def test_a_slanted_footprint_gives_a_box_with_no_corner_outside_it():
     a = common_area({"q": quad})
     from matplotlib.path import Path as P
 
-    from satviz.area import _tf
+    from satmaps.area import _tf
 
     to_ll = _tf(a.epsg, 4326)
     for x, y in ((a.xmin, a.ymin), (a.xmax, a.ymin), (a.xmax, a.ymax), (a.xmin, a.ymax)):
@@ -147,7 +147,7 @@ def test_a_job_with_no_area_and_no_sensor_runs_on_the_overlap(scene, tmp_path):
 
 
 def test_default_arrangement_follows_the_number_of_inputs(scene, tmp_path):
-    from satviz.api import build_job
+    from satmaps.api import build_job
 
     one, _ = build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir)
     two, _ = build_job([scene.data_dir / "L.h5", scene.data_dir / "S.h5"], data_dir=scene.data_dir)
@@ -180,15 +180,15 @@ def test_quick_and_inspect_on_the_command_line(scene, tmp_path, capsys):
 
 def test_a_box_you_give_beats_the_overlap(scene, tmp_path):
     w, s, e, n = Area.from_config({"center": [27.0, 94.9], "size_km": [1, 1]}).lonlat_bbox()
-    from satviz.api import build_job
+    from satmaps.api import build_job
 
     job, raw = build_job([scene.data_dir / "L.h5"], area=(w, s, e, n), data_dir=scene.data_dir)
     assert job.area is not None and raw["area"]["size_km"][0] > 0.5
 
 
 def test_a_box_you_give_gets_a_pixel_size_for_the_profile_too(scene, monkeypatch):
-    from satviz.api import build_job
-    from satviz.quality import Profile
+    from satmaps.api import build_job
+    from satmaps.quality import Profile
 
     box = Area.from_config({"center": [27.0, 94.9], "size_km": [1, 1]}).lonlat_bbox()
     job, _ = build_job([scene.data_dir / "L.h5"], area=box, data_dir=scene.data_dir)
@@ -201,9 +201,9 @@ def test_a_box_you_give_gets_a_pixel_size_for_the_profile_too(scene, monkeypatch
 # --- the quick-look polish: titles, file names, profiles, size check, cloud-free stretch ----------------------------------------
 
 def test_a_quick_figure_is_titled_by_what_it_shows_and_a_given_title_wins(scene, tmp_path):
-    from satviz.api import build_job
-    from satviz.run import read_products
-    from satviz.templates.base import auto_title
+    from satmaps.api import build_job
+    from satmaps.run import read_products
+    from satmaps.templates.base import auto_title
 
     job, _ = build_job([scene.data_dir / "L.h5", scene.data_dir / "S.h5"], data_dir=scene.data_dir)
     assert job.scene.name == ""
@@ -227,7 +227,7 @@ def test_a_quick_figure_is_titled_by_what_it_shows_and_a_given_title_wins(scene,
 def test_a_title_that_repeats_the_subtitle_drops_the_subtitle(scene, tmp_path):
     from types import SimpleNamespace
 
-    from satviz.core import TEMPLATES
+    from satmaps.core import TEMPLATES
 
     def fake(kind, platform, band):
         meta = dict(platform=platform, label="", sensor="x", radar_band=band, wavelength_cm=5.0, backscatter="sigma0, ellipsoid",
@@ -261,7 +261,7 @@ def test_the_medium_profile_sits_between_quick_and_publication():
 
 
 def test_a_very_large_automatic_area_asks_for_a_bbox(scene, tmp_path):
-    from satviz.api import _check_size, _figure_name
+    from satmaps.api import _check_size, _figure_name
 
     big = Area(32646, 500000, 3000000, 700000, 3190000)  # 200 x 190 km
     with pytest.raises(ValueError, match=r"--bbox W S E N .*--bbox \d+\.\d\d \d+\.\d\d \d+\.\d\d \d+\.\d\d.*--allow-large"):
@@ -272,7 +272,7 @@ def test_a_very_large_automatic_area_asks_for_a_bbox(scene, tmp_path):
 
 
 def test_a_given_box_or_allow_large_skips_the_size_check(scene, monkeypatch):
-    from satviz import api
+    from satmaps import api
 
     monkeypatch.setattr(api, "MAX_AUTO_KM2", 0.5)  # the synthetic scene is about 1.3 km2: "large" for this test
     with pytest.raises(ValueError, match="slow"):
@@ -285,8 +285,8 @@ def test_a_given_box_or_allow_large_skips_the_size_check(scene, monkeypatch):
 def test_cloud_does_not_set_the_stretch_but_is_still_drawn():
     from types import SimpleNamespace
 
-    from satviz.recipes.bands import cloud_left_out, usable
-    from satviz.recipes.optical import _pooled_percentiles
+    from satmaps.recipes.bands import cloud_left_out, usable
+    from satmaps.recipes.optical import _pooled_percentiles
 
     rng = np.random.default_rng(0)
     land = rng.uniform(0.02, 0.12, (100, 100)).astype(np.float32)
@@ -307,7 +307,7 @@ def test_cloud_does_not_set_the_stretch_but_is_still_drawn():
 
 
 def test_coverage_is_the_share_of_a_box_inside_a_footprint():
-    from satviz.autoarea import coverage
+    from satmaps.autoarea import coverage
 
     ring = [(0, 0), (2, 0), (2, 2), (0, 2), (0, 0)]
     assert coverage(ring, (0.5, 0.5, 1.5, 1.5)) == 1.0  # inside
@@ -317,7 +317,7 @@ def test_coverage_is_the_share_of_a_box_inside_a_footprint():
 
 
 def test_products_are_grouped_by_the_ground_they_share():
-    from satviz.autoarea import group_by_ground, touches
+    from satmaps.autoarea import group_by_ground, touches
 
     def box(w, s, e, n):
         return [(w, s), (e, s), (e, n), (w, n), (w, s)]
@@ -329,7 +329,7 @@ def test_products_are_grouped_by_the_ground_they_share():
 
 
 def test_channels_become_recipes_per_input_and_the_default_adds_nothing(scene):
-    from satviz.api import band_choices, build_job, channel_recipes
+    from satmaps.api import band_choices, build_job, channel_recipes
 
     assert channel_recipes({"sar": ("co", "cross", "ratio")}, {"L": "sar"}) == {}
     assert channel_recipes({"sar": ("cross", "co", "ratio"), "optical": ("nir", "red", "green")},
@@ -341,7 +341,7 @@ def test_channels_become_recipes_per_input_and_the_default_adds_nothing(scene):
 
 
 def test_a_false_colour_choice_reaches_the_figure(scene, tmp_path):
-    from satviz.api import render
+    from satmaps.api import render
 
     (png,) = render([scene.data_dir / "L.h5"], out=tmp_path, cache=None, data_dir=scene.data_dir,
                     channels={"sar": ("cross", "co", "ratio")}, title="FCC")

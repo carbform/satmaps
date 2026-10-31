@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from satviz.recipes.sar_fcc import NOISE_RGB, OUTSIDE_RGB, fcc_rgba, shared_lims
-from satviz.sensors.sar.nisar.io import assemble
+from satmaps.recipes.sar_fcc import NOISE_RGB, OUTSIDE_RGB, fcc_rgba, shared_lims
+from satmaps.sensors.sar.nisar.io import assemble
 from tests.conftest import make_raw
 
 
@@ -60,8 +60,8 @@ def test_the_channels_can_be_assigned_in_any_order(ds):
 
 
 def test_a_recipe_name_with_channels_gives_a_composite_that_says_what_is_where(scene):
-    from satviz.core import RECIPES, SENSORS
-    from satviz.registry import load_builtin
+    from satmaps.core import RECIPES, SENSORS
+    from satmaps.registry import load_builtin
 
     load_builtin()
     p = SENSORS["nisar"].load(scene, "S")

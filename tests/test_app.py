@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from satviz.api import TooLarge, _check_size, build_job, job_toml, scan
-from satviz.area import Area
+from satmaps.api import TooLarge, _check_size, build_job, job_toml, scan
+from satmaps.area import Area
 from tests.conftest import make_raw, write_granule
 
-APP = Path(__file__).resolve().parents[1] / "src" / "satviz" / "app.py"
+APP = Path(__file__).resolve().parents[1] / "src" / "satmaps" / "app.py"
 needs_streamlit = pytest.mark.skipif(importlib.util.find_spec("streamlit") is None, reason='pip install -e ".[app]"')
 
 
@@ -27,7 +27,7 @@ def test_scan_lists_products_flags_zips_and_skips_the_rest(scene, tmp_path):
 
 
 def test_scan_does_not_read_pixels_or_footprints(scene, monkeypatch):
-    from satviz.core import SENSORS
+    from satmaps.core import SENSORS
 
     monkeypatch.setattr(SENSORS["nisar"], "describe", lambda *a, **k: pytest.fail("scan must not describe a product"))
     assert len(scan(scene.data_dir)) == 2
@@ -53,9 +53,9 @@ def test_job_toml_is_the_saved_job(scene):
 
 @pytest.fixture
 def app_env(scene, tmp_path, monkeypatch):
-    monkeypatch.setenv("SATVIZ_DATA_DIR", str(scene.data_dir))
-    monkeypatch.setenv("SATVIZ_OUT_DIR", str(tmp_path / "out"))
-    monkeypatch.setenv("SATVIZ_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("SATMAPS_DATA_DIR", str(scene.data_dir))
+    monkeypatch.setenv("SATMAPS_OUT_DIR", str(tmp_path / "out"))
+    monkeypatch.setenv("SATMAPS_CACHE_DIR", str(tmp_path / "cache"))
     return scene
 
 
@@ -96,7 +96,7 @@ def press(at, label):
 @needs_streamlit
 def test_the_app_lists_the_products_and_makes_a_figure(app_env):
     at = run_app()
-    assert not at.exception and at.title[0].value == "satviz"
+    assert not at.exception and at.title[0].value == "satmaps"
     assert {name_of(b) for b in ticks(at)} == {"L.h5", "S.h5"}
     assert next(b for b in at.button if b.label == "Make the figure").disabled  # nothing chosen yet
     assert not at.warning  # no message: the sidebar already says step 1
@@ -137,7 +137,7 @@ def test_a_box_that_misses_a_product_says_so_and_can_leave_it_out(app_env):
     at = run_app()
     pick(at, "L.h5", "F.h5")
     at.radio(key="area_mode").set_value("A box I choose").run()
-    from satviz.api import inspect
+    from satmaps.api import inspect
 
     w, s, e, n = inspect(app_env.data_dir / "L.h5")["bbox"]
     for key, value in zip(("box_w", "box_s", "box_e", "box_n"), (w, s, e, n), strict=True):
@@ -151,7 +151,7 @@ def test_a_box_that_misses_a_product_says_so_and_can_leave_it_out(app_env):
 
 @needs_streamlit
 def test_a_large_area_offers_the_suggested_box(app_env, monkeypatch):
-    monkeypatch.setattr("satviz.api.MAX_AUTO_KM2", 0.5)
+    monkeypatch.setattr("satmaps.api.MAX_AUTO_KM2", 0.5)
     at = run_app()
     pick(at, "L.h5")
     press(at, "Make the figure")
@@ -174,11 +174,11 @@ def test_publication_offers_a_pdf(app_env):
 
 @needs_streamlit
 def test_the_launcher_makes_no_outside_connection_for_the_version_check():
-    """Streamlit asks PyPI for its latest version on start-up; `satviz app` starts it through a line that stops that."""
+    """Streamlit asks PyPI for its latest version on start-up; `satmaps app` starts it through a line that stops that."""
     import subprocess
     import sys
 
-    from satviz.cli import STREAMLIT_LAUNCH
+    from satmaps.cli import STREAMLIT_LAUNCH
 
     disable = "v.should_show_new_version_notice = lambda: False\n"
     assert disable.strip() in STREAMLIT_LAUNCH
@@ -198,7 +198,7 @@ def test_the_launcher_makes_no_outside_connection_for_the_version_check():
 # --- the controls: theme, layout, the layout preview, the folder button, the area map ---------------------------------------------
 
 def test_layout_choices_follow_what_is_chosen():
-    from satviz.api import auto_layout, layout_choices
+    from satmaps.api import auto_layout, layout_choices
 
     assert list(layout_choices([])) == ["single", "compare", "bands"]  # nothing chosen yet: every layout
     assert list(layout_choices(["sar"])) == ["single"]
@@ -216,7 +216,7 @@ def test_every_layout_and_theme_draws_an_example_page(layout, theme):
 
     from PIL import Image
 
-    from satviz.preview import render_example
+    from satmaps.preview import render_example
 
     page = Image.open(io.BytesIO(render_example(None, layout, theme)))
     assert page.size == (1200, 1500) and page.getbbox() is not None
@@ -228,12 +228,12 @@ def test_the_example_page_follows_the_kinds_chosen_and_says_it_is_an_example():
     import numpy as np
     from PIL import Image
 
-    from satviz.preview import render_example
+    from satmaps.preview import render_example
 
     sar = np.asarray(Image.open(io.BytesIO(render_example(["sar", "sar"], "compare", "minimal"))).convert("RGB"))
     mixed = np.asarray(Image.open(io.BytesIO(render_example(["sar", "optical"], "compare", "minimal"))).convert("RGB"))
     assert (sar != mixed).any()  # the right-hand panel is optical when an optical product is chosen
-    from satviz.preview import example_product
+    from satmaps.preview import example_product
 
     p = example_product("A1", "sar", 0)
     assert "Example notice" in p.caveats[0] and p.meta["label"] == "product A" and p.meta["platform"].startswith("Example")
@@ -295,9 +295,9 @@ def test_the_wording_is_the_same_for_every_sensor_and_reaches_the_job(app_env):
 
 
 def test_an_extra_credit_joins_the_author_line_and_never_replaces_the_required_ones():
-    from satviz.api import details
-    from satviz.layout import Layout, apply_text, default_layout
-    from satviz.themes.base import assemble_credits
+    from satmaps.api import details
+    from satmaps.layout import Layout, apply_text, default_layout
+    from satmaps.themes.base import assemble_credits
 
     required = [("Copernicus", "Contains modified Copernicus Sentinel data 2026")]
 
@@ -312,14 +312,14 @@ def test_an_extra_credit_joins_the_author_line_and_never_replaces_the_required_o
 
 
 def test_details_and_the_saved_job(scene, tmp_path):
-    from satviz.api import build_job, details
-    from satviz.job import load_job
+    from satmaps.api import build_job, details
+    from satmaps.job import load_job
 
     assert details() == ({}, {}) and details("  ", None, "", None, None, " ") == ({}, {})  # blanks are nothing
     paths = [scene.data_dir / "L.h5"]
     job, raw = build_job(paths, data_dir=scene.data_dir, title="T", subtitle="S", place="P", author="A", website="w.org",
                          credits="C {x}")
-    (tmp_path / "j.toml").write_text(__import__("satviz.api", fromlist=["job_toml"]).job_toml(raw))
+    (tmp_path / "j.toml").write_text(__import__("satmaps.api", fromlist=["job_toml"]).job_toml(raw))
     again = load_job(tmp_path / "j.toml", scene.data_dir)  # the saved file reads back to the same wording
     assert again.scene.name == "T" and again.scene.region == "P" and again.scene.author == "A" and again.scene.website == "w.org"
     assert again.figures[0].text == job.figures[0].text and again.figures[0].text["credits.lines"] == ["VIZ   A  ·  w.org   ·   C {{x}}"]
@@ -330,7 +330,7 @@ def test_the_browse_button_sets_the_folder_from_the_system_dialog(app_env, tmp_p
     other = tmp_path / "elsewhere"
     other.mkdir()
     write_granule(other / "X.h5", "science/LSAR/GCOV", make_raw(seed=9), instrument="LSAR", freq_hz=1.239e9)
-    monkeypatch.setattr("satviz.desktop.choose_folder", lambda start, title="": str(other))
+    monkeypatch.setattr("satmaps.desktop.choose_folder", lambda start, title="": str(other))
     at = run_app()
     press(at, "Browse…")
     assert at.sidebar.text_input[0].value == str(other)
@@ -339,12 +339,12 @@ def test_the_browse_button_sets_the_folder_from_the_system_dialog(app_env, tmp_p
 
 @needs_streamlit
 def test_the_browse_button_says_what_to_do_when_no_dialog_can_open(app_env, monkeypatch):
-    from satviz.desktop import DesktopError
+    from satmaps.desktop import DesktopError
 
     def no_desktop(start, title=""):
         raise DesktopError("could not open a folder dialog here (no display); type the folder's path instead")
 
-    monkeypatch.setattr("satviz.desktop.choose_folder", no_desktop)
+    monkeypatch.setattr("satmaps.desktop.choose_folder", no_desktop)
     at = run_app()
     press(at, "Browse…")
     assert not at.exception and any("type the folder's path" in c.value for c in at.sidebar.caption)
@@ -354,7 +354,7 @@ def test_the_browse_button_says_what_to_do_when_no_dialog_can_open(app_env, monk
 def test_choose_folder_runs_the_dialog_in_its_own_process(monkeypatch, tmp_path):
     import subprocess
 
-    from satviz import desktop
+    from satmaps import desktop
 
     calls = []
 
@@ -374,7 +374,7 @@ def test_choose_folder_runs_the_dialog_in_its_own_process(monkeypatch, tmp_path)
 
 def test_a_drawn_box_fills_the_fields_and_clear_goes_back_to_the_overlap():
     pytest.importorskip("streamlit")
-    from satviz.app import BOX, BOX_KEYS, OVERLAP, apply_drawn
+    from satmaps.app import BOX, BOX_KEYS, OVERLAP, apply_drawn
 
     state = {"last_draw": 0, "area_mode": OVERLAP, **dict.fromkeys(BOX_KEYS, 0.0)}
     assert not apply_drawn(state, None) and state["area_mode"] == OVERLAP  # the map has sent nothing yet
@@ -388,7 +388,7 @@ def test_a_drawn_box_fills_the_fields_and_clear_goes_back_to_the_overlap():
 
 @needs_streamlit
 def test_the_dark_mode_switch_restyles_the_page_and_changes_nothing_else(app_env):
-    from satviz.app_style import DARK, LIGHT, stylesheet
+    from satmaps.app_style import DARK, LIGHT, stylesheet
 
     at = run_app()
     assert at.toggle(key="dark").value is False
@@ -404,8 +404,8 @@ def test_typed_notices_and_legend_items_reach_the_page():
     import numpy as np
     from PIL import Image
 
-    from satviz.api import details
-    from satviz.preview import render_example
+    from satmaps.api import details
+    from satmaps.preview import render_example
 
     assert details(notices="  \nOne {x}\n\nTwo", legend="A\n\nC")[1] == {"notes.extra": ["One {x}", "Two"], "how_to_read.texts": ["A", "", "C"]}
     assert details(notices=" \n ", legend="  ") == ({}, {})

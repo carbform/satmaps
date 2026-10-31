@@ -2,11 +2,11 @@
 import numpy as np
 import pytest
 
-from satviz.area import Area
-from satviz.config import BandSpec
-from satviz.grid import _block_mean, to_canvas
-from satviz.sensors.sar import sentinel1 as g
-from satviz.sensors.sar.nisar import io as nisar_io
+from satmaps.area import Area
+from satmaps.config import BandSpec
+from satmaps.grid import _block_mean, to_canvas
+from satmaps.sensors.sar import sentinel1 as g
+from satmaps.sensors.sar.nisar import io as nisar_io
 from tests.conftest import H, W, make_raw, write_granule
 from tests.rasters import AREA, EPSG, X0, Y0, needs_rasterio, write_tif
 
@@ -25,7 +25,7 @@ def test_nisar_read_reduced_while_reading_equals_the_block_mean_of_the_full_read
 
 @needs_rasterio
 def test_converted_read_equals_converting_the_whole_window_then_resampling(tmp_path, monkeypatch):
-    from satviz.cog import read_converted, read_window
+    from satmaps.cog import read_converted, read_window
 
     rng = np.random.default_rng(1)
     dn = rng.integers(0, 4000, (100, 100)).astype(np.uint16)
@@ -38,7 +38,7 @@ def test_converted_read_equals_converting_the_whole_window_then_resampling(tmp_p
         out[a == 0] = np.nan
         return out
 
-    monkeypatch.setattr("satviz.cog.STRIP_PX", 600)  # a few rows per strip
+    monkeypatch.setattr("satmaps.cog.STRIP_PX", 600)  # a few rows per strip
     raw, x, y, epsg, _ = read_window(str(tmp_path / "a.tif"), canvas)
     old = to_canvas(convert(raw), x, y, epsg, canvas, "bilinear")
     arr, xs, ys, ep, native = read_converted(str(tmp_path / "a.tif"), canvas, convert, "t")
@@ -51,7 +51,7 @@ def test_converted_read_equals_converting_the_whole_window_then_resampling(tmp_p
 
 @needs_rasterio
 def test_a_canvas_as_fine_as_the_raster_is_read_whole(tmp_path):
-    from satviz.cog import read_converted
+    from satmaps.cog import read_converted
 
     write_tif(tmp_path / "a.tif", [np.full((100, 100), 7, np.uint16)])
     arr, x, *_ = read_converted(str(tmp_path / "a.tif"), AREA.canvas(10.0), lambda a: a.astype(np.float32), "id")
@@ -60,7 +60,7 @@ def test_a_canvas_as_fine_as_the_raster_is_read_whole(tmp_path):
 
 @needs_rasterio
 def test_nearest_read_of_a_mask_takes_every_kth_pixel(tmp_path):
-    from satviz.cog import read_window
+    from satmaps.cog import read_window
 
     cls = np.arange(100 * 100, dtype=np.uint16).reshape(100, 100)
     write_tif(tmp_path / "m.tif", [cls])
@@ -93,7 +93,7 @@ def test_sentinel1_strips_equal_the_full_calibration_then_block_mean(monkeypatch
 
 @pytest.mark.parametrize("res, k", [(10.0, 1), (19.0, 2), (30.0, 3)])
 def test_the_nisar_decimation_factor_is_the_whole_number_of_pixels_per_canvas_pixel(tmp_path, res, k):
-    from satviz.sensors.sar.nisar.canvas import decimation
+    from satmaps.sensors.sar.nisar.canvas import decimation
 
     write_granule(tmp_path / "L.h5", "science/LSAR/GCOV", make_raw(), instrument="LSAR", freq_hz=1.239e9)
     area = Area(EPSG, X0 + 100, Y0 - 700, X0 + 700, Y0 - 100, res)

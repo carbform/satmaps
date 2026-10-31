@@ -3,7 +3,7 @@
 # Same rules as ls_social.toml: {placeholders} are filled from the data file, so date, pass, wavelength, posting, CRS,
 # calibration state and noise percentages are never typed here. `{x_upper}` upper-cases `{x}`; `{x!u}` upper-cases any
 # value (e.g. `{S.rfi!u}`). Colour-stretch limits are available as {lim.HH_lo}, {lim.HH_hi}, {lim.HV_lo}, {lim.HV_hi},
-# {lim.ratio_lo}, {lim.ratio_hi}. List everything with:  satviz placeholders jobs/sar.toml
+# {lim.ratio_lo}, {lim.ratio_hi}. List everything with:  satmaps placeholders jobs/sar.toml
 
 [header]
 title = "River Brahmaputra"

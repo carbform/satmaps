@@ -1,6 +1,6 @@
 # Radar and optical over the Brahmaputra, radar on the left. The dates differ by up to 39 days and the optical products are at
 # different reflectance levels (surface and top-of-atmosphere); each figure says both.
-# Run:  satviz run jobs/sar_optical.toml --out outputs/sar_optical/
+# Run:  satmaps run jobs/sar_optical.toml --out outputs/sar_optical/
 extends = "brahmaputra.toml"
 
 # every radar against every optical: four figures

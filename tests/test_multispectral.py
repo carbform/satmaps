@@ -7,19 +7,19 @@ import pytest
 
 matplotlib.use("Agg")
 
-from satviz.arrangements import bands as bands_arr  # noqa: E402
-from satviz.config import InputSpec  # noqa: E402
-from satviz.core import THEMES, BandInfo, Product  # noqa: E402
-from satviz.job import FigureSpec, load_job  # noqa: E402
-from satviz.layout import LayoutError, default_layout  # noqa: E402
-from satviz.recipes import bands as rb  # noqa: E402
-from satviz.registry import load_builtin  # noqa: E402
-from satviz.run import run_job  # noqa: E402
-from satviz.templates import TemplateError  # noqa: E402
+from satmaps.arrangements import bands as bands_arr  # noqa: E402
+from satmaps.config import InputSpec  # noqa: E402
+from satmaps.core import THEMES, BandInfo, Product  # noqa: E402
+from satmaps.job import FigureSpec, load_job  # noqa: E402
+from satmaps.layout import LayoutError, default_layout  # noqa: E402
+from satmaps.recipes import bands as rb  # noqa: E402
+from satmaps.registry import load_builtin  # noqa: E402
+from satmaps.run import run_job  # noqa: E402
+from satmaps.templates import TemplateError  # noqa: E402
 from tests.rasters import needs_rasterio  # noqa: E402
 
 load_builtin()
-from satviz.core import TEMPLATES  # noqa: E402
+from satmaps.core import TEMPLATES  # noqa: E402
 from tests.test_sentinel2 import safe_folder  # noqa: E402
 
 N = 24
@@ -169,7 +169,7 @@ theme = ["minimal", "xkcd"]
 
 
 def test_any_three_bands_make_a_false_colour_composite_each_stretched_on_its_own():
-    from satviz.core import RECIPES
+    from satmaps.core import RECIPES
 
     p = product()
     r = RECIPES.get_or_raise("fcc:B12,B08,B03").render(p)
@@ -181,7 +181,7 @@ def test_any_three_bands_make_a_false_colour_composite_each_stretched_on_its_own
 
 
 def test_the_familiar_composites_keep_their_own_recipe_and_a_bad_spec_is_refused():
-    from satviz.core import RECIPES
+    from satmaps.core import RECIPES
 
     assert RECIPES.get_or_raise("fcc:red,green,blue") is RECIPES["true_colour"]
     assert RECIPES.get_or_raise("fcc:nir,red,green") is RECIPES["nir_fcc"]

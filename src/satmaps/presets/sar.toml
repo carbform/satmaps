@@ -1,0 +1,37 @@
+# SAR from local files (NISAR, Sentinel-1 or EOS-04): one figure per input, every pair compared, or all tiled.
+# Edit the area, the file names and the wording, then:  satmaps run sar.toml
+# Unzip Sentinel-1 and EOS-04 downloads into ./data first; NISAR is the .h5 file.
+
+[scene]                       # all optional
+name = "My place"
+region = "Somewhere, Somewhere"
+author = ""
+website = ""
+
+[area]                        # give `center` + radius_km (or size_km = [w, h]), OR bbox = [west, south, east, north]
+center = [27.60, 94.87]       # lat, lon
+size_km = [20, 20]
+resolution_m = 10             # default: the finest input's own
+
+[[inputs]]
+id = "L"
+sensor = "nisar"              # nisar, sentinel1 or eos04
+source = { path = "NISAR_L2_*_GCOV_*.h5" }   # a file, folder or glob, looked up in ./data (or --data-dir)
+
+[[inputs]]
+id = "S"
+sensor = "nisar"
+source = { path = "NISAR_S2_*_GCOV_*.h5" }
+
+# [[inputs]]
+# id = "S1"
+# sensor = "sentinel1"
+# source = { path = "S1*_IW_GRDH_*.SAFE" }
+
+[[figures]]
+template = "sar"              # one input: one figure. Two or more: every pair, split view, with how they relate stated
+inputs = ["L", "S"]
+# arrangement = "grid"        # all inputs tiled on one page; "single" gives one figure per input
+theme = "neo_retro"           # neo_retro, minimal, neo_brutal, newspaper, xkcd; a list gives one file per theme
+stretch = "per-band"          # or "pooled" (same colours in both, comparable)
+text = { title = "My title", subtitle = "L-BAND AND S-BAND, SAME PASS" }

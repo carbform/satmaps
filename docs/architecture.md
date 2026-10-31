@@ -34,7 +34,7 @@ Rule: **style the chrome, never the data.** Themes never touch data panels, and 
                                     └──► arrangement (page) styled by a theme ──► PNG
 ```
 
-## Core types (`satviz.core`)
+## Core types (`satmaps.core`)
 
 - `Product`: named float layers, a georeference (`x`, `y`, `epsg`), a `valid` mask, generic `meta` (platform, sensor, start, end,
   resolution_m, crs), `facts` (sensor-specific placeholders), `caveats` (what the sensor insists on printing), `kind`, and for
@@ -46,9 +46,9 @@ Rule: **style the chrome, never the data.** Themes never touch data panels, and 
 ## Package layout
 
 ```
-src/satviz/
+src/satmaps/
   core.py            Product, BandInfo, Rendered, registries
-  registry.py        loads the built-in plugins; `satviz list`
+  registry.py        loads the built-in plugins; `satmaps list`
   sensors/sar/       nisar/ (io, canvas, metadata, processing, facts), sentinel1, eos04
   sensors/optical/   sentinel2, liss4
   sensors/nrsc.py    key=value metadata and times, shared by eos04 and liss4
@@ -61,7 +61,7 @@ src/satviz/
   area.py grid.py job.py run.py sources.py cog.py   area -> canvas, resampling, job file, runner, data paths, GeoTIFF windows
   config.py layout.py geo.py                        scene dataclasses, wording files and placeholders, projections
   presets/ layouts/                                 starter job files and built-in wording (shipped with the package)
-  cli.py             `satviz run | init | list | placeholders`
+  cli.py             `satmaps run | init | list | placeholders`
 jobs/                brahmaputra.toml (place + all local inputs) and sar, optical, sar_optical, social extending it
 ```
 
@@ -69,7 +69,7 @@ Dependencies: `numpy, scipy, matplotlib, h5py, pyproj` for NISAR; `rasterio` (ex
 
 ## From paths to a figure
 
-`satviz quick` and `satviz.render` build the same tables a job file holds and hand them to `run_job`, so there is one pipeline:
+`satmaps quick` and `satmaps.render` build the same tables a job file holds and hand them to `run_job`, so there is one pipeline:
 
 ```
 paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the kinds and the count ─┐
@@ -89,9 +89,9 @@ paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the ki
 - **Titles and names.** A job with no `[scene] name` (every quick figure) gets a title from its products, and its files are named
   after the sensors and the profile; a job file keeps its own name and its file stem.
 - **Large areas.** An automatic area above 15,000 km² is refused with a suggested `--bbox`; `--allow-large` lifts it.
-- **The app** (`satviz.app`, Streamlit) only collects choices and calls `build_job` and `run_job`; `api.scan` lists a folder's products
+- **The app** (`satmaps.app`, Streamlit) only collects choices and calls `build_job` and `run_job`; `api.scan` lists a folder's products
   from their names and a few files, never their pixels. Renders run on a button press, one at a time (matplotlib is global state),
-  and a `TooLarge` error carries the suggested box so the page can fill it in. `satviz app` serves on localhost, sets the folders by
+  and a `TooLarge` error carries the suggested box so the page can fill it in. `satmaps app` serves on localhost, sets the folders by
   environment, and starts Streamlit through a line that turns off its PyPI version check (the one outbound call it makes; a test
   proves none is attempted).
 - **Layout and preview.** The layouts offered depend on the kinds chosen (`api.layout_choices`); the Layout preview is
@@ -104,18 +104,18 @@ paths ─ detect (sensor.sniff) ─ ids ─ template and arrangement from the ki
   page shows the wording as it will print.
 - **The map** (`app_component/index.html`) is Web Mercator so OpenStreetMap tiles line up exactly; its only network use is the
   browser fetching those tiles, and only while the basemap is ticked (`tile_url` can point at a local server, which is how it is tested).
-- **Map furniture** (`satviz.furniture`): `decorate` is the one call every arrangement makes per panel. The grid is meridians and
+- **Map furniture** (`satmaps.furniture`): `decorate` is the one call every arrangement makes per panel. The grid is meridians and
   parallels transformed into the panel's UTM zone and cut at its edge, each labelled where it meets the edge; the arrow is measured
   from the projection (true north, not grid north); the scale bar is the one that was always there. Defaults reproduce earlier
   figures pixel for pixel (checked on all 26 job-file figures).
 - **`--save-job`** writes the resolved tables (sensors, absolute paths, centre and size, pixel size), so running the saved file gives
   the same figure; a test pins that.
-- **Profiles** (`satviz.quality`): `quick` (800 px along the longer side, 100 dpi, PNG), `medium` (1400 px, 140 dpi, PNG) and
+- **Profiles** (`satmaps.quality`): `quick` (800 px along the longer side, 100 dpi, PNG), `medium` (1400 px, 140 dpi, PNG) and
   `publication` (2000 px, 180 dpi, PNG and a PDF with TrueType text). A job file with its own pixel size keeps it.
 
 ## Principles
 
-1. **One job file.** `[area]`, `[[inputs]]`, `[[figures]]`; `satviz init sar|optical|sar-optical` writes a starter. A job may
+1. **One job file.** `[area]`, `[[inputs]]`, `[[figures]]`; `satmaps init sar|optical|sar-optical` writes a starter. A job may
    `extends` a base file, which is how the Dibrugarh jobs share their place and inputs; inputs a job does not use are never read.
 2. **The area defines the canvas.** `[area]` fixes a UTM CRS, an extent and a pixel size. Every reader returns its data already on
    that grid, so any two inputs can be compared. One canvas per job: a job names one place.

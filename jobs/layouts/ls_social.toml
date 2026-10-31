@@ -2,7 +2,7 @@
 #
 # Edit any text below. Placeholders in {braces} are filled in from the data files, so date, pass, wavelengths,
 # posting, CRS, calibration state and noise percentages are never typed here. `{x_upper}` is the upper-case form of `{x}`.
-# List everything available with:  satviz placeholders jobs/sar.toml
+# List everything available with:  satmaps placeholders jobs/sar.toml
 #
 # Dates and numbers come from the granule metadata (e.g. {date}, {time_utc}, {track}, {frame}, {L.wavelength_cm:.0f}).
 # Scene names come from the job file's [scene] table ({name_upper}, {region}, {author}, {website}).

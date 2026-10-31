@@ -3,7 +3,7 @@ import importlib.util
 
 import pytest
 
-from satviz.area import Area
+from satmaps.area import Area
 
 needs_rasterio = pytest.mark.skipif(importlib.util.find_spec("rasterio") is None, reason="pip install -e '.[rasters]'")
 

@@ -1,9 +1,9 @@
 import pytest
 
-from satviz.core import RECIPES, SENSORS, THEMES, Registry
-from satviz.registry import describe
-from satviz.sensors.sar.nisar import to_product
-from satviz.sensors.sar.nisar.io import load_roi
+from satmaps.core import RECIPES, SENSORS, THEMES, Registry
+from satmaps.registry import describe
+from satmaps.sensors.sar.nisar import to_product
+from satmaps.sensors.sar.nisar.io import load_roi
 
 
 def test_builtins_registered():

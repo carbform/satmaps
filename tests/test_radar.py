@@ -1,6 +1,6 @@
 import pytest
 
-from satviz.radar import band_of, radar_facts
+from satmaps.radar import band_of, radar_facts
 
 
 @pytest.mark.parametrize("ghz, band", [(1.257, "L"), (3.2, "S"), (5.405, "C"), (5.4, "C"), (9.6, "X"), (0.4, "")])

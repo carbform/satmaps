@@ -1,5 +1,5 @@
-from satviz.sensors.sar.nisar.io import load_roi
-from satviz.sensors.sar.nisar.metadata import read_band_metadata
+from satmaps.sensors.sar.nisar.io import load_roi
+from satmaps.sensors.sar.nisar.metadata import read_band_metadata
 
 
 def test_metadata_is_read_from_the_file(scene):

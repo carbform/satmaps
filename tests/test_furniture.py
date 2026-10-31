@@ -9,11 +9,11 @@ from PIL import Image
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from satviz.api import build_job  # noqa: E402
-from satviz.furniture import DEFAULT, Furniture, graticule, graticule_lines, lonlat_window, nice_step, true_north  # noqa: E402
-from satviz.job import load_job  # noqa: E402
-from satviz.run import run_job  # noqa: E402
-from satviz.themes.base import Theme  # noqa: E402
+from satmaps.api import build_job  # noqa: E402
+from satmaps.furniture import DEFAULT, Furniture, graticule, graticule_lines, lonlat_window, nice_step, true_north  # noqa: E402
+from satmaps.job import load_job  # noqa: E402
+from satmaps.run import run_job  # noqa: E402
+from satmaps.themes.base import Theme  # noqa: E402
 
 # a 12 x 10 km window near Dibrugarh in UTM zone 46N (central meridian 93E)
 EXT = [660000.0, 672000.0, 3050000.0, 3060000.0]
@@ -102,7 +102,7 @@ def test_each_option_changes_the_figure_and_the_default_is_unchanged(scene, tmp_
 
 
 def test_the_options_are_in_the_job_file_and_come_back(scene, tmp_path):
-    from satviz.api import job_toml
+    from satmaps.api import job_toml
 
     job, raw = build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir, grid=True, north=True, scalebar=False)
     fig = raw["figures"][0]
@@ -115,7 +115,7 @@ def test_the_options_are_in_the_job_file_and_come_back(scene, tmp_path):
 
 
 def test_the_command_line_flags(scene, tmp_path):
-    from satviz.cli import main
+    from satmaps.cli import main
 
     out = tmp_path / "o"
     assert main(["quick", str(scene.data_dir / "L.h5"), "--grid", "--north", "--no-scale", "--out", str(out), "--no-cache",
@@ -128,7 +128,7 @@ def test_the_command_line_flags(scene, tmp_path):
 def test_every_layout_can_carry_the_furniture(layout):
     import io
 
-    from satviz.preview import render_example
+    from satmaps.preview import render_example
 
     plain = np.asarray(Image.open(io.BytesIO(render_example(None, layout, "minimal"))).convert("RGB")).astype(int)
     full = np.asarray(Image.open(io.BytesIO(render_example(None, layout, "minimal",

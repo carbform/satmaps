@@ -1,5 +1,5 @@
 # Social posts from NISAR with their own wording files (relative to this job file) and zoom windows: L against S, and S alone.
-# The wording file's text wins over the template's default wording. Run:  satviz run jobs/social.toml --out outputs/social/
+# The wording file's text wins over the template's default wording. Run:  satmaps run jobs/social.toml --out outputs/social/
 extends = "brahmaputra.toml"
 
 # Zoom windows: geographic (center + size) or canvas rows/cols (10 m pixels): 300 x 780 px = 3.0 x 7.8 km

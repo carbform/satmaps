@@ -11,7 +11,7 @@ sensor reader --> Product --> recipe --> Rendered --> arrangement (page) --> the
 
 ## Without a job file
 
-`satviz quick <paths>` and `satviz.render(paths)` detect each sensor, pick the template (`sar`, `optical`, `sar_optical`) from what
+`satmaps quick <paths>` and `satmaps.render(paths)` detect each sensor, pick the template (`sar`, `optical`, `sar_optical`) from what
 the inputs are and the arrangement from how many there are (one: single; two: compare; three to six: grid), take the overlap of the
 inputs as the area and choose a pixel size for the requested quality. `--save-job` writes the result as a job file.
 
@@ -56,7 +56,7 @@ panels of the `bands` arrangement.
 ## Adding one
 
 - **Sensor**: `sensors/sar/<name>.py` or `sensors/optical/<name>.py` with `describe` and `open` registered by `@sensor`; list it in
-  `registry.load_builtin`. Give every SAR product `radar_band`, `freq_ghz`, `wavelength_cm` (`satviz.radar.radar_facts`) and
+  `registry.load_builtin`. Give every SAR product `radar_band`, `freq_ghz`, `wavelength_cm` (`satmaps.radar.radar_facts`) and
   `backscatter`, and put its own caveats in `Product.caveats`.
 - **Recipe**: `recipes/`, with the `needs` it requires.
 - **Template**: subclass `Template` in `templates/scenarios.py`; `plan` returns the input tuples, `resolve` the arrangement,

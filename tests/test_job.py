@@ -2,10 +2,10 @@ import numpy as np
 import pytest
 from pyproj import Transformer
 
-from satviz.area import AreaError
-from satviz.cli import main
-from satviz.job import JobError, load_job
-from satviz.run import run_job
+from satmaps.area import AreaError
+from satmaps.cli import main
+from satmaps.job import JobError, load_job
+from satmaps.run import run_job
 from tests.conftest import H, W
 
 # the synthetic granules cover x 500000..501100, y 3000000..2998800 (UTM 46N, 10 m)
@@ -74,10 +74,10 @@ def test_extends_merges_tables_and_replaces_lists(tmp_path):
 
 
 def test_nisar_on_a_canvas_equals_the_source_where_grids_align(job_file, scene, tmp_path):
-    from satviz.core import SENSORS
-    from satviz.registry import load_builtin
-    from satviz.run import choose_canvas
-    from satviz.sensors.sar.nisar.io import read_roi
+    from satmaps.core import SENSORS
+    from satmaps.registry import load_builtin
+    from satmaps.run import choose_canvas
+    from satmaps.sensors.sar.nisar.io import read_roi
 
     load_builtin()
     job = load_job(job_file, scene.data_dir)
@@ -165,8 +165,8 @@ def test_legend_items_name_their_product_when_several_are_shown():
     import datetime as dt
     from types import SimpleNamespace
 
-    from satviz.core import LegendItem as L
-    from satviz.legend import named_legend
+    from satmaps.core import LegendItem as L
+    from satmaps.legend import named_legend
 
     def prod(platform, label, day):
         return SimpleNamespace(meta={"platform": platform, "label": label, "start": dt.datetime(2026, 9, day)})
@@ -211,7 +211,7 @@ theme = "minimal"
 
 
 def test_inputs_from_different_passes_are_shown_together_unless_the_figure_asks_for_one_pass(scene, tmp_path):
-    from satviz.layout import LayoutError
+    from satmaps.layout import LayoutError
     from tests.conftest import make_raw, write_granule
 
     write_granule(tmp_path / "S2.h5", "science/SSAR/GCOV", make_raw(3), track=113)

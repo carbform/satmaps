@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "satviz"
+name = "satmaps"
 version = "0.1.0"
 description = "Social, publication and editorial infographics from SAR (NISAR, Sentinel-1, EOS-04) and optical (Sentinel-2, LISS-IV) satellite data"
 readme = "README.md"
@@ -20,17 +20,18 @@ dependencies = [
 
 [project.optional-dependencies]
 rasters = ["rasterio>=1.3"]  # every product but NISAR is GeoTIFF: Sentinel-1, EOS-04, Sentinel-2, LISS-IV
-app = ["streamlit>=1.32"]  # `satviz app`: the local app
+app = ["streamlit>=1.32"]  # `satmaps app`: the local app
 dev = ["pytest>=7", "ruff>=0.4", "pillow>=10"]
 
 [project.scripts]
-satviz = "satviz.cli:main"
+satmaps = "satmaps.cli:main"
+satviz = "satmaps.cli:main"  # the old command name, kept for now
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-satviz = ["layouts/*.toml", "presets/*.toml", "app_component/*.html", "app_assets/*"]
+satmaps = ["layouts/*.toml", "presets/*.toml", "app_component/*.html", "app_assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -45,7 +46,7 @@ ignore = ["E741"]
 
 [tool.ruff.lint.per-file-ignores]
 # Figure modules carry long caption strings and layout coordinates; tests build wide fixtures.
-"src/satviz/themes/*.py" = ["E501"]
-"src/satviz/arrangements/*.py" = ["E501"]
-"src/satviz/templates/*.py" = ["E501"]
+"src/satmaps/themes/*.py" = ["E501"]
+"src/satmaps/arrangements/*.py" = ["E501"]
+"src/satmaps/templates/*.py" = ["E501"]
 "tests/*.py" = ["E501"]

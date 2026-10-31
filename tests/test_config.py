@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from satviz.config import DATA_DIR_ENV, BandSpec, InputSpec, Scene
-from satviz.job import load_job
+from satmaps.config import DATA_DIR_ENV, BandSpec, InputSpec, Scene
+from satmaps.job import load_job
 from tests.test_job import JOB
 
 
