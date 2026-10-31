@@ -1,0 +1,9 @@
+# Four products tiled on one page (the tiled layout is for job files; the app and `satmaps quick` show one or two products).
+extends = "brahmaputra.toml"
+
+[[figures]]
+name = "tiles"
+template = "sar"
+arrangement = "grid"
+inputs = ["L", "S", "S1", "E"]
+theme = "neo_retro"
