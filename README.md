@@ -70,7 +70,7 @@ What `quick` decides, and how to override it:
 |---|---|---|
 | the sensor of each path | looking at the folder or file (a zip is refused: unzip it) | name `sensor` in a job file |
 | the area | the largest rectangle inside the data of **every** input (their footprints are read from the products' own metadata or valid pixels, not their bounding boxes); an error if they share nothing | `--bbox W S E N` |
-| the figure | SAR only: `sar`; optical only: `optical`; both: `sar_optical`. One input: single; two: side by side; three to six: a grid | `--template`, `--arrangement`, `--bands` |
+| the figure | SAR only: `sar`; optical only: `optical`; both: `sar_optical`. One product: single; two that overlap: side by side (at most two) | `--template`, `--arrangement`, `--bands`, `--sar-fcc`, `--optical-fcc` |
 | the pixel size | the area's size; never finer than the data | `--resolution M` |
 | the title | what the figure shows: `NISAR L-band · 25 Sep 2026` for one product, `Radar and optical` or `Radar compared` for several | `--title` |
 | the files | named after the sensors and the quality: `nisar_sentinel1_quick_Minimal.png`, `nisar_sentinel1_quick.lock.json` | `--out` |
