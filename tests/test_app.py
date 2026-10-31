@@ -89,7 +89,9 @@ def test_the_app_lists_the_products_and_makes_a_figure(app_env):
     assert not at.exception and at.title[0].value == "satviz"
     assert {o.split("  ·  ")[1] for o in at.sidebar.multiselect[0].options} == {"L.h5", "S.h5"}
     assert next(b for b in at.button if b.label == "Make the figure").disabled  # nothing chosen yet
+    assert any("Choose at least one product" in c.value for c in at.caption)  # and the page says what to do
     pick(at, "L.h5", "S.h5")
+    assert any(c.value.startswith("Will draw 2 products in one figure") for c in at.caption)
     press(at, "Make the figure")
     assert not at.exception and not at.error and len(made(at)) == 1
     assert [b.proto.label for b in at.get("download_button")] == ["Download PNG", "Download job file"]  # quick: no PDF

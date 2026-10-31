@@ -161,13 +161,13 @@ def apply_drawn(state, drawn: dict | None) -> bool:
 
 
 def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | None, bool, list[str]]:
-    """Step 1: where the products are, on a map you can draw on, and the area that results.
+    """Step 2: where the products are, on a map you can draw on, and the area that results.
 
     Returns (mode, box, per_place, outside): `per_place` is True when the products share no ground and no box is drawn, so each
     place gets its own figure; `outside` names the products a drawn box does not touch (they cannot be drawn in it)."""
-    st.markdown("##### 1 · Area")
+    st.markdown("##### 2 · Area")
     if not chosen_rows:
-        st.info("Choose products in the sidebar: they appear here on a map, and you draw the area you want.")
+        st.info("Start with step 1 in the sidebar: choose one or more products. They appear here on a map.")
         return OVERLAP, None, False, []
     prints = [{"name": r["name"][:24], **footprint_of(r["path"], Path(r["path"]).stat().st_mtime)} for r in chosen_rows]
     prints = [p for p in prints if p["ring"]]
@@ -216,9 +216,23 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
     return mode, box, per_place, outside
 
 
+def summary(chosen_rows: list[dict], mode: str, box: tuple | None, per_place: bool, outside: bool) -> str:
+    """One line under the button: what pressing it will do, or why it cannot yet."""
+    if not chosen_rows:
+        return "Choose at least one product in the sidebar."
+    if outside:
+        return "Fix the area first: the box misses some products."
+    n = len(chosen_rows)
+    what = f"{n} product{'s' if n > 1 else ''}"
+    where = "in the box you chose" if mode == BOX and box else "over their common area"
+    if per_place:
+        return f"Will draw {what} as {len(st.session_state['places'])} figures, one for each place."
+    return f"Will draw {what} in one figure {where}. Title, theme and layout have good defaults; change them below if you want."
+
+
 def details_section() -> dict:
-    """Step 2: the wording, the same for every sensor. Sensors' own credits are always added; this adds to them."""
-    st.markdown("##### 2 · Title and credits")
+    """Optional: the wording, the same for every sensor. Sensors' own credits are always added; this adds to them."""
+    st.markdown("**Title and credits**")
     st.text_input("Title", key="title", placeholder="left empty: says what the figure shows")
     st.text_input("Subtitle", key="subtitle", placeholder="left empty: says how the products relate")
     st.text_input("Place", key="place", placeholder="e.g. Dibrugarh, Assam")
@@ -232,8 +246,8 @@ def details_section() -> dict:
 
 
 def look_section(kinds: list[str]) -> dict:
-    """Step 3: how it looks and how big."""
-    st.markdown("##### 3 · Look")
+    """Optional: how it looks and how big."""
+    st.markdown("**Look**")
     a, b = st.columns(2)
     theme = a.selectbox("Theme", sorted(THEMES), index=sorted(THEMES).index("minimal"))
     choices = layout_choices(kinds)
@@ -249,8 +263,7 @@ def look_section(kinds: list[str]) -> dict:
     grid = f1.checkbox("Lat/lon grid", value=False, help="Grid lines with latitude and longitude labels on every panel.")
     north = f2.checkbox("North arrow", value=False, help="Points at true north.")
     scalebar = f3.checkbox("Scale bar", value=True)
-    with st.expander("More options"):
-        large = st.checkbox("Draw a very large area anyway (slow)")
+    large = st.checkbox("Draw a very large area anyway (slow)")
     return dict(theme=theme, layout=layout, quality=quality, allow_large=large, grid=grid,
                 north=north, scalebar=scalebar)
 
@@ -293,7 +306,8 @@ def main() -> None:
         st.session_state.setdefault(key, default)
 
     with st.sidebar:
-        st.header("Products")
+        st.header("1 · Products")
+        st.caption("Pick the folder that holds your data, then choose what to draw.")
         st.text_input("Folder", key="folder")
         a, b = st.columns(2)
         a.button("Browse…", on_click=browse, help="Choose the folder in your system's own dialog")
@@ -324,10 +338,14 @@ def main() -> None:
     with left:
         mode, box, per_place, outside = area_section(chosen_rows, by_label)
         st.divider()
-        words = details_section()
-        st.divider()
-        look = look_section(kinds)
+        st.markdown("##### 3 · Make the figure")
         go = st.button("Make the figure", type="primary", disabled=not chosen or bool(outside))
+        st.caption(summary(chosen_rows, mode, box, per_place, bool(outside)))
+        st.divider()
+        with st.expander("Optional: title, credits, theme, layout, quality", expanded=False):
+            words = details_section()
+            st.divider()
+            look = look_section(kinds)
 
     signature = (tuple(chosen), mode, box, per_place, tuple(sorted(words.items(), key=lambda kv: kv[0])), tuple(sorted(
         (k, str(v)) for k, v in look.items())))
