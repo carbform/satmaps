@@ -107,7 +107,7 @@ def test_the_options_are_in_the_job_file_and_come_back(scene, tmp_path):
     job, raw = build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir, grid=True, north=True, scalebar=False)
     fig = raw["figures"][0]
     assert fig["grid"] is True and fig["north"] is True and fig["scalebar"] is False
-    (tmp_path / "j.toml").write_text(job_toml(raw))
+    (tmp_path / "j.toml").write_text(job_toml(raw), encoding="utf-8")
     again = load_job(tmp_path / "j.toml", scene.data_dir).figures[0]
     assert (again.grid, again.north, again.scalebar) == (True, True, False)
     plain = build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir)[1]["figures"][0]

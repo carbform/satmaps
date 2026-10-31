@@ -323,7 +323,7 @@ def test_details_and_the_saved_job(scene, tmp_path):
     paths = [scene.data_dir / "L.h5"]
     job, raw = build_job(paths, data_dir=scene.data_dir, title="T", subtitle="S", place="P", author="A", website="w.org",
                          credits="C {x}")
-    (tmp_path / "j.toml").write_text(__import__("satmaps.api", fromlist=["job_toml"]).job_toml(raw))
+    (tmp_path / "j.toml").write_text(__import__("satmaps.api", fromlist=["job_toml"]).job_toml(raw), encoding="utf-8")
     again = load_job(tmp_path / "j.toml", scene.data_dir)  # the saved file reads back to the same wording
     assert again.scene.name == "T" and again.scene.region == "P" and again.scene.author == "A" and again.scene.website == "w.org"
     assert again.figures[0].text == job.figures[0].text and again.figures[0].text["credits.lines"] == ["VIZ   A  ·  w.org   ·   C {{x}}"]
