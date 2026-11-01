@@ -161,10 +161,10 @@ source = {{ path = "R2F_scene" }}
 name = "pair"
 template = "sar_optical"
 inputs = ["L4", "E"]
-theme = ["minimal", "neo_retro"]
+theme = ["minimal", "retro_80s"]
 ''')
     paths = run_job(load_job(job, tmp_path), tmp_path / "out")
-    assert [p.name for p in paths] == ["pair_Minimal.png", "pair_NeoRetro.png"] and all(p.stat().st_size > 10_000 for p in paths)
+    assert [p.name for p in paths] == ["pair_Minimal.png", "pair_Retro80s.png"] and all(p.stat().st_size > 10_000 for p in paths)
 
 
 def test_template_error_becomes_a_job_error(tmp_path):

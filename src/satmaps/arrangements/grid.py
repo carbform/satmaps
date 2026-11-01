@@ -38,7 +38,7 @@ def layout_cells(n: int, aspect: float) -> tuple[int, int, float]:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, ...], recipe: str | dict = "sar_fcc",
-           theme: str = "neo_retro", stem: str | None = None, strict: bool = False,
+           theme: str = "retro_80s", stem: str | None = None, strict: bool = False,
            extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """`inputs` are two to six input ids in reading order (left to right, top to bottom); `recipe` is one name or {id: name}."""
     load_builtin()

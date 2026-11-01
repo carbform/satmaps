@@ -29,6 +29,33 @@ def _init(args) -> int:
     return 0
 
 
+def open_in_viewer(path: Path) -> bool:
+    """Open an image or document in the platform's default viewer."""
+    import subprocess
+    import webbrowser
+
+    try:
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", str(path)])
+            return True
+        elif sys.platform == "win32":
+            import os
+
+            os.startfile(str(path))
+            return True
+        elif sys.platform.startswith("linux"):
+            try:
+                subprocess.Popen(["xdg-open", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+            except (FileNotFoundError, OSError):
+                return webbrowser.open(path.resolve().as_uri())
+        else:
+            return webbrowser.open(path.resolve().as_uri())
+    except Exception as e:
+        print(f"warning: could not open {path}: {e}", file=sys.stderr)
+        return False
+
+
 # Streamlit looks up its latest version on PyPI at start-up (one launch in ten) and has no setting to stop it. satmaps is local
 # only, so it starts Streamlit through this line, which turns that check off first.
 STREAMLIT_LAUNCH = ("import sys, streamlit.version as v; v.should_show_new_version_notice = lambda: False; "
@@ -80,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--quality", choices=("quick", "medium", "publication"), default="quick",
                     help="quick: a small PNG in seconds; medium: finer, still no PDF; publication: full size, with a PDF "
                          "(default: %(default)s)")
-    qk.add_argument("--theme", default="minimal", help="neo_retro, minimal, neo_brutal, newspaper or xkcd (default: %(default)s)")
+    qk.add_argument("--theme", default="minimal", help="minimal, retro_80s, newspaper, neo_brutal or xkcd (default: %(default)s)")
     qk.add_argument("--title", default=None, help="the figure's title")
     qk.add_argument("--subtitle", default=None, help="the line under the title")
     qk.add_argument("--place", default=None, help="the place, e.g. 'Dibrugarh, Assam' (the default subtitle when there is none)")
@@ -100,10 +127,12 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--arrangement", choices=("single", "compare", "grid", "bands"), default=None,
                     help="default: one input single, two compare")
     qk.add_argument("--bands", action="store_true", help="optical: one panel per spectral band (same as --arrangement bands)")
-    qk.add_argument("--sar-fcc", metavar="R,G,B", default=None,
-                    help="SAR false-colour composite: three of co, cross, ratio for red, green, blue (default: co,cross,ratio)")
-    qk.add_argument("--optical-fcc", metavar="R,G,B", default=None,
-                    help="optical false-colour composite: three band names, e.g. nir,red,green or B12,B08,B03")
+    qk.add_argument("--sar-fcc", metavar="R,G,B|PRESET", default=None,
+                    help="SAR false-colour composite: preset (standard, vegetation, urban, water) or three roles "
+                         "for red, green, blue (default: co,cross,ratio)")
+    qk.add_argument("--optical-fcc", metavar="R,G,B|PRESET", default=None,
+                    help="optical false-colour composite: preset (natural, cir, agriculture, moisture, urban, geology) "
+                         "or three band names (e.g. nir,red,green or B12,B08,B03)")
     qk.add_argument("--allow-large", action="store_true",
                     help="draw an automatic area even above 15,000 km2 (a whole frame: slow); the default asks for --bbox")
     qk.add_argument("--out", default="outputs", help="output folder (default: %(default)s)")
@@ -111,6 +140,8 @@ def build_parser() -> argparse.ArgumentParser:
     qk.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")
     qk.add_argument("--no-cache", action="store_true")
     qk.add_argument("--save-job", default=None, metavar="FILE", help="also write the job file that reproduces this figure")
+    qk.add_argument("--open", action="store_true", help="open the rendered figure in the default viewer")
+    qk.add_argument("-q", "--quiet", action="store_true", help="suppress progress ticker on stderr")
 
     ap = sub.add_parser("app", help="open the local app in your browser to pick products, preview and download (satmaps[app])")
     ap.add_argument("--data-dir", default=None, help="folder with the products (default: $SATMAPS_DATA_DIR, then ./data)")
@@ -118,6 +149,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--cache", default="cache", help="read cache folder (default: %(default)s)")
     ap.add_argument("--port", type=int, default=8501, help="port on localhost (default: %(default)s)")
     ap.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+
+    ch = sub.add_parser("check", help="lint and validate a job file: files, footprints, overlap and templates")
+    ch.add_argument("job", help="job TOML to check")
+    ch.add_argument("--data-dir", default=None, help="where source paths are looked up (default: $SATMAPS_DATA_DIR, then ./data)")
+    ch.add_argument("--layouts-dir", default="layouts", help="folder for custom layouts (default: %(default)s)")
+    ch.add_argument("-v", "--verbose", action="store_true", help="show detailed inspection info")
 
     ins = sub.add_parser("inspect", help="say which sensor reads a product and where it has data, without reading pixels")
     ins.add_argument("paths", nargs="+")
@@ -131,6 +168,8 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--layouts-dir", default="layouts",
                     help="folder for layouts named without a path (default: %(default)s)")
     rn.add_argument("-v", "--verbose", action="store_true")
+    rn.add_argument("--open", action="store_true", help="open the rendered figure in the default viewer")
+    rn.add_argument("-q", "--quiet", action="store_true", help="suppress progress ticker on stderr")
 
     ini = sub.add_parser("init", help="write a starter job file for a preset")
     ini.add_argument("preset", nargs="?", help="preset name; omit to list them")
@@ -159,6 +198,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "app":
         return _app(args)
 
+    if args.cmd == "check":
+        from satmaps.check import check_job
+
+        return check_job(args.job, data_dir=args.data_dir, layouts_dir=args.layouts_dir, verbose=args.verbose)
+
     if args.cmd == "inspect":
         from satmaps.api import inspect
         from satmaps.detect import DetectError
@@ -183,19 +227,21 @@ def main(argv: list[str] | None = None) -> int:
         from satmaps.detect import DetectError
         from satmaps.job import JobError
         from satmaps.layout import LayoutError
+        from satmaps.progress import Progress
         from satmaps.sources import SourceError
 
         channels = {k: tuple(v.split(",")) for k, v in (("sar", args.sar_fcc), ("optical", args.optical_fcc)) if v}
         try:
             zooms = [_zoom(z) for z in args.zoom]
-            paths = render(args.paths, out=args.out, cache=None if args.no_cache else args.cache,
-                           save_job=args.save_job, area=args.bbox, theme=args.theme, quality=args.quality, title=args.title,
-                           template=args.template,
-                           arrangement=args.arrangement, bands=args.bands, resolution_m=args.resolution,
-                           allow_large=args.allow_large, channels=channels,
-                           data_dir=args.data_dir, subtitle=args.subtitle, place=args.place, author=args.author,
-                           website=args.website, credits=args.credit, grid=args.grid, north=args.north,
-                           scalebar=not args.no_scale, zooms=zooms)
+            with Progress(quiet=getattr(args, "quiet", False), verbose=getattr(args, "verbose", False)):
+                paths = render(args.paths, out=args.out, cache=None if args.no_cache else args.cache,
+                               save_job=args.save_job, area=args.bbox, theme=args.theme, quality=args.quality, title=args.title,
+                               template=args.template,
+                               arrangement=args.arrangement, bands=args.bands, resolution_m=args.resolution,
+                               allow_large=args.allow_large, channels=channels,
+                               data_dir=args.data_dir, subtitle=args.subtitle, place=args.place, author=args.author,
+                               website=args.website, credits=args.credit, grid=args.grid, north=args.north,
+                               scalebar=not args.no_scale, zooms=zooms)
         except (DetectError, JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError,
                 ImportError) as e:
             print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)
@@ -204,19 +250,26 @@ def main(argv: list[str] | None = None) -> int:
             print(path)
             if path.with_suffix(".pdf").exists():
                 print(path.with_suffix(".pdf"))
+        if getattr(args, "open", False) and paths:
+            open_in_viewer(paths[0])
         return 0
 
     if args.cmd == "run":
         from satmaps.area import AreaError
         from satmaps.job import JobError, load_job
         from satmaps.layout import LayoutError
+        from satmaps.progress import Progress
         from satmaps.run import run_job
         from satmaps.sources import SourceError
 
         try:
             job = load_job(args.job, args.data_dir)
-            for path in run_job(job, args.out, None if args.no_cache else args.cache, args.layouts_dir):
+            with Progress(quiet=getattr(args, "quiet", False), verbose=getattr(args, "verbose", False)):
+                written = run_job(job, args.out, None if args.no_cache else args.cache, args.layouts_dir)
+            for path in written:
                 print(path)
+            if getattr(args, "open", False) and written:
+                open_in_viewer(written[0])
         except (JobError, AreaError, SourceError, LayoutError, FileNotFoundError, KeyError, ValueError) as e:
             print(f"error: {e.args[0] if isinstance(e, KeyError) and e.args else e}", file=sys.stderr)
             return 2

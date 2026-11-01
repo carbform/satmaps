@@ -32,7 +32,7 @@ def contrast(a: str, b: str) -> float:
 
 
 def test_the_five_looks_are_registered():
-    assert ALL == ["minimal", "neo_brutal", "neo_retro", "newspaper", "xkcd"]
+    assert ALL == ["minimal", "neo_brutal", "newspaper", "retro_80s", "xkcd"]
 
 
 @pytest.mark.parametrize("name", ALL)
@@ -78,7 +78,7 @@ def test_sketch_is_taken_off_everything_in_a_data_axes_but_kept_on_the_chrome():
 
 
 def test_the_other_themes_do_not_sketch():
-    for name in ("minimal", "neo_brutal", "neo_retro", "newspaper"):
+    for name in ("minimal", "neo_brutal", "newspaper", "retro_80s"):
         assert not THEMES[name].sketch and "path.sketch" not in THEMES[name].rc_params()
 
 

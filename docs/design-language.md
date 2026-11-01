@@ -1,29 +1,28 @@
-# Design language: neo-retro
+# Design language: Retro '80s
 
-The social graphic is "neo-retro": the structural honesty of neo-brutalism (outlined boxes, small hard shadows,
-monospace labels, a bento grid) with a quiet 70s tone in type and colour. It replaced two louder explorations
-(dark, then "retro-brutal telemetry" with stripes, starfield and a mission patch). Those explorations were removed from the repository; they are in the git history before the cleanup of Oct 2026.
+The social graphic look is "Retro '80s": the structural honesty of neo-brutalism (outlined boxes, hard drop shadows,
+monospace labels, a bento layout) infused with an electric 1980s synthwave & arcade aesthetic.
 
 ## One rule above the rest
 
 **Style the chrome, never the data.** Panels, zooms and the split view are never filtered, glowed, textured or
 recoloured. Nothing in the style may hide the provisional-calibration notice.
 
-## Tokens (`satmaps.themes.neo_retro.NeoRetro`)
+## Tokens (`satmaps.themes.retro_80s.RETRO_80S`)
 
 | Role | Value |
 |---|---|
-| Paper | `#ece4d3` |
-| Card | `#f7f2e7` |
-| Ink | `#23211f` |
-| Muted ink | `#6b655b` |
-| Title offset | `#c4673a` |
-| L-band chip | `#e0b872` |
-| S-band chip | `#8fbfb7` |
-| Notice strip | `#f0dfb0` |
+| Paper | `#f0edf6` |
+| Card | `#faf5ff` |
+| Ink | `#120c1f` |
+| Muted ink | `#5c5470` |
+| Title offset | `#ff007f` |
+| L-band chip | `#85e3ff` |
+| S-band chip | `#ffb8d2` |
+| Notice strip | `#fff078` |
 | Noise grey (also in the data) | `#3a3a40` |
 
-Fonts: Gillius ADF Bold for the title, IBM Plex Mono for labels. Both are optional; matplotlib falls back to DejaVu.
+Fonts: Space Grotesk Bold for the title, IBM Plex Mono for labels. Both are optional; matplotlib falls back to DejaVu.
 
 ## Structure
 

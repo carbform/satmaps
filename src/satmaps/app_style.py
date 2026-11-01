@@ -25,6 +25,32 @@ def _font() -> str:
     return base64.b64encode((Path(__file__).parent / "app_assets" / "IBMPlexMono-Regular.ttf").read_bytes()).decode()
 
 
+@cache
+def _logo_icon_b64() -> str:
+    path = Path(__file__).parent / "app_assets" / "logo_icon.svg"
+    return base64.b64encode(path.read_bytes()).decode() if path.exists() else ""
+
+
+@cache
+def _logo_b64() -> str:
+    path = Path(__file__).parent / "app_assets" / "logo.svg"
+    return base64.b64encode(path.read_bytes()).decode() if path.exists() else ""
+
+
+def sidebar_brand(dark: bool = False) -> str:
+    """HTML brand badge for the top of the sidebar."""
+    c = DARK if dark else LIGHT
+    return (
+        f'<div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.1rem; '
+        f'padding-bottom: 0.85rem; border-bottom: 1px solid {c["line"]};">'
+        f'<img src="data:image/svg+xml;base64,{_logo_icon_b64()}" style="width: 34px; height: 34px; min-width: 34px;" />'
+        f'<div><div style="font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;">'
+        f'<span style="color: {c["ink"]};">sat</span><span style="color: #38bdf8;">maps</span></div>'
+        f'<div style="font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: {c["muted"]}; '
+        f'margin-top: 2px; font-weight: 400;">Earth Observation Studio</div></div></div>'
+    )
+
+
 def stylesheet(dark: bool = False) -> str:
     c = DARK if dark else LIGHT
     return f"""<style>
@@ -38,9 +64,27 @@ html, body, .stApp, [class*="st-"], button, input, textarea, select {{
 .block-container {{ padding-top: 1.6rem; padding-bottom: 2rem; max-width: 1500px; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 header[data-testid="stHeader"] *, [data-testid="stToolbar"] * {{ color: {c['muted']} !important; }}
-h1 {{ font-size: 1.7rem !important; letter-spacing: 0.04em; font-weight: 400 !important; padding: 0 0 0.9rem 0 !important;
-  border-bottom: 1px solid {c['line']}; margin-bottom: 1rem; }}
-h5, h2, h3 {{ font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.12em; color: {c['muted']} !important;
+h1 {{
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  font-size: 1.7rem !important;
+  letter-spacing: 0.04em;
+  font-weight: 400 !important;
+  padding: 0 0 0.9rem 0 !important;
+  border-bottom: 1px solid {c['line']};
+  margin-bottom: 1rem; }}
+h1::before {{
+  content: '';
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  background-image: url("data:image/svg+xml;base64,{_logo_icon_b64()}");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center; }}
+h5, h2, h3 {{ font-size: 0.88rem !important; text-transform: uppercase; letter-spacing: 0.12em; color: {c['muted']} !important;
   font-weight: 400 !important; padding: 0.2rem 0 0.4rem 0 !important; }}
 [data-testid="stSidebar"] {{ background: {c['tint']}; border-right: 1px solid {c['line']}; }}
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p, .stCaption {{ color: {c['muted']}; font-size: 0.85rem; }}
@@ -65,8 +109,13 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{ min-width: 0
 .stButton button:disabled {{ background: {c['tint']}; border-color: {c['line']}; opacity: .75; }}
 .stButton button:disabled * {{ color: {c['muted']} !important; }}
 
-/* the dark-mode switch: a track you can see on either page, whatever Streamlit's own theme */
-label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) {{ transform: scale(1.6); transform-origin: right center; margin: 0.35rem 0.5rem 0 0; cursor: pointer; }}
+/* the dark-mode switch: clean right alignment with comfortable padding */
+label[data-baseweb="checkbox"]:has(input[aria-label="Dark mode"]) {{
+  transform: scale(1.4);
+  transform-origin: right center;
+  margin: 0.5rem 0.5rem 0 0;
+  cursor: pointer;
+  float: right; }}
 [data-testid="stSidebar"] .stCheckbox p {{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }}
 /* the sidebar stays: no button to fold it away */
 [data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"], [data-testid="stSidebarNavCollapseButton"], [data-testid="stSidebar"] button[kind="header"] {{ display: none !important; }}
@@ -116,4 +165,8 @@ span[data-baseweb="tag"] * {{ color: {c['on_accent']} !important; }}
 [data-testid="stImage"] img {{ border: 1px solid {c['line']}; border-radius: 4px; }}
 code, pre {{ background: {c['field']} !important; color: {c['ink']} !important; }}
 hr {{ border-color: {c['line']}; }}
+::-webkit-scrollbar {{ width: 8px; height: 8px; }}
+::-webkit-scrollbar-track {{ background: {c['tint']}; }}
+::-webkit-scrollbar-thumb {{ background: {c['line']}; border-radius: 4px; }}
+::-webkit-scrollbar-thumb:hover {{ background: {c['accent']}; }}
 </style>"""

@@ -34,7 +34,7 @@ def test_social_pooled_stretch_variant(scene, tmp_path, layouts_dir):
     assert ls_social.render(scene, bands, tmp_path, load_layout(layouts_dir, "ls_social"), per_band=False)[0].exists()
 
 
-@pytest.mark.parametrize("theme", ["minimal", "neo_brutal", "neo_retro", "newspaper", "xkcd"])
+@pytest.mark.parametrize("theme", ["minimal", "neo_brutal", "newspaper", "retro_80s", "xkcd"])
 @pytest.mark.parametrize("name", list(EXAMPLES))
 def test_wording_examples_render_in_every_theme(name, theme, scene, tmp_path, layouts_dir):
     from satmaps.core import THEMES
@@ -56,7 +56,7 @@ def test_compare_takes_inputs_in_any_order(scene, tmp_path, layouts_dir):
 
     prods = {b: load_product(scene, b) for b in "LS"}
     out = compare.render(scene, prods, tmp_path, load_layout(layouts_dir, "ls_social"), inputs=("S", "L"))[0]
-    assert out.name == "NISAR_Testland_SvsL_Social_NeoRetro.png"
+    assert out.name == "NISAR_Testland_SvsL_Social_Retro80s.png"
 
 
 def test_compare_rejects_inputs_on_different_grids(scene, tmp_path, layouts_dir):

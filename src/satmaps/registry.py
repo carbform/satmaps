@@ -17,6 +17,7 @@ def load_builtin() -> None:
     import satmaps.themes.neo_brutal  # noqa: F401
     import satmaps.themes.neo_retro  # noqa: F401
     import satmaps.themes.newspaper  # noqa: F401
+    import satmaps.themes.retro_80s  # noqa: F401
     import satmaps.themes.xkcd  # noqa: F401
 
     _register_templates()

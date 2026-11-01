@@ -34,7 +34,7 @@ def panel_text(lay: Layout, key: str, prod) -> str:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, inputs: tuple[str, str] = ("L", "S"),
-           recipe: str | dict = "sar_fcc", per_band: bool | None = None, theme: str = "neo_retro", strict: bool = False,
+           recipe: str | dict = "sar_fcc", per_band: bool | None = None, theme: str = "retro_80s", strict: bool = False,
            stem: str | None = None, extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """`inputs` are the two input ids, left and right of the split. Wording comes from `layout`; facts from the products.
 

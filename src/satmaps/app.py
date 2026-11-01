@@ -22,10 +22,22 @@ matplotlib.use("Agg")  # the CLI sets this in main(); the app never goes through
 import streamlit as st  # noqa: E402
 import streamlit.components.v1 as components  # noqa: E402
 
-from satmaps.api import SAR_CHANNELS, TooLarge, auto_layout, band_choices, build_job, inspect, job_toml, layout_choices, scan  # noqa: E402
-from satmaps.app_style import stylesheet  # noqa: E402
+from satmaps.api import (  # noqa: E402
+    OPTICAL_FCC_PRESETS,
+    SAR_CHANNELS,
+    SAR_FCC_PRESETS,
+    TooLarge,
+    auto_layout,
+    band_choices,
+    build_job,
+    inspect,
+    job_toml,
+    layout_choices,
+    scan,
+)
+from satmaps.app_style import sidebar_brand, stylesheet  # noqa: E402
 from satmaps.area import AreaError  # noqa: E402
-from satmaps.autoarea import common_area, coverage, group_by_ground, touches  # noqa: E402
+from satmaps.autoarea import common_area, coverage, group_by_ground, overlap_share, touches  # noqa: E402
 from satmaps.core import THEMES  # noqa: E402
 from satmaps.desktop import DesktopError, choose_folder
 from satmaps.detect import DetectError  # noqa: E402
@@ -67,6 +79,88 @@ def footprint_of(path: str, mtime: float) -> dict:
     """Where a product has data (its footprint is read once; `mtime` makes a changed file read again)."""
     info = inspect(path)
     return {"kind": info["kind"], "ring": info["footprint"], "bbox": info["bbox"]}
+
+
+@st.cache_data(show_spinner=False)
+def product_meta(path_str: str, name: str, sensor: str | None, kind: str | None, mtime: float) -> dict:
+    """Extract quick human-readable metadata badges for a product."""
+    import re
+    from datetime import datetime
+
+    p = Path(path_str)
+    date_str, band_str, pols_str, orbit_str, extra_str = "", "", "", "", ""
+
+    if sensor == "nisar" or name.startswith("NISAR_"):
+        if "_L2_" in name or "LSAR" in name or name.startswith("L."):
+            band_str = "L-band"
+        elif "_S2_" in name or "SSAR" in name or name.startswith("S."):
+            band_str = "S-band"
+        if "_A_" in name or "_ASC" in name.upper():
+            orbit_str = "Asc"
+        elif "_D_" in name or "_DESC" in name.upper():
+            orbit_str = "Desc"
+        if "DHDH" in name or "DHNA" in name or "HHHH" in name:
+            pols_str = "HH/HV"
+        elif "CRNA" in name or "RHRH" in name:
+            pols_str = "RH/RV"
+        m = re.search(r"(\d{8})T\d{6}", name)
+        if m:
+            try:
+                date_str = datetime.strptime(m.group(1), "%Y%m%d").strftime("%d %b %Y")
+            except ValueError:
+                pass
+    elif sensor == "sentinel1" or name.startswith("S1"):
+        band_str = "C-band"
+        if "1SDV" in name or "_DV_" in name:
+            pols_str = "VV/VH"
+        elif "1SDH" in name or "_DH_" in name:
+            pols_str = "HH/HV"
+        m = re.search(r"(\d{8})T\d{6}", name)
+        if m:
+            try:
+                date_str = datetime.strptime(m.group(1), "%Y%m%d").strftime("%d %b %Y")
+            except ValueError:
+                pass
+    elif sensor == "sentinel2" or name.startswith("S2"):
+        m = re.search(r"(\d{8})T\d{6}", name)
+        if m:
+            try:
+                date_str = datetime.strptime(m.group(1), "%Y%m%d").strftime("%d %b %Y")
+            except ValueError:
+                pass
+        mtd = p / "MTD_MSIL2A.xml" if p.is_dir() else None
+        if mtd and mtd.is_file():
+            try:
+                text = mtd.read_text(errors="ignore", encoding="utf-8")[:8000]
+                cm = re.search(r"<Cloud_Coverage_Assessment>([\d.]+)</Cloud_Coverage_Assessment>", text)
+                if cm:
+                    extra_str = f"{float(cm.group(1)):.0f}% cloud"
+            except Exception:
+                pass
+    elif sensor == "eos04" or name.startswith("E04"):
+        band_str = "C-band"
+        pols_str = "HH/HV"
+        m = re.search(r"(\d{2}[A-Z]{3}\d{4})", name, re.IGNORECASE)
+        if m:
+            try:
+                date_str = datetime.strptime(m.group(1).upper(), "%d%b%Y").strftime("%d %b %Y")
+            except ValueError:
+                date_str = m.group(1)
+    elif sensor == "liss4" or name.startswith("RAF"):
+        extra_str = "5.8m"
+        m = re.search(r"(\d{2}[A-Z]{3}\d{4})", name, re.IGNORECASE)
+        if m:
+            try:
+                date_str = datetime.strptime(m.group(1).upper(), "%d%b%Y").strftime("%d %b %Y")
+            except ValueError:
+                date_str = m.group(1)
+
+    tokens = [x for x in (date_str, band_str, pols_str, orbit_str, extra_str) if x]
+    return {
+        "date": date_str, "band": band_str, "pols": pols_str,
+        "orbit": orbit_str, "extra": extra_str, "tokens": tokens,
+        "summary": " · ".join(tokens)
+    }
 
 
 @st.cache_data(show_spinner=False)
@@ -137,20 +231,336 @@ def leave_out(labels: list[str]) -> None:
         st.session_state[PICK + name] = False
 
 
+def render_lightbox(png_path: Path | str, name: str, height: int = 650, dark: bool = False) -> None:
+    """Embedded interactive pan-and-zoom lightbox viewer for high-resolution figure inspection."""
+    import base64
+    import html
+    import io
+
+    from PIL import Image
+
+    data = Path(png_path).read_bytes()
+    b64 = base64.b64encode(data).decode("ascii")
+    try:
+        w, h = Image.open(io.BytesIO(data)).size
+    except Exception:
+        w, h = 1200, 1500
+
+    bg_color = "#121418" if dark else "#1e222b"
+    bar_bg = "rgba(18, 20, 24, 0.88)" if dark else "rgba(30, 34, 43, 0.88)"
+    text_color = "#e6edf3"
+    border_color = "rgba(255, 255, 255, 0.15)"
+    accent_color = "#4ba3e3"
+
+    lightbox_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+      html, body {{ width: 100%; height: 100%; overflow: hidden; font-family: monospace; background: transparent; }}
+      #viewport {{
+        position: relative;
+        width: 100%;
+        height: {height}px;
+        background: {bg_color};
+        border-radius: 8px;
+        overflow: hidden;
+        user-select: none;
+        touch-action: none;
+        box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
+      }}
+      #viewport:fullscreen {{
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+      }}
+      #viewport:-webkit-full-screen {{
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+      }}
+      #stage {{
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        cursor: grab;
+        will-change: transform;
+      }}
+      #stage.dragging {{
+        cursor: grabbing;
+      }}
+      #stage img {{
+        display: block;
+        max-width: none;
+        pointer-events: none;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+      }}
+      .toolbar {{
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: {bar_bg};
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid {border_color};
+        border-radius: 24px;
+        padding: 5px 12px;
+        z-index: 100;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        color: {text_color};
+        font-size: 12px;
+      }}
+      .btn {{
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid {border_color};
+        color: {text_color};
+        border-radius: 14px;
+        padding: 3px 9px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+      }}
+      .btn:hover {{
+        background: rgba(255, 255, 255, 0.18);
+        border-color: rgba(255, 255, 255, 0.3);
+      }}
+      .btn:active {{
+        transform: scale(0.96);
+      }}
+      .badge {{
+        padding: 0 6px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: {accent_color};
+        min-width: 48px;
+        text-align: center;
+        cursor: pointer;
+      }}
+      .badge:hover {{
+        text-decoration: underline;
+      }}
+      .sep {{
+        width: 1px;
+        height: 14px;
+        background: {border_color};
+        margin: 0 4px;
+      }}
+      .tag {{
+        font-size: 11px;
+        color: #94a3b8;
+        letter-spacing: 0.3px;
+      }}
+      .hints {{
+        position: absolute;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: {bar_bg};
+        border: 1px solid {border_color};
+        border-radius: 16px;
+        padding: 3px 12px;
+        font-size: 11px;
+        color: #94a3b8;
+        pointer-events: none;
+        z-index: 90;
+        opacity: 0.85;
+      }}
+    </style>
+    </head>
+    <body>
+    <div id="viewport" tabindex="0">
+      <div class="toolbar">
+        <button class="btn" id="btn-out" title="Zoom out (−)">−</button>
+        <span class="badge" id="zoom-badge" title="Click to reset to 100%">100%</span>
+        <button class="btn" id="btn-in" title="Zoom in (+)">+</button>
+        <div class="sep"></div>
+        <button class="btn" id="btn-fit" title="Fit image to view (0)">⛶ Fit</button>
+        <button class="btn" id="btn-100" title="100% Native Resolution (1)">1:1</button>
+        <div class="sep"></div>
+        <button class="btn" id="btn-fs" title="Toggle full-screen view (F)">⛶ Fullscreen</button>
+        <div class="sep"></div>
+        <span class="tag">{w} × {h} px</span>
+      </div>
+      <div class="hints">Scroll to zoom · Drag to pan · Double-click to zoom 1:1</div>
+      <div id="stage">
+        <img id="img" src="data:image/png;base64,{b64}" width="{w}" height="{h}" alt="{html.escape(name)}" />
+      </div>
+    </div>
+    <script>
+      (function() {{
+        const viewport = document.getElementById("viewport");
+        const stage = document.getElementById("stage");
+        const zoomBadge = document.getElementById("zoom-badge");
+        const btnIn = document.getElementById("btn-in");
+        const btnOut = document.getElementById("btn-out");
+        const btnFit = document.getElementById("btn-fit");
+        const btn100 = document.getElementById("btn-100");
+        const btnFs = document.getElementById("btn-fs");
+
+        const imgW = {w};
+        const imgH = {h};
+
+        let scale = 1.0;
+        let tx = 0;
+        let ty = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+
+        function updateTransform() {{
+          stage.style.transform = `translate3d(${{tx}}px, ${{ty}}px, 0) scale(${{scale}})`;
+          zoomBadge.textContent = Math.round(scale * 100) + "%";
+        }}
+
+        function fitToView() {{
+          const vw = viewport.clientWidth;
+          const vh = viewport.clientHeight;
+          if (vw <= 0 || vh <= 0) return;
+          const pad = 30;
+          scale = Math.min((vw - pad * 2) / imgW, (vh - pad * 2) / imgH);
+          if (scale > 1.0) scale = 1.0;
+          tx = (vw - imgW * scale) / 2;
+          ty = (vh - imgH * scale) / 2;
+          updateTransform();
+        }}
+
+        function zoomTo(targetScale, cx, cy) {{
+          targetScale = Math.max(0.08, Math.min(25.0, targetScale));
+          if (cx === undefined || cy === undefined) {{
+            cx = viewport.clientWidth / 2;
+            cy = viewport.clientHeight / 2;
+          }}
+          tx = cx - (cx - tx) * (targetScale / scale);
+          ty = cy - (cy - ty) * (targetScale / scale);
+          scale = targetScale;
+          updateTransform();
+        }}
+
+        viewport.addEventListener("wheel", function(e) {{
+          e.preventDefault();
+          const rect = viewport.getBoundingClientRect();
+          const cx = e.clientX - rect.left;
+          const cy = e.clientY - rect.top;
+          const factor = e.deltaY < 0 ? 1.2 : 0.833;
+          zoomTo(scale * factor, cx, cy);
+        }}, {{ passive: false }});
+
+        viewport.addEventListener("pointerdown", function(e) {{
+          if (e.target.closest(".toolbar")) return;
+          isDragging = true;
+          startX = e.clientX - tx;
+          startY = e.clientY - ty;
+          stage.classList.add("dragging");
+          viewport.setPointerCapture(e.pointerId);
+        }});
+
+        viewport.addEventListener("pointermove", function(e) {{
+          if (!isDragging) return;
+          tx = e.clientX - startX;
+          ty = e.clientY - startY;
+          updateTransform();
+        }});
+
+        function endDrag(e) {{
+          if (isDragging) {{
+            isDragging = false;
+            stage.classList.remove("dragging");
+            try {{ viewport.releasePointerCapture(e.pointerId); }} catch(_) {{}}
+          }}
+        }}
+
+        viewport.addEventListener("pointerup", endDrag);
+        viewport.addEventListener("pointercancel", endDrag);
+
+        viewport.addEventListener("dblclick", function(e) {{
+          if (e.target.closest(".toolbar")) return;
+          const rect = viewport.getBoundingClientRect();
+          const cx = e.clientX - rect.left;
+          const cy = e.clientY - rect.top;
+          if (Math.abs(scale - 1.0) < 0.1) {{
+            fitToView();
+          }} else {{
+            zoomTo(1.0, cx, cy);
+          }}
+        }});
+
+        btnIn.addEventListener("click", () => zoomTo(scale * 1.25));
+        btnOut.addEventListener("click", () => zoomTo(scale * 0.8));
+        btn100.addEventListener("click", () => zoomTo(1.0));
+        zoomBadge.addEventListener("click", () => zoomTo(1.0));
+        btnFit.addEventListener("click", fitToView);
+
+        function toggleFs() {{
+          if (!document.fullscreenElement && !document.webkitFullscreenElement) {{
+            if (viewport.requestFullscreen) viewport.requestFullscreen();
+            else if (viewport.webkitRequestFullscreen) viewport.webkitRequestFullscreen();
+          }} else {{
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+          }}
+        }}
+        btnFs.addEventListener("click", toggleFs);
+
+        function onFsChange() {{
+          const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+          btnFs.textContent = isFs ? "✕ Exit" : "⛶ Fullscreen";
+          setTimeout(fitToView, 80);
+        }}
+        document.addEventListener("fullscreenchange", onFsChange);
+        document.addEventListener("webkitfullscreenchange", onFsChange);
+
+        viewport.addEventListener("keydown", function(e) {{
+          if (e.key === "+" || e.key === "=") {{ zoomTo(scale * 1.25); e.preventDefault(); }}
+          else if (e.key === "-" || e.key === "_") {{ zoomTo(scale * 0.8); e.preventDefault(); }}
+          else if (e.key === "0") {{ fitToView(); e.preventDefault(); }}
+          else if (e.key === "1") {{ zoomTo(1.0); e.preventDefault(); }}
+          else if (e.key.toLowerCase() === "f") {{ toggleFs(); e.preventDefault(); }}
+        }});
+
+        setTimeout(fitToView, 40);
+        window.addEventListener("resize", fitToView);
+      }})();
+    </script>
+    </body>
+    </html>
+    """
+    components.html(lightbox_html, height=height + 10)
+
+
 def show_results(results: list[dict], key_prefix: str = "", show_job: bool = True) -> None:
     """Each figure with its downloads; several figures (a layout that makes one per product or pair) get a tab each."""
     spots = st.tabs([r["name"] for r in results]) if len(results) > 1 else [st.container()]
     for spot, r in zip(spots, results, strict=True):
         with spot:
-            st.image(str(r["png"]), use_column_width=True)
-            a, b, c = st.columns(3)
-            a.download_button("Download PNG", r["png"].read_bytes(), f"{r['name']}.png", "image/png",
-                              key=f"{key_prefix}png_{r['name']}")
-            if r["pdf"]:
-                b.download_button("Download PDF", r["pdf"].read_bytes(), f"{r['name']}.pdf", "application/pdf",
-                                  key=f"{key_prefix}pdf_{r['name']}")
-            c.download_button("Download job file", r["toml"], f"{r['name']}.toml", "text/plain",
-                              key=f"{key_prefix}toml_{r['name']}", help="Run it again with `satmaps run`, or edit it first")
+            t_col, d1, d2, d3 = st.columns([1.5, 1, 1, 1])
+            with t_col:
+                inspect = st.toggle("🔍 High-res lightbox (pan & zoom)", key=f"{key_prefix}lightbox_{r['name']}",
+                                    help="Interactive pan & zoom viewer with full-screen inspection")
+            with d1:
+                st.download_button("Download PNG", r["png"].read_bytes(), f"{r['name']}.png", "image/png",
+                                   key=f"{key_prefix}png_{r['name']}")
+            with d2:
+                if r["pdf"]:
+                    st.download_button("Download PDF", r["pdf"].read_bytes(), f"{r['name']}.pdf", "application/pdf",
+                                       key=f"{key_prefix}pdf_{r['name']}")
+            with d3:
+                st.download_button("Download job file", r["toml"], f"{r['name']}.toml", "text/plain",
+                                   key=f"{key_prefix}toml_{r['name']}", help="Run it again with `satmaps run`, or edit it first")
+            if inspect:
+                render_lightbox(r["png"], r["name"], dark=st.session_state.get("dark", False))
+            else:
+                st.image(str(r["png"]), use_column_width=True)
     if show_job:  # (not inside another expander: Streamlit does not nest them)
         with st.expander("The job file behind this figure"):
             st.code(results[0]["toml"], language="toml")
@@ -223,8 +633,8 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
         if not apart:
             overlap = [round(v, 4) for v in common_area({str(i): p["ring"] for i, p in enumerate(prints)}).lonlat_bbox()]
     if apart:
-        st.error("These two products do not overlap: they cover different ground. A figure shows products that share ground, "
-                 "so choose two that do (or leave one out).")
+        st.error("These products do not overlap: they cover different ground. A figure shows products that share ground, "
+                 "so choose products that do (or leave one out).")
     box = box_of(st.session_state)
     w, s_, e, n = box or (0, 0, 1, 1)
     st.session_state["box_bad"] = not (w < e and s_ < n)  # west must be west of east, south south of north
@@ -244,11 +654,11 @@ def area_section(chosen_rows: list[dict], by_label: dict) -> tuple[str, tuple | 
                      tool=tool)
     apply_drawn(st.session_state, drawn)
     if not chosen_rows:  # the map of India waits for products; drawing a box before choosing any would have nothing to apply to
-        st.caption("Choose one or two products in the sidebar (step 1): they appear here, and you can draw the area you want.")
+        st.caption("Choose products in the sidebar (step 1): they appear here, and you can draw the area you want.")
         st.checkbox("OpenStreetMap basemap", value=True, key="basemap")
         return OVERLAP, None, [], False
-    st.caption("Drag to draw the area · wheel to zoom · right-drag or shift-drag to move. The dashed rectangle is what is drawn "
-               "when you draw nothing.")
+    st.caption("Pan mode: drag to move map · Draw mode: drag to draw box (or Shift+drag) · drag box edges/corners to resize. "
+               "The dashed rectangle is what is drawn when you draw nothing.")
     st.checkbox("OpenStreetMap basemap", value=True, key="basemap",
                help="Your browser fetches map tiles from openstreetmap.org, which sees roughly where you look. Untick to keep "
                     "the map to your data alone: nothing is then fetched.")
@@ -303,7 +713,7 @@ def summary(chosen_rows: list[dict], mode: str, box: tuple | None, outside: bool
     if bad:
         return False, "Not yet: the main area's west must be less than its east, and its south less than its north."
     if apart:
-        return False, "Not yet: the two products cover different ground. Choose two that overlap."
+        return False, "Not yet: the products cover different ground. Choose products that overlap."
     if outside:
         return False, "Not yet: the box misses some products. Redraw the box on the map, or leave those products out."
     return True, ""
@@ -332,16 +742,32 @@ def details_section() -> dict:
     return {k: st.session_state[k] or None for k in WORDS}
 
 
+THEME_DESCRIPTIONS = {
+    "minimal": "**Minimal Studio** — Clean, modern publication layout with hairline rules and neutral card framing.",
+    "retro_80s": "**Retro '80s** — 1980s synthwave styling with neon pink accents, terminal mono type, and offset shadows.",
+    "newspaper": "**Classic Newspaper** — Authentic broadsheet on white paper with classic serif type and ruled columns.",
+    "neo_brutal": "**Neo-Brutalist** — High-impact neo-brutalist style with bold borders, electric hues, and heavy drop shadows.",
+    "xkcd": "**Hand-Drawn Sketch (xkcd)** — Playful comic look with sketched outlines and informal lettering.",
+}
+
+
 def look_section(kinds: list[str]) -> dict:
     """How it looks: theme, layout and map furniture."""
     a, b = st.columns(2)
     theme = a.selectbox("Theme", sorted(THEMES), index=sorted(THEMES).index("minimal"))
     choices = layout_choices(kinds)
-    layout_name = b.selectbox("Layout", [AUTOMATIC, *choices.values()],
-                              help="How the products sit on the page. Automatic: one product alone, two side by side. Products "
-                                   "of any sensors, tracks, frames or dates can be shown together: each panel and each legend "
-                                   "item names its own product.")
+    options = [AUTOMATIC, *choices.values()]
+    if "layout_choice" in st.session_state and st.session_state["layout_choice"] not in options:
+        st.session_state["layout_choice"] = AUTOMATIC
+    current = st.session_state.get("layout_choice", AUTOMATIC)
+    idx = options.index(current) if current in options else 0
+    layout_name = b.selectbox("Layout", options, index=idx, key="layout_choice",
+                              help="How the products sit on the page. Automatic: 1 alone, 2 side by side.")
     layout = None if layout_name == AUTOMATIC else next(k for k, v in choices.items() if v == layout_name)
+    if theme in THEME_DESCRIPTIONS:
+        st.caption(f"🎨 **Theme**: {THEME_DESCRIPTIONS[theme]}")
+    if "bands" in choices:
+        st.caption("🔬 **Band by band**: Draws each spectral band (B01-B12) in its own panel.")
     st.markdown("**Map furniture**")
     f1, f2, f3 = st.columns(3)
     grid = f1.checkbox("Lat/lon grid", value=False, help="Grid lines with latitude and longitude labels on every panel.")
@@ -350,16 +776,82 @@ def look_section(kinds: list[str]) -> dict:
     return dict(theme=theme, layout=layout, grid=grid, north=north, scalebar=scalebar)
 
 
-def pick_channels(prefix: str, options: dict, defaults: tuple) -> tuple:
-    """Three selectors, red, green and blue, over `options` ({value: label}); a stale choice (the products changed) resets."""
+def _on_preset_change(prefix: str, avail_presets: dict, options: dict) -> None:
+    chosen_label = st.session_state.get(f"{prefix}_preset")
+    for p in avail_presets.values():
+        if p["label"] == chosen_label:
+            target = p.get("bands") or p.get("channels")
+            st.session_state[f"{prefix}_Red"] = options[target[0]]
+            st.session_state[f"{prefix}_Green"] = options[target[1]]
+            st.session_state[f"{prefix}_Blue"] = options[target[2]]
+            break
+
+
+def _on_rgb_change(prefix: str, back: dict, tuple_to_label: dict) -> None:
+    r_label = st.session_state.get(f"{prefix}_Red")
+    g_label = st.session_state.get(f"{prefix}_Green")
+    b_label = st.session_state.get(f"{prefix}_Blue")
+    if r_label and g_label and b_label:
+        current_tuple = (back.get(r_label), back.get(g_label), back.get(b_label))
+        st.session_state[f"{prefix}_preset"] = tuple_to_label.get(current_tuple, "Custom")
+
+
+def pick_channels(prefix: str, options: dict, defaults: tuple, presets: dict | None = None) -> tuple:
+    """Preset dropdown and three selectors, red, green and blue, over `options` ({value: label})."""
     labels = list(options.values())
     back = {label: value for value, label in options.items()}
+    avail_presets = {k: p for k, p in (presets or {}).items()
+                     if set(p.get("bands") or p.get("channels") or ()) <= set(options.keys())}
+    tuple_to_label = {tuple(p.get("bands") or p.get("channels")): p["label"] for p in avail_presets.values()}
+    label_to_preset = {p["label"]: p for p in avail_presets.values()}
+    preset_choices = [p["label"] for p in avail_presets.values()] + ["Custom"]
+    default_preset = tuple_to_label.get(defaults, "Custom")
+
+    # Clean up stale session keys if options changed (e.g. products changed)
+    rgb_stale = False
+    for name in ("Red", "Green", "Blue"):
+        k = f"{prefix}_{name}"
+        if k in st.session_state and st.session_state[k] not in labels:
+            del st.session_state[k]
+            rgb_stale = True
+
+    preset_key = f"{prefix}_preset"
+    if rgb_stale or (preset_key in st.session_state and st.session_state[preset_key] not in preset_choices):
+        if preset_key in st.session_state:
+            del st.session_state[preset_key]
+
+    if avail_presets:
+        curr_preset = st.session_state.get(preset_key, default_preset)
+        p_idx = preset_choices.index(curr_preset) if curr_preset in preset_choices else preset_choices.index(default_preset)
+        st.selectbox("Recipe preset", preset_choices,
+                     index=p_idx,
+                     key=preset_key,
+                     on_change=_on_preset_change,
+                     args=(prefix, avail_presets, options),
+                     help="Select a standard false-colour composite preset or customize RGB channels below.")
+
+    cols = st.columns(3)
     picks = []
-    for col, name, default in zip(st.columns(3), ("Red", "Green", "Blue"), defaults, strict=True):
-        key = f"{prefix}_{name}"
-        if key in st.session_state and st.session_state[key] not in labels:
-            del st.session_state[key]
-        picks.append(back[col.selectbox(name, labels, index=labels.index(options[default]), key=key)])
+    for col, name, default in zip(cols, ("Red", "Green", "Blue"), defaults, strict=True):
+        k = f"{prefix}_{name}"
+        curr_val = st.session_state.get(k)
+        idx = labels.index(curr_val) if curr_val in labels else labels.index(options[default])
+        chosen_label = col.selectbox(name, labels,
+                                     index=idx,
+                                     key=k,
+                                     on_change=_on_rgb_change,
+                                     args=(prefix, back, tuple_to_label))
+        picks.append(back[chosen_label])
+
+    cur_preset = st.session_state.get(preset_key, default_preset)
+    if cur_preset in label_to_preset:
+        p_info = label_to_preset[cur_preset]
+        st.caption(f"**{p_info['name']}**: {p_info['summary']}")
+        if "colors" in p_info:
+            st.caption(f"🎨 **Colors**: {p_info['colors']}")
+    elif cur_preset == "Custom":
+        st.caption(f"**Custom**: Red = {picks[0]}, Green = {picks[1]}, Blue = {picks[2]}")
+
     return tuple(picks)
 
 
@@ -372,7 +864,7 @@ def channels_section(rows: list[dict]) -> dict:
         return out
     if any(r["kind"] == "sar" for r in rows):
         st.markdown("**Radar**")
-        out["sar"] = pick_channels("fcc_sar", dict(SAR_CHANNELS), ("co", "cross", "ratio"))
+        out["sar"] = pick_channels("fcc_sar", dict(SAR_CHANNELS), ("co", "cross", "ratio"), SAR_FCC_PRESETS)
         st.caption("Co and cross are the product's own polarisations (HH/HV, VV/VH…); the ratio is co ÷ cross in dB. "
                    "Compact-pol (RH/RV) products are drawn with the m-χ decomposition instead.")
     optical = [r for r in rows if r["kind"] == "optical"]
@@ -383,10 +875,11 @@ def channels_section(rows: list[dict]) -> dict:
             st.caption("These optical products share fewer than three bands, so they keep their usual composite.")
         else:
             natural = ("red", "green", "blue") if {"red", "green", "blue"} <= set(bands) else ("nir", "red", "green")
-            out["optical"] = pick_channels("fcc_opt", bands, natural if set(natural) <= set(bands) else tuple(bands)[:3])
+            default_opt = natural if set(natural) <= set(bands) else tuple(bands)[:3]
+            out["optical"] = pick_channels("fcc_opt", bands, default_opt, OPTICAL_FCC_PRESETS)
             st.caption("Red, green, blue = red, green, blue bands is true colour; anything else is a false-colour composite.")
-    if len(rows) == 2 and rows[0]["kind"] == rows[1]["kind"]:
-        st.caption("Both products use the same channels, so the colours mean the same in each.")
+    if len(rows) >= 2 and len(set(r["kind"] for r in rows)) == 1:
+        st.caption("All products share the same channels, so the colours mean the same across panels.")
     return out
 
 
@@ -404,7 +897,8 @@ CREDITS = ('<div class="credits"><b>Carbform</b> &nbsp;·&nbsp; '
 HELP = """
 **Make a figure in four steps**
 
-1. **Products** (sidebar): pick the folder, then one or two products. Two must cover the same ground.
+1. **Products** (sidebar): pick the folder, then choose a product (or two that overlap).
+   Multiple products must cover the same ground.
 2. **Main area**: leave it, and the figure covers what the products share. Or drag a rectangle on the map,
    or type its west, south, east and north.
 3. **Make the figure** (top left). The page below shows what you will get; press the button to draw it with your data.
@@ -445,8 +939,7 @@ def figure_pane(kinds: list[str], words: dict, look: dict, channels: dict, signa
         show_results(results)
         return
     if results:
-        st.info("The settings have changed since this figure was made. This is the page they give: press **Make the figure** "
-                "to draw it with your data.")
+        st.info('The settings have changed since this figure was made. Click on "**Make the figure**" to update.')
     st.image(example_page(tuple(kinds), layout, look["theme"], tuple(sorted((k, v) for k, v in words.items() if v)),
                           (look["scalebar"], look["north"], look["grid"]), tuple(sorted(channels.items())), look["zoom_panels"]),
              use_column_width=True)
@@ -456,8 +949,10 @@ def figure_pane(kinds: list[str], words: dict, look: dict, channels: dict, signa
 
 
 def main() -> None:
-    st.set_page_config(page_title="satmaps", page_icon="🛰", layout="wide", initial_sidebar_state="expanded")
-    title, mode_switch = st.columns([6, 1])
+    page_icon_file = Path(__file__).parent / "app_assets" / "logo_icon.png"
+    st.set_page_config(page_title="satmaps", page_icon=str(page_icon_file) if page_icon_file.exists() else "🛰",
+                       layout="wide", initial_sidebar_state="expanded")
+    title, mode_switch = st.columns([10, 1])
     title.title("satmaps")
     dark = mode_switch.toggle("Dark mode", key="dark", label_visibility="collapsed", help="Dark mode")
     st.markdown(stylesheet(dark), unsafe_allow_html=True)
@@ -472,8 +967,9 @@ def main() -> None:
     top = st.container()  # the button and the pop-ups sit at the top; they are filled in once the area is known
 
     with st.sidebar:
+        st.markdown(sidebar_brand(dark), unsafe_allow_html=True)
         st.header("1 · Products")
-        st.caption("Pick the folder that holds your data, then choose one or two products that overlap.")
+        st.caption("Pick the folder that holds your data, then choose a product (or two that overlap).")
         st.text_input("Folder", key="folder")
         a, b = st.columns(2)
         a.button("Browse…", on_click=browse, help="Choose the folder in your system's own dialog")
@@ -489,20 +985,85 @@ def main() -> None:
         products = [r for r in rows if r["sensor"]]
         by_label = {label(r): r for r in products}
         taken = sum(bool(st.session_state.get(PICK + name)) for name in by_label)
+        picked_pre = [name for name in by_label if st.session_state.get(PICK + name)]
+
+        # Staging Deck / Selection Tray
+        if picked_pre:
+            tcol1, tcol2 = st.columns([3, 1])
+            count = len(picked_pre)
+            tcol1.markdown(f"**Selected ({count} product{'s' if count > 1 else ''})**")
+            if tcol2.button("Clear", key="clear_all_picks", help="Deselect all products"):
+                for n_ in by_label:
+                    st.session_state[PICK + n_] = False
+                st.session_state["picked"] = []
+                st.rerun()
+            tag_tokens = []
+            for p_name in picked_pre:
+                pr = by_label[p_name]
+                meta = product_meta(pr["path"], pr["name"], pr["sensor"], pr["kind"], Path(pr["path"]).stat().st_mtime)
+                sensor_tag = meta["tokens"][0] if meta["tokens"] else (pr["sensor"] or "").upper()
+                tag_tokens.append(f"`{sensor_tag}` {shorten(p_name)}")
+            st.caption(" · ".join(tag_tokens))
+        elif products:
+            st.caption("Choose a product to map, or two that overlap to compare.")
+
+        # Multi-product overlap reference
+        ref_fps = [footprint_of(by_label[p]["path"], Path(by_label[p]["path"]).stat().st_mtime) for p in picked_pre]
+        ref_rings = [fp["ring"] for fp in ref_fps if fp.get("ring")]
+
         picked = []
-        for name in by_label:
+        for name, r in by_label.items():
             on = bool(st.session_state.get(PICK + name))
-            if st.checkbox(shorten(name), key=PICK + name, help=name, disabled=taken >= MAX_PRODUCTS and not on):
+            meta = product_meta(r["path"], r["name"], r["sensor"], r["kind"], Path(r["path"]).stat().st_mtime)
+            help_text = f"{r['name']}\n{meta['summary']}" if meta["summary"] else r["name"]
+            if st.checkbox(shorten(name), key=PICK + name, help=help_text, disabled=taken >= MAX_PRODUCTS and not on):
                 picked.append(name)
+
+            badges = list(meta["tokens"])
+            overlap_badge = ""
+            if on:
+                overlap_badge = ":blue[●] Selected"
+            elif ref_rings:
+                cand_fp = footprint_of(r["path"], Path(r["path"]).stat().st_mtime)
+                if cand_fp.get("ring"):
+                    share = min(overlap_share(r_ring, cand_fp["ring"]) for r_ring in ref_rings)
+                    if share >= 0.70:
+                        overlap_badge = f":green[●] **{share:.0%} overlap**"
+                    elif share >= 0.05:
+                        overlap_badge = f":orange[●] **{share:.0%} partial**"
+                    else:
+                        overlap_badge = ":red[●] **0% overlap**"
+            sub = "  ·  ".join([x for x in (overlap_badge, *badges) if x])
+            if sub:
+                st.caption(sub)
+
         st.session_state["picked"] = picked
         if products:
-            st.caption(f"Tick one or two that overlap ({len(picked)} of {MAX_PRODUCTS}).")
+            if not picked:
+                st.caption("Tick a product to map, or tick two to compare.")
+            elif len(picked) == 1:
+                st.caption("✓ 1 product selected (or tick a 2nd overlapping product to compare).")
+            else:
+                st.caption("✓ 2 products selected to compare (maximum).")
         chosen_rows = [by_label[name] for name in picked]
         chosen = [r["path"] for r in chosen_rows]
         zips = [r["name"] for r in rows if not r["sensor"]]
         if zips:
-            st.caption(f"{len(zips)} zip{'s' if len(zips) > 1 else ''} not shown: the readers take unzipped folders. "
-                       "Unzip into the folder, then press Rescan.")
+            with st.expander(f"📦 {len(zips)} zip{'s' if len(zips) > 1 else ''} not shown"):
+                st.caption(f"{len(zips)} zip{'s' if len(zips) > 1 else ''} not shown: the readers take unzipped folders. "
+                           "Extract into the folder, then press Rescan.")
+                for zname in zips:
+                    zcol1, zcol2 = st.columns([3, 2])
+                    zcol1.caption(zname[:18] + "…" if len(zname) > 18 else zname)
+                    if zcol2.button("Extract", key=f"unzip_{zname}"):
+                        import zipfile
+
+                        zpath = Path(st.session_state["folder"]) / zname
+                        with st.spinner(f"Extracting {zname}…"):
+                            with zipfile.ZipFile(zpath, "r") as zf:
+                                zf.extractall(st.session_state["folder"])
+                        st.session_state["stamp"] += 1
+                        st.rerun()
         if not products and not zips:
             st.info("No products found in this folder.")
 
@@ -527,6 +1088,21 @@ def main() -> None:
             st.markdown(HELP)
         if said:
             st.warning(said)
+
+        if chosen_rows:
+            active_lay = look["layout"] or (auto_layout(kinds) if kinds else "single")
+            if set(kinds) == {"optical"}:
+                wcol1, wcol2 = st.columns([4, 2])
+                if active_lay == "bands":
+                    wcol1.caption("🔬 **Active Layout: Band-by-band spectral breakdown** — Draws every band in its own panel.")
+                    if wcol2.button("Switch to Composite", key="wf_btn_comp", help="Render RGB False-Colour Composite"):
+                        st.session_state["layout_choice"] = AUTOMATIC
+                        st.rerun()
+                else:
+                    wcol1.caption("🎨 **Active Layout: False-Colour Composite (RGB)** — Click to inspect all spectral bands.")
+                    if wcol2.button("View Band by Band", key="wf_btn_bands", help="Render all spectral bands individually"):
+                        st.session_state["layout_choice"] = "Band by band"
+                        st.rerun()
 
     zooms = zoom_boxes(st.session_state)
     shown = bool(st.session_state["zoom_on"]) and len(chosen_rows) == 1

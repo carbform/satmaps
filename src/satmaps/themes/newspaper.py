@@ -1,7 +1,5 @@
-"""Newspaper: newsprint paper, serif type, ruled columns instead of boxes. Inspired by the structure of a printed page
-(kicker, headline, dek, hairline rules, key, notes and a source line), not by any real title: it has no masthead or branding.
-
-The data panels keep the shared geometry; only the chrome around them differs from the bento themes.
+"""Newspaper: crisp white newsprint paper, classic newspaper serif typography, ruled columns instead of boxes.
+Inspired by the structure of a printed broadsheet (kicker, headline, dek, hairline rules, key, notes and a source line).
 """
 from __future__ import annotations
 
@@ -11,7 +9,7 @@ from matplotlib.patches import Rectangle
 from satmaps.core import theme
 from satmaps.themes.base import Theme, installed
 
-SERIF = installed("Source Serif Pro", "PT Serif", "Liberation Serif", "DejaVu Serif")
+SERIF = installed("Times New Roman", "Times", "Liberation Serif", "PT Serif", "Source Serif Pro", "DejaVu Serif")
 
 
 def _rule(fig, t: Theme, y: float, x0: float = 0.04, x1: float = 0.96, width: float = 0.8) -> None:
@@ -25,14 +23,16 @@ class NewspaperChrome:
     def header(fig, t: Theme, lay) -> None:
         _rule(fig, t, 0.972, width=3.4)
         _rule(fig, t, 0.9665, width=0.8)
-        fig.text(0.04, 0.9515, lay.text("header.subtitle"), fontsize=10.5, color=t.muted, va="center", weight="bold", zorder=4)
+        fig.text(0.04, 0.9515, lay.text("header.subtitle"), fontsize=10.5, color=t.muted, va="center", weight="bold",
+                 family=list(t.title_font), zorder=4)
         date = lay.text("header.date")
         when = lay.text("header.time")
         fig.text(0.96, 0.9515, f"{date}  ·  {when}" if when else date, fontsize=10.5, color=t.muted, va="center", ha="right",
-                 weight="bold", zorder=4)
+                 weight="bold", family=list(t.title_font), zorder=4)
         fig.text(0.04, 0.9115, lay.text("header.title"), fontsize=t.title_size, color=t.ink, va="center",
                  family=list(t.title_font), weight="bold", zorder=4)
-        fig.text(0.04, 0.8755, lay.text("header.info_line"), fontsize=10.5, color=t.muted, va="center", style="italic", zorder=4)
+        fig.text(0.04, 0.8755, lay.text("header.info_line"), fontsize=10.5, color=t.muted, va="center", style="italic",
+                 family=list(t.body_font), zorder=4)
         _rule(fig, t, 0.859, width=0.8)
 
     @staticmethod
@@ -44,7 +44,7 @@ class NewspaperChrome:
 
 
 NEWSPAPER = theme("newspaper")(Theme(
-    name="newspaper", tag="Newspaper", paper="#f1ece0", card="#f1ece0", ink="#161616", muted="#4f4b40",
-    chip_a="#e5dbc2", chip_b="#d3ddd9", note="#e7e0cf",
+    name="newspaper", tag="Newspaper", paper="#ffffff", card="#ffffff", ink="#111111", muted="#505050",
+    chip_a="#e6e6e6", chip_b="#dadada", note="#f2f2f2",
     title_font=SERIF, body_font=SERIF, title_size=42, line_scale=0.5, chrome=NewspaperChrome(),
 ))

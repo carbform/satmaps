@@ -71,3 +71,31 @@ def test_a_recipe_name_with_channels_gives_a_composite_that_says_what_is_where(s
     assert (RECIPES["sar_fcc"].render(p).rgba != r.rgba).any()
     with pytest.raises(KeyError, match="three of co, cross, ratio"):
         RECIPES.get_or_raise("sar_fcc:co,cross")
+
+
+def test_sar_presets_explain_actual_image_colors(scene):
+    from satmaps.core import RECIPES, SENSORS
+    from satmaps.registry import load_builtin
+
+    load_builtin()
+    p = SENSORS["nisar"].load(scene, "S")
+
+    # Vegetation preset
+    r_veg = RECIPES.get_or_raise("sar_fcc:cross,co,ratio").render(p)
+    texts_veg = [i.text for i in r_veg.legend]
+    assert any("WARM / RED = DENSE VEGETATION" in t for t in texts_veg)
+    assert any("YELLOW = BUILT-UP / ROUGH GROUND" in t for t in texts_veg)
+    assert texts_veg[0] == "RED = HV  (CANOPY / VOLUME)"
+
+    # Urban preset
+    r_urb = RECIPES.get_or_raise("sar_fcc:co,ratio,cross").render(p)
+    texts_urb = [i.text for i in r_urb.legend]
+    assert any("YELLOW / ORANGE = BUILT-UP URBAN" in t for t in texts_urb)
+    assert any("BLUE / CYAN = VEGETATION & CANOPY" in t for t in texts_urb)
+    assert texts_urb[0] == "RED = HH  (STRUCTURE / DOUBLE-BOUNCE)"
+
+    # Water preset
+    r_wat = RECIPES.get_or_raise("sar_fcc:ratio,co,cross").render(p)
+    texts_wat = [i.text for i in r_wat.legend]
+    assert any("RED = ROUGH / TEXTURED TERRAIN" in t for t in texts_wat)
+    assert any("CYAN = VEGETATED CANOPY" in t for t in texts_wat)

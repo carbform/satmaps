@@ -48,15 +48,64 @@ def _rgb_recipe(name: str, channels: tuple[str, str, str], title: str, texts: tu
         stack = np.stack([product.layers[c] for c in channels], axis=-1)
         img = np.power(np.clip((stack - lo) / (hi - lo + 1e-9), 0, 1), GAMMA)
         legend = [LegendItem(c, t) for c, t in zip(CHANNEL_HEX, texts, strict=True)]
-        legend.append(LegendItem("noise", f"STRETCH {lo:.2f}–{hi:.2f} REFLECTANCE"))
+        roles = tuple(_role_of(c) for c in channels)
+        if roles in OPTICAL_PRESET_LEGENDS:
+            legend.extend(OPTICAL_PRESET_LEGENDS[roles])
+        else:
+            legend.append(LegendItem("noise", f"STRETCH {lo:.2f}–{hi:.2f} REFLECTANCE"))
         caveats = [*product.caveats, *([STRETCH_NOTE] if cloud_left_out(product) else [])]
-        return Rendered(rgba=_finish(img, product.valid), extent=_extent(product), legend=legend,
+        return Rendered(rgba=_finish(img, product.valid), extent=_extent(product), legend=legend[:6],
                         caveats=caveats, lims={"RGB": (lo, hi)}, title=title)
 
     def pooled(products: list[Product]) -> dict:
         return {"RGB": _pooled_percentiles(products, channels)}
 
     return recipe(name)(Recipe(render=render, kind="optical", needs=channels, shared_lims=pooled))
+
+
+OPTICAL_ROLE_MAP = {
+    "b01": "b01", "b02": "blue", "b03": "green", "b04": "red",
+    "b05": "b05", "b06": "b06", "b07": "b07", "b08": "nir",
+    "b8a": "nir", "b11": "swir16", "b12": "swir22",
+}
+
+
+def _role_of(c: str) -> str:
+    return OPTICAL_ROLE_MAP.get(c.lower(), c.lower())
+
+
+OPTICAL_PRESET_LEGENDS: dict[tuple[str, str, str], list[LegendItem]] = {
+    ("red", "green", "blue"): [
+        LegendItem("#2ca02c", "GREEN = VEGETATION & CROPS"),
+        LegendItem("#1f77b4", "DARK BLUE = WATER BODIES"),
+        LegendItem("#8c564b", "BROWN/GREY = SOIL & BUILT-UP"),
+    ],
+    ("nir", "red", "green"): [
+        LegendItem("#d62728", "BRIGHT RED = HEALTHY VEGETATION"),
+        LegendItem("#17becf", "CYAN = URBAN, ROADS, BARE SOIL"),
+        LegendItem("#000000", "DARK = WATER BODIES"),
+    ],
+    ("swir16", "nir", "blue"): [
+        LegendItem("#2ca02c", "BRIGHT GREEN = HEALTHY CROPS"),
+        LegendItem("#e377c2", "MAGENTA/PINK = BARE SOIL / FALLOW"),
+        LegendItem("#000000", "DARK = WATER & WETLANDS"),
+    ],
+    ("swir22", "nir", "red"): [
+        LegendItem("#2ca02c", "GREEN = DENSE VEGETATION"),
+        LegendItem("#d95f02", "ORANGE/BROWN = SOIL & BURN SCARS"),
+        LegendItem("#08306b", "DARK BLUE = WATER & MOISTURE"),
+    ],
+    ("swir22", "swir16", "red"): [
+        LegendItem("#17becf", "CYAN/GREY = BUILT STRUCTURES"),
+        LegendItem("#8c564b", "BROWN = BARE GROUND & ROCK"),
+        LegendItem("#1a1a2e", "DARK = VEGETATION & WATER"),
+    ],
+    ("swir22", "nir", "blue"): [
+        LegendItem("#d95f02", "ORANGE/BROWN = ROCK & DRY SOIL"),
+        LegendItem("#2ca02c", "GREEN = VEGETATION"),
+        LegendItem("#08306b", "DEEP BLUE = WATER BODIES"),
+    ],
+}
 
 
 TRUE_COLOUR = _rgb_recipe("true_colour", ("red", "green", "blue"), "TRUE COLOUR",
@@ -90,10 +139,14 @@ def _fcc_recipe(channels: tuple[str, str, str]) -> Recipe:
         names = [band_label(product, c) for c in channels]
         legend = [LegendItem(hexed, f"{word} = {n}")
                   for hexed, word, n in zip(CHANNEL_HEX, ("RED", "GREEN", "BLUE"), names, strict=True)]
-        legend.append(LegendItem("noise", "EACH BAND STRETCHED ON ITS OWN (2–98%)"))
+        roles = tuple(_role_of(c) for c in channels)
+        if roles in OPTICAL_PRESET_LEGENDS:
+            legend.extend(OPTICAL_PRESET_LEGENDS[roles])
+        else:
+            legend.append(LegendItem("noise", "EACH BAND STRETCHED ON ITS OWN (2–98%)"))
         caveats = [*product.caveats, *([STRETCH_NOTE] if cloud_left_out(product) else [])]
         title = "FCC  ·  " + " / ".join(n.split()[0] for n in names)
-        return Rendered(rgba=_finish(np.stack(chans, axis=-1), product.valid), extent=_extent(product), legend=legend,
+        return Rendered(rgba=_finish(np.stack(chans, axis=-1), product.valid), extent=_extent(product), legend=legend[:6],
                         caveats=caveats, lims=lims, title=title)
 
     def pooled(products: list[Product]) -> dict:

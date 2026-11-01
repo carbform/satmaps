@@ -211,7 +211,7 @@ def test_layout_choices_follow_what_is_chosen():
     assert [auto_layout(k) for k in (["sar"], ["sar", "optical"])] == ["single", "compare"]
 
 
-@pytest.mark.parametrize("theme", ["minimal", "neo_retro", "neo_brutal", "newspaper", "xkcd"])
+@pytest.mark.parametrize("theme", ["minimal", "retro_80s", "neo_brutal", "newspaper", "xkcd"])
 @pytest.mark.parametrize("layout", ["single", "compare", "grid", "bands"])
 def test_every_layout_and_theme_draws_an_example_page(layout, theme):
     import io
@@ -471,3 +471,63 @@ def test_the_zoom_panels_switch_is_for_one_product_and_offers_one_to_three_panel
     assert [t.label for t in at.text_input if t.key.startswith("zoom_name_")] == ["Name of zoom A", "Name of zoom B"]
     pick(at, "L.h5", "S.h5")  # two products: the option is not offered
     assert not any(c.key == "zoom_on" for c in at.checkbox) and not at.exception
+
+
+@needs_streamlit
+def test_fcc_presets_in_app(app_env):
+    at = run_app()
+    pick(at, "L.h5")
+    assert not at.exception
+    # Check that fcc_sar_preset selectbox is present
+    preset = at.selectbox(key="fcc_sar_preset")
+    assert preset.value == "Standard Dual-Pol (Co / Cross / Ratio)"
+    assert "Vegetation / Canopy (Cross / Co / Ratio)" in preset.options
+    assert at.selectbox(key="fcc_sar_Red").value.startswith("Co-pol")
+    assert at.selectbox(key="fcc_sar_Green").value.startswith("Cross-pol")
+    assert at.selectbox(key="fcc_sar_Blue").value.startswith("Ratio")
+
+    # Switch to Vegetation preset
+    preset.set_value("Vegetation / Canopy (Cross / Co / Ratio)").run()
+    assert not at.exception
+    assert at.selectbox(key="fcc_sar_Red").value.startswith("Cross-pol")
+    assert at.selectbox(key="fcc_sar_Green").value.startswith("Co-pol")
+
+    # Manually change Red to Co-pol -> switches preset to "Custom"
+    at.selectbox(key="fcc_sar_Red").set_value(at.selectbox(key="fcc_sar_Green").value).run()
+    assert not at.exception
+    assert at.selectbox(key="fcc_sar_preset").value == "Custom"
+
+    # Switch back to Standard Dual-Pol from Custom -> restores Co, Cross, Ratio
+    at.selectbox(key="fcc_sar_preset").set_value("Standard Dual-Pol (Co / Cross / Ratio)").run()
+    assert not at.exception
+    assert at.selectbox(key="fcc_sar_Red").value.startswith("Co-pol")
+    assert at.selectbox(key="fcc_sar_Green").value.startswith("Cross-pol")
+    assert at.selectbox(key="fcc_sar_Blue").value.startswith("Ratio")
+
+
+@needs_streamlit
+def test_lightbox_toggle_in_app(app_env):
+    at = run_app()
+    pick(at, "L.h5")
+    press(at, "Make the figure")
+    assert not at.exception and not at.error
+    assert len(made(at)) == 1
+
+    # Find the lightbox toggle
+    lightbox_toggles = [t for t in at.toggle if "lightbox" in t.key]
+    assert len(lightbox_toggles) == 1
+    assert lightbox_toggles[0].value is False
+    assert len(at.get("imgs")) == 1  # Standard st.image rendered
+
+    # Switch on the lightbox
+    lightbox_toggles[0].set_value(True).run()
+    assert not at.exception and not at.error
+    # When lightbox is on, render_lightbox calls components.html instead of st.image
+    assert len(at.get("imgs")) == 0
+
+    # Switch back off
+    lightbox_toggles = [t for t in at.toggle if "lightbox" in t.key]
+    lightbox_toggles[0].set_value(False).run()
+    assert not at.exception and not at.error
+    assert len(at.get("imgs")) == 1
+

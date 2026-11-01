@@ -100,7 +100,7 @@ def test_run_writes_figures_and_lock_file(job_file, scene, tmp_path):
     out = tmp_path / "out"
     job = load_job(job_file, scene.data_dir)
     paths = run_job(job, out)
-    assert [p.name for p in paths] == ["NISAR_Testland_LvsS_Social_NeoRetro.png"]
+    assert [p.name for p in paths] == ["NISAR_Testland_LvsS_Social_Retro80s.png"]
     assert paths[0].stat().st_size > 5000
     import json
 
@@ -132,7 +132,7 @@ def test_single_figure_with_stem(scene, tmp_path):
     p = tmp_path / "j.toml"
     p.write_text(JOB + '\n[[figures]]\ntemplate = "sar"\ninputs = ["S"]\nname = "my_fig"\n')
     paths = run_job(load_job(p, scene.data_dir), tmp_path / "out")
-    assert [x.name for x in paths] == ["my_fig_NeoRetro.png"]
+    assert [x.name for x in paths] == ["my_fig_Retro80s.png"]
 
 
 def test_area_outside_the_file_is_explained(scene, tmp_path):
@@ -144,7 +144,7 @@ def test_area_outside_the_file_is_explained(scene, tmp_path):
 
 def test_cli_run_and_errors(job_file, scene, tmp_path, capsys):
     assert main(["run", str(job_file), "--data-dir", str(scene.data_dir), "--out", str(tmp_path / "o"), "--no-cache"]) == 0
-    assert "Social_NeoRetro.png" in capsys.readouterr().out
+    assert "Social_Retro80s.png" in capsys.readouterr().out
     assert main(["run", str(tmp_path / "missing.toml")]) == 2
     assert "not found" in capsys.readouterr().err
 

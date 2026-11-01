@@ -119,7 +119,11 @@ def pooled_lims(products: list[Product]) -> dict:
     return _pooled([_quantities(p)[1] for p in products])
 
 
-def default_legend(p1: str = "HH", p2: str = "HV") -> list[LegendItem]:
+def _noise_or_water(native: bool, text: str = "DARK = CALM WATER / SMOOTH") -> LegendItem:
+    return LegendItem("noise", "GREY = NOISE (SNR < 3 dB)") if native else LegendItem("#1a1a2e", text)
+
+
+def default_legend(p1: str = "HH", p2: str = "HV", native: bool = True) -> list[LegendItem]:
     """How-to-read items for the default composite; layouts may replace them (e.g. to add the noise share)."""
     return [
         LegendItem("#d4574f", f"RED = {p1}  (SURFACE)"),
@@ -127,14 +131,57 @@ def default_legend(p1: str = "HH", p2: str = "HV") -> list[LegendItem]:
         LegendItem("#6580d6", f"BLUE = {p1}/{p2}  (RATIO)"),
         LegendItem("#a05cb5", "PURPLE = HV LOW, SURFACE-LIKE"),
         LegendItem("#a8c25c", "LIME = HV HIGH, VOLUME-LIKE"),
-        LegendItem("noise", "GREY = NOISE (SNR < 3 dB)"),
+        _noise_or_water(native),
+    ]
+
+
+def vegetation_legend(p1: str = "HH", p2: str = "HV", native: bool = True) -> list[LegendItem]:
+    ratio = f"{p1}/{p2}"
+    return [
+        LegendItem("#d4574f", f"RED = {p2}  (CANOPY / VOLUME)"),
+        LegendItem("#5fb673", f"GREEN = {p1}  (SURFACE / STRUCTURE)"),
+        LegendItem("#6580d6", f"BLUE = {ratio}  (RATIO)"),
+        LegendItem("#d95f02", "WARM / RED = DENSE VEGETATION"),
+        LegendItem("#fdb863", "YELLOW = BUILT-UP / ROUGH GROUND"),
+        _noise_or_water(native),
+    ]
+
+
+def urban_legend(p1: str = "HH", p2: str = "HV", native: bool = True) -> list[LegendItem]:
+    ratio = f"{p1}/{p2}"
+    return [
+        LegendItem("#d4574f", f"RED = {p1}  (STRUCTURE / DOUBLE-BOUNCE)"),
+        LegendItem("#5fb673", f"GREEN = {ratio}  (RATIO / CONTRAST)"),
+        LegendItem("#6580d6", f"BLUE = {p2}  (CANOPY / VOLUME)"),
+        LegendItem("#fdb863", "YELLOW / ORANGE = BUILT-UP URBAN"),
+        LegendItem("#6580d6", "BLUE / CYAN = VEGETATION & CANOPY"),
+        _noise_or_water(native, "DARK = CALM WATER BODIES"),
+    ]
+
+
+def water_legend(p1: str = "HH", p2: str = "HV", native: bool = True) -> list[LegendItem]:
+    ratio = f"{p1}/{p2}"
+    return [
+        LegendItem("#d4574f", f"RED = {ratio}  (DEPOLARISATION RATIO)"),
+        LegendItem("#5fb673", f"GREEN = {p1}  (SURFACE BACKSCATTER)"),
+        LegendItem("#6580d6", f"BLUE = {p2}  (CANOPY / VOLUME)"),
+        LegendItem("#d4574f", "RED = ROUGH / TEXTURED TERRAIN"),
+        LegendItem("#5fb673", "CYAN = VEGETATED CANOPY"),
+        _noise_or_water(native, "DARK = CALM OPEN WATER"),
     ]
 
 
 def legend_for(channels, pols: tuple[str, str], native: bool) -> list[LegendItem]:
-    """The legend of a composite: the NISAR default keeps its reading hints; any other assignment just says what is where."""
-    if tuple(channels) == DEFAULT_CHANNELS:
-        return default_legend(*pols) if native else default_legend(*pols)[:3]
+    """The legend of a composite: presets include color interpretation; custom assignments say what is where."""
+    ch = tuple(channels)
+    if ch == DEFAULT_CHANNELS:
+        return default_legend(*pols, native=native)
+    if ch == ("cross", "co", "ratio"):
+        return vegetation_legend(*pols, native=native)
+    if ch == ("co", "ratio", "cross"):
+        return urban_legend(*pols, native=native)
+    if ch == ("ratio", "co", "cross"):
+        return water_legend(*pols, native=native)
     items = [LegendItem(CHANNEL_COLORS[k], f"{n} = {channel_name(r, pols)}")
              for k, n, r in zip("RGB", ("RED", "GREEN", "BLUE"), channels, strict=True)]
     return [*items, LegendItem("noise", "GREY = NOISE (SNR < 3 dB)")] if native else items

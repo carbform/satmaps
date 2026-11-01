@@ -92,27 +92,163 @@ def layout_choices(kinds: list[str]) -> dict[str, str]:
     return out
 
 
-def channel_recipes(channels: dict | None, kinds: dict[str, str]) -> dict[str, str]:
-    """Recipe names for the false-colour composites a caller asked for: ``channels`` is ``{"sar": (red, green, blue),
-    "optical": (red, green, blue)}`` (either may be missing or None for the default), ``kinds`` is input id -> 'sar'/'optical'."""
-    out = {}
-    for key, kind in kinds.items():
-        picked = (channels or {}).get(kind)
-        if picked and kind == "sar" and tuple(picked) != ("co", "cross", "ratio"):
-            out[key] = "sar_fcc:" + ",".join(picked)
-        elif picked and kind == "optical":
-            out[key] = "fcc:" + ",".join(picked)
-    return out
-
-
 SAR_CHANNELS = (("co", "Co-pol  (HH or VV)"), ("cross", "Cross-pol  (HV or VH)"), ("ratio", "Ratio  co / cross"))
 ROLE_BANDS = (("blue", "B02 blue"), ("green", "B03 green"), ("red", "B04 red"), ("nir", "B08 nir"),
               ("swir16", "B11 swir 1"), ("swir22", "B12 swir 2"))
 BANDS_OF_SENSOR = {
     "sentinel2": (*ROLE_BANDS[:3], ("B05", "B05 red edge 1"), ("B06", "B06 red edge 2"), ("B07", "B07 red edge 3"), ROLE_BANDS[3],
-                  ("B8A", "B8A nir narrow"), *ROLE_BANDS[4:], ("B01", "B01 coastal aerosol")),
+                   ("B8A", "B8A nir narrow"), *ROLE_BANDS[4:], ("B01", "B01 coastal aerosol")),
     "liss4": (("green", "B2 green"), ("red", "B3 red"), ("nir", "B4 nir")),
 }
+
+SAR_FCC_PRESETS: dict[str, dict] = {
+    "standard": {
+        "name": "Standard Dual-Pol",
+        "channels": ("co", "cross", "ratio"),
+        "label": "Standard Dual-Pol (Co / Cross / Ratio)",
+        "summary": "Co-pol on Red (urban/direct bounce), Cross-pol on Green (canopy volume scatter), Ratio on Blue (contrast).",
+        "colors": "Purple = surface-dominated · Lime = volume canopy · Dark = calm water",
+    },
+    "vegetation": {
+        "name": "Vegetation / Canopy",
+        "channels": ("cross", "co", "ratio"),
+        "label": "Vegetation / Canopy (Cross / Co / Ratio)",
+        "summary": "Volume scattering (HV/VH) on Red highlights forest canopy and dense biomass in warm reddish/orange tones.",
+        "colors": "Warm Red/Orange = dense vegetation & canopy · Yellow = built structures · Dark = calm water",
+    },
+    "urban": {
+        "name": "Urban / Structures",
+        "channels": ("co", "ratio", "cross"),
+        "label": "Urban / Structures (Co / Ratio / Cross)",
+        "summary": "Direct double-bounce reflections highlighted in Red/Yellow; emphasizes urban footprint and steep terrain.",
+        "colors": "Yellow/Orange = built-up urban structures · Blue/Cyan = vegetation & canopy · Dark = calm water",
+    },
+    "water_surface": {
+        "name": "Water / Surface Roughness",
+        "channels": ("ratio", "co", "cross"),
+        "label": "Water / Surface Roughness (Ratio / Co / Cross)",
+        "summary": "Depolarisation ratio on Red maximizes contrast between calm water (specular dark) and rough land surfaces.",
+        "colors": "Red = rough & textured terrain · Cyan = vegetated canopy · Dark = calm open water",
+    },
+}
+
+SAR_PRESET_ALIASES: dict[str, str] = {
+    "standard": "standard",
+    "default": "standard",
+    "vegetation": "vegetation",
+    "canopy": "vegetation",
+    "biomass": "vegetation",
+    "urban": "urban",
+    "structures": "urban",
+    "structure": "urban",
+    "water": "water_surface",
+    "water_surface": "water_surface",
+    "roughness": "water_surface",
+}
+
+OPTICAL_FCC_PRESETS: dict[str, dict] = {
+    "natural": {
+        "name": "Natural Colour",
+        "bands": ("red", "green", "blue"),
+        "label": "Natural Colour (True Colour)",
+        "summary": "True colour composite matching human eye perception (Red, Green, Blue).",
+        "colors": "Green = vegetation & crops · Dark Blue = water bodies · Brown/Grey = soil & built-up",
+    },
+    "cir": {
+        "name": "Color Infrared (CIR)",
+        "bands": ("nir", "red", "green"),
+        "label": "Color Infrared (Vegetation / CIR)",
+        "summary": "Chlorophyll reflects NIR strongly: vegetation appears vibrant red; clear water appears dark.",
+        "colors": "Bright Red = healthy dense vegetation · Cyan/Grey = urban, roads, bare soil · Dark = clear water",
+    },
+    "agriculture": {
+        "name": "Agriculture",
+        "bands": ("swir16", "nir", "blue"),
+        "label": "Agriculture (SWIR 1 / NIR / Blue)",
+        "summary": "Highlights crop health and vigor in bright green; bare soil appears pinkish/mauve.",
+        "colors": "Bright Green = healthy crops · Magenta/Pink = bare soil & fallow fields · Dark = water & wetlands",
+    },
+    "moisture": {
+        "name": "Moisture / SWIR",
+        "bands": ("swir22", "nir", "red"),
+        "label": "Moisture / Shortwave IR (SWIR 2 / NIR / Red)",
+        "summary": "Penetrates atmospheric haze; highlights soil and canopy moisture, and delineates burn scars.",
+        "colors": "Green = dense vegetation · Orange/Brown = soil & burn scars · Dark Blue = water & moisture",
+    },
+    "urban": {
+        "name": "Urban / Built-up",
+        "bands": ("swir22", "swir16", "red"),
+        "label": "Urban / Built-up (SWIR 2 / SWIR 1 / Red)",
+        "summary": "Emphasizes built structures, concrete and pavement in cyan/grey; vegetation in darker tones.",
+        "colors": "Cyan/Grey = built structures & roads · Brown = bare ground & rock · Dark = vegetation & water",
+    },
+    "geology": {
+        "name": "Geology / Land-Water",
+        "bands": ("swir22", "nir", "blue"),
+        "label": "Geology & Land-Water (SWIR 2 / NIR / Blue)",
+        "summary": "Accentuates geological boundaries, sedimentary rock, and clear land-water interfaces.",
+        "colors": "Orange/Brown = rock & dry sediment · Green = vegetation · Deep Blue = water bodies",
+    },
+}
+
+OPTICAL_PRESET_ALIASES: dict[str, str] = {
+    "natural": "natural",
+    "true_colour": "natural",
+    "true-colour": "natural",
+    "truecolour": "natural",
+    "cir": "cir",
+    "vegetation": "cir",
+    "nir": "cir",
+    "agriculture": "agriculture",
+    "crop": "agriculture",
+    "crops": "agriculture",
+    "moisture": "moisture",
+    "swir": "moisture",
+    "urban": "urban",
+    "builtup": "urban",
+    "geology": "geology",
+}
+
+
+def resolve_channels(kind: str, spec: str | tuple[str, ...] | list[str]) -> tuple[str, str, str]:
+    """Resolve a channel specification (preset alias or 3-channel tuple) into a standard 3-tuple."""
+    if isinstance(spec, str):
+        parts = tuple(x.strip() for x in spec.split(",")) if "," in spec else (spec.strip(),)
+    else:
+        parts = tuple(spec)
+
+    if len(parts) == 1:
+        name = parts[0].lower().strip()
+        if kind == "sar":
+            alias = SAR_PRESET_ALIASES.get(name)
+            if alias:
+                return SAR_FCC_PRESETS[alias]["channels"]
+            raise ValueError(f"unknown SAR preset '{parts[0]}': choose one of {', '.join(SAR_FCC_PRESETS)}")
+        if kind == "optical":
+            alias = OPTICAL_PRESET_ALIASES.get(name)
+            if alias:
+                return OPTICAL_FCC_PRESETS[alias]["bands"]
+            raise ValueError(f"unknown optical preset '{parts[0]}': choose one of {', '.join(OPTICAL_FCC_PRESETS)}")
+    if len(parts) == 3:
+        return parts  # type: ignore[return-value]
+    raise ValueError(f"{kind} channels must be a 3-tuple (red, green, blue) or a preset name, got {spec!r}")
+
+
+def channel_recipes(channels: dict | None, kinds: dict[str, str]) -> dict[str, str]:
+    """Recipe names for the false-colour composites a caller asked for: ``channels`` is ``{"sar": (red, green, blue),
+    "optical": (red, green, blue)}`` (values may be 3-tuples or preset names; either may be missing or None for the default),
+    ``kinds`` is input id -> 'sar'/'optical'."""
+    out = {}
+    for key, kind in kinds.items():
+        raw_picked = (channels or {}).get(kind)
+        if not raw_picked:
+            continue
+        picked = resolve_channels(kind, raw_picked)
+        if kind == "sar" and picked != ("co", "cross", "ratio"):
+            out[key] = "sar_fcc:" + ",".join(picked)
+        elif kind == "optical":
+            out[key] = "fcc:" + ",".join(picked)
+    return out
 
 
 def band_choices(sensors: list[str]) -> list[tuple[str, str]]:

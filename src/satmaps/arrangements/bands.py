@@ -28,7 +28,7 @@ NO_DATA = "#{:02x}{:02x}{:02x}".format(*OUTSIDE_RGB)
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str, composites: tuple[str, ...] = (),
-           stretch: str = "pooled", theme: str = "neo_retro", stem: str | None = None,
+           stretch: str = "pooled", theme: str = "retro_80s", stem: str | None = None,
            extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """`input` is the one product to show. `stretch` is "pooled" (one set of limits for all bands) or "per-band"."""
     load_builtin()

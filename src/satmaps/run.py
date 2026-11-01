@@ -109,10 +109,17 @@ def plan_figure(fig: FigureSpec, job: Job) -> list[tuple[str, ...]]:
 
 def read_products(job: Job, needed: list[str], cache_dir: str | Path | None = None):
     """Choose the canvas and read each needed input onto it: (canvas, source info per input, products per input)."""
+    from satmaps.progress import get_progress
+
+    p = get_progress()
+    if p:
+        p.update("Aligning canvas grids...")
     canvas, infos = choose_canvas(job, needed)
     products = {}
-    for k in needed:
+    for i, k in enumerate(needed, 1):
         spec = job.inputs[k]
+        if p:
+            p.update(f"Reading input [{i}/{len(needed)}] '{k}' ({_source_name(spec)})...")
         products[k] = _sensor(spec).open(spec, canvas, job.area, job.scene.data_dir, cache_dir, job.scene.name)
     return canvas, infos, products
 
@@ -140,6 +147,11 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
         for th in fig.themes:
             THEMES.get_or_raise(th)
 
+    from satmaps.progress import get_progress
+
+    p = get_progress()
+    if p:
+        p.update("Resolving area and footprint overlap...")
     job = resolve_area(job, needed)
     canvas, infos, products = read_products(job, needed, cache_dir)
     scene = dataclasses.replace(job.scene, zooms=resolve_zooms(job, canvas))
@@ -161,10 +173,14 @@ def run_job(job: Job, out_dir: str | Path, cache_dir: str | Path | None = None,
                 elif len(combo) == 1 and per_figure[id(fig)] > 1:  # one file per input must not overwrite its siblings
                     parts.append(combo[0])
                 stem = "_".join([*parts, THEMES[theme].tag])
+            if p:
+                p.update(f"Drawing figure '{stem or fig.template}' ({theme} theme)...")
             written += draw(resolved, scene=scene, products=products, out_dir=out, layout=layout, combo=combo, theme=theme,
                             stem=stem, slot=list(job.inputs).index(combo[0]), strict=fig.strict, stretch=fig.stretch,
                             profile=job.quality, furniture=Furniture(scale=fig.scalebar, north=fig.north, grid=fig.grid))
     _write_lock(job, out, canvas, infos, products, written)
+    if p:
+        p.done(f"Finished: {len(written)} figure(s) saved.")
     return written
 
 

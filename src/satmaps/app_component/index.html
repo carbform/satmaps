@@ -5,48 +5,94 @@
 <title>satmaps area map</title>
 <!--
   A Streamlit custom component with no build step. It draws where the chosen products have data, over an OpenStreetMap basemap when
-  asked, and lets you drag a rectangle for the area. Streamlit's component protocol is three messages: tell the page we are ready,
-  receive "render" with the arguments, and send back a value.
+  asked, and lets you pan, zoom, draw a rectangle for the area, and resize or move it with handles.
 
-  Arguments: footprints [{name, kind, ring: [[lon, lat], ...]}]; overlap [w, s, e, n] or null (what the app uses on its own);
-  box [w, s, e, n] or null (the rectangle now chosen); basemap true/false; dark true/false (the app's colour mode); tile_url (default: OpenStreetMap's), with {z}/{x}/{y}.
-  zooms {A: [w, s, e, n] or null, B: ..., C: ...} and tool "area" | "A" | "B" | "C": the zoom boxes drawn on the map, and what a drag
-  draws now (the main area's rectangle or that zoom's box); Clear removes all of them.
+  Arguments: footprints [{name, kind, ring: [[lon, lat], ...]}]; overlap [w, s, e, n] or null;
+  box [w, s, e, n] or null; basemap true/false; dark true/false; tile_url (default: OpenStreetMap's), with {z}/{x}/{y};
+  zooms {A: [w, s, e, n] or null, ...} and tool "area" | "A" | "B" | "C".
   Value sent back on every change: {target: "area" | "A" | "B" | "C" | "all", box: [w, s, e, n] or null, n: counter}.
-
-  The only network use is the browser fetching map tiles, and only when the basemap is on: the tile server sees which tiles
-  (so roughly which place) you look at. Switch the basemap off and the page makes no requests at all.
-
-  Mouse: drag = draw the area · wheel = zoom · right-drag, middle-drag or shift-drag = move the map.
 -->
 <style>
-  :root { --ink: #1c1c1e; --muted: #6b6f76; --line: #d9dbe0; --bg: #f3f4f6; --sar: #1f7a76; --optical: #c46a12; --box: #e0245e; --za: #7a3cc4; --zb: #1f6fd1; --zc: #d4840a; --pill: rgba(255,255,255,.85); }
-  :root[data-theme="dark"] { --ink: #cdd9e5; --muted: #8892b0; --line: #444c56; --bg: #1c2128; --pill: rgba(34,39,46,.85); }
-  html, body { margin: 0; font: 13px system-ui, sans-serif; color: var(--ink); background: transparent; }
-  canvas { display: block; width: 100%; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); cursor: crosshair; touch-action: none; }
-  canvas.pan { cursor: grabbing; }
+  :root {
+    --ink: #1c1c1e; --muted: #6b6f76; --line: #d9dbe0; --bg: #f3f4f6;
+    --sar: #1f7a76; --optical: #c46a12; --box: #e0245e;
+    --za: #7a3cc4; --zb: #1f6fd1; --zc: #d4840a;
+    --pill: rgba(255,255,255,.92);
+    --btn-active-bg: #2c3e50; --btn-active-text: #ffffff;
+    --shadow: 0 1px 4px rgba(0,0,0,0.12);
+  }
+  :root[data-theme="dark"] {
+    --ink: #cdd9e5; --muted: #8892b0; --line: #444c56; --bg: #1c2128;
+    --pill: rgba(34,39,46,.92);
+    --btn-active-bg: #3d82cc; --btn-active-text: #ffffff;
+    --shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  html, body { margin: 0; font: 13px system-ui, sans-serif; color: var(--ink); background: transparent; user-select: none; }
+  
+  #map-wrap { position: relative; width: 100%; border-radius: 6px; overflow: hidden; }
+  canvas { display: block; width: 100%; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); cursor: grab; touch-action: none; }
+  canvas.pan { cursor: grabbing !important; }
+  
+  .map-overlay { position: absolute; z-index: 10; display: flex; gap: 6px; pointer-events: auto; }
+  #toolbar-left { top: 10px; left: 10px; }
+  #toolbar-right { top: 10px; right: 10px; flex-direction: column; gap: 4px; }
+  
+  .tool-btn, .nav-btn {
+    font: inherit; font-size: 12px; font-weight: 500;
+    padding: 5px 9px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--pill); color: var(--ink); cursor: pointer;
+    box-shadow: var(--shadow); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .tool-btn:hover, .nav-btn:hover { border-color: var(--box); color: var(--box); }
+  .tool-btn.active { background: var(--btn-active-bg); color: var(--btn-active-text); border-color: var(--btn-active-bg); }
+  .nav-btn { width: 28px; height: 28px; padding: 0; font-size: 15px; font-weight: bold; }
+  
   #bar { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 6px 2px 0; color: var(--muted); flex-wrap: wrap; }
-  #readout { font-variant-numeric: tabular-nums; }
-  button { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
-  button:hover { border-color: var(--box); color: var(--box); }
-  #legend span { margin-right: 12px; white-space: nowrap; } #legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+  #readout { font-variant-numeric: tabular-nums; font-size: 12px; }
+  button.bar-btn { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+  button.bar-btn:hover { border-color: var(--box); color: var(--box); }
+  #legend span { margin-right: 12px; white-space: nowrap; font-size: 12px; }
+  #legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 </style>
 </head>
 <body>
-<canvas id="map" height="460"></canvas>
-<div id="bar"><div id="legend"></div><div><span id="readout"></span> <button id="fit">Fit</button> <button id="clear" title="Remove everything you drew: the main area and the zoom boxes">Clear</button></div></div>
+<div id="map-wrap">
+  <canvas id="map" height="460"></canvas>
+  <div id="toolbar-left" class="map-overlay">
+    <button id="btn-pan" class="tool-btn active" title="Pan mode: left-drag moves map"><span style="font-size:13px">✋</span> Pan</button>
+    <button id="btn-draw" class="tool-btn" title="Draw mode: left-drag draws box"><span style="font-size:13px">⬚</span> <span id="draw-label">Draw Area</span></button>
+  </div>
+  <div id="toolbar-right" class="map-overlay">
+    <button id="btn-zoom-in" class="nav-btn" title="Zoom in">+</button>
+    <button id="btn-zoom-out" class="nav-btn" title="Zoom out">−</button>
+    <button id="btn-fit" class="nav-btn" title="Fit to data extent" style="font-size:13px">⛶</button>
+  </div>
+</div>
+<div id="bar">
+  <div id="legend"></div>
+  <div>
+    <span id="readout"></span>
+    <button id="fit" class="bar-btn">Fit</button>
+    <button id="clear" class="bar-btn" title="Remove everything you drew: the main area and the zoom boxes">Clear</button>
+  </div>
+</div>
 <script>
 "use strict";
 const OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const H = 460, cv = document.getElementById("map"), ctx = cv.getContext("2d"), readout = document.getElementById("readout");
-let args = {footprints: [], overlap: null, box: null, zooms: {}, tool: "area", basemap: false, tile_url: OSM}, box = null, zbox = {}, drag = null, panning = null, hover = null;
+let args = {footprints: [], overlap: null, box: null, zooms: {}, tool: "area", basemap: false, tile_url: OSM};
+let box = null, zbox = {}, drag = null, panning = null, hover = null;
+let mode = "pan"; // "pan" or "draw"
+let resizing = null, moving = null, spaceDown = false;
 let counter = 0, view = {cx: 0.5, cy: 0.5, z: 1}, fitKey = null, tiles = new Map(), tilesOk = 0, tilesFailed = 0, pending = false;
 
 const send = (type, data) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, data), "*");
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const W = () => cv.clientWidth || 640;
 
-// Web Mercator: what map tiles use. Parallels and meridians stay straight, so a rectangle drawn on screen is a lon/lat box.
+// Web Mercator projections
 const mx = lon => (lon + 180) / 360;
 const my = lat => { const s = Math.sin(Math.max(-85.05, Math.min(85.05, lat)) * Math.PI / 180); return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI); };
 const lonOf = x => x * 360 - 180;
@@ -62,10 +108,23 @@ function fit() {
   const take = (lon, lat) => { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat); };
   args.footprints.forEach(f => f.ring.forEach(p => take(p[0], p[1])));
   if (args.box) { take(args.box[0], args.box[1]); take(args.box[2], args.box[3]); }
-  if (w > e) { w = 67; e = 99; s = 6; n = 37.5; }   // nothing to show yet: India
+  if (w > e) { w = 67; e = 99; s = 6; n = 37.5; }   // default India bounds
   const dx = Math.max(mx(e) - mx(w), 1e-6), dy = Math.max(my(s) - my(n), 1e-6);
   view.z = Math.max(1, Math.min(17, Math.log2(Math.min(W() / (dx * 256), H / (dy * 256)) * 0.85)));
   view.cx = (mx(w) + mx(e)) / 2; view.cy = (my(n) + my(s)) / 2;
+}
+
+function zoomBy(delta) {
+  view.z = Math.max(1, Math.min(18, view.z + delta));
+  redraw();
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById("btn-pan").classList.toggle("active", mode === "pan");
+  document.getElementById("btn-draw").classList.toggle("active", mode === "draw");
+  cv.style.cursor = mode === "pan" ? "grab" : "crosshair";
+  redraw();
 }
 
 function tileLayer() {
@@ -101,6 +160,68 @@ function halo(text, x, y, col) { ctx.lineWidth = 3; ctx.strokeStyle = css("--pil
 function rect(b) { ctx.beginPath(); ctx.rect(px(b[0]), py(b[3]), px(b[2]) - px(b[0]), py(b[1]) - py(b[3])); }
 const ordered = d => [Math.min(d[0], d[2]), Math.min(d[1], d[3]), Math.max(d[0], d[2]), Math.max(d[1], d[3])];
 
+function getScreenBox(b) {
+  if (!b) return null;
+  const x0 = px(b[0]), x1 = px(b[2]);
+  const y0 = py(b[3]), y1 = py(b[1]);
+  const left = Math.min(x0, x1), right = Math.max(x0, x1);
+  const top = Math.min(y0, y1), bottom = Math.max(y0, y1);
+  return { left, right, top, bottom, width: right - left, height: bottom - top, midX: (left + right) / 2, midY: (top + bottom) / 2 };
+}
+
+function getHandles(sBox) {
+  if (!sBox || sBox.width < 10 || sBox.height < 10) return [];
+  return [
+    { id: "nw", x: sBox.left, y: sBox.top, cursor: "nwse-resize" },
+    { id: "ne", x: sBox.right, y: sBox.top, cursor: "nesw-resize" },
+    { id: "se", x: sBox.right, y: sBox.bottom, cursor: "nwse-resize" },
+    { id: "sw", x: sBox.left, y: sBox.bottom, cursor: "nesw-resize" },
+    { id: "n",  x: sBox.midX, y: sBox.top, cursor: "ns-resize" },
+    { id: "s",  x: sBox.midX, y: sBox.bottom, cursor: "ns-resize" },
+    { id: "e",  x: sBox.right, y: sBox.midY, cursor: "ew-resize" },
+    { id: "w",  x: sBox.left, y: sBox.midY, cursor: "ew-resize" }
+  ];
+}
+
+function findHandle(handles, x, y, radius = 9) {
+  for (const h of handles) {
+    if (Math.hypot(x - h.x, y - h.y) <= radius) return h;
+  }
+  return null;
+}
+
+function isInsideBox(sBox, x, y) {
+  return sBox && x >= sBox.left && x <= sBox.right && y >= sBox.top && y <= sBox.bottom;
+}
+
+function getActiveBox() {
+  const tool = args.tool || "area";
+  return tool === "area" ? box : (zbox[tool] || null);
+}
+
+function setActiveBox(newBox) {
+  const tool = args.tool || "area";
+  if (tool === "area") box = newBox;
+  else zbox[tool] = newBox;
+}
+
+function drawHandles(b, col) {
+  const sBox = getScreenBox(b);
+  if (!sBox || sBox.width < 10 || sBox.height < 10) return;
+  const handles = getHandles(sBox);
+  ctx.save();
+  handles.forEach(h => {
+    ctx.fillStyle = css("--pill");
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.rect(h.x - 4, h.y - 4, 8, 8);
+    ctx.fill();
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
 function draw() {
   const dpr = window.devicePixelRatio || 1;
   cv.width = W() * dpr; cv.height = H * dpr;
@@ -125,14 +246,28 @@ function draw() {
   Object.keys(zbox).forEach(k => { if (zbox[k] && !(drag && tool === k)) paint(zbox[k], k, k); });
   const shown = drag ? ordered(drag) : (tool === "area" ? box : zbox[tool] || null);
   if (box && tool !== "area" && !drag) { ctx.setLineDash([5, 4]); ctx.strokeStyle = css("--box"); ctx.lineWidth = 1.6; rect(box); ctx.stroke(); ctx.setLineDash([]); }
-  if (shown) paint(shown, tool, tool === "area" ? "" : tool);
+  if (shown) {
+    paint(shown, tool, tool === "area" ? "" : tool);
+    if (!drag) drawHandles(shown, colour(tool));
+  }
   if (args.basemap) {
     const note = tilesFailed && !tilesOk ? "Basemap not available (offline?): data only" : "© OpenStreetMap contributors";
     ctx.font = "10px system-ui, sans-serif"; const w = ctx.measureText(note).width + 10;
     ctx.fillStyle = css("--pill"); ctx.fillRect(W() - w, H - 17, w, 17); ctx.fillStyle = css("--ink"); ctx.fillText(note, W() - w + 5, H - 5);
   }
-  readout.textContent = shown ? "W " + shown[0].toFixed(3) + "  S " + shown[1].toFixed(3) + "  E " + shown[2].toFixed(3) + "  N " + shown[3].toFixed(3)
-    : hover ? hover[0].toFixed(3) + "°E  " + hover[1].toFixed(3) + "°N" : tool === "area" ? "drag on the map to draw the area" : "drag on the map to draw zoom " + tool;
+  
+  // Status hint
+  let statusHint = "";
+  if (resizing) statusHint = "Resizing " + (tool === "area" ? "area" : "zoom " + tool);
+  else if (moving) statusHint = "Moving " + (tool === "area" ? "area" : "zoom " + tool);
+  else if (drag) statusHint = "Drawing " + (tool === "area" ? "area" : "zoom " + tool);
+  else if (mode === "pan") statusHint = "Pan mode: drag to move map · click Draw to draw box (or Shift+drag)";
+  else statusHint = "Draw mode: drag to draw " + (tool === "area" ? "area" : "zoom " + tool) + " · Right-drag or Space to pan";
+
+  readout.textContent = shown
+    ? "W " + shown[0].toFixed(3) + "  S " + shown[1].toFixed(3) + "  E " + shown[2].toFixed(3) + "  N " + shown[3].toFixed(3) + "  ·  " + statusHint
+    : (hover ? hover[0].toFixed(3) + "°E  " + hover[1].toFixed(3) + "°N  ·  " : "") + statusHint;
+
   const kinds = [...new Set(args.footprints.map(f => f.kind))];
   document.getElementById("legend").innerHTML = kinds.map(k => '<span><i style="background:' + css(k === "optical" ? "--optical" : "--sar") + '"></i>' + (k === "optical" ? "optical" : "radar") + ' data</span>').join("")
     + (args.overlap ? '<span><i style="border:1.5px dashed ' + css("--ink") + '"></i>overlap (the default)</span>' : "");
@@ -140,52 +275,224 @@ function draw() {
 }
 
 const where = ev => { const r = cv.getBoundingClientRect(); return [(ev.clientX - r.left) * (W() / r.width), (ev.clientY - r.top) * (H / r.height)]; };
+
 cv.addEventListener("contextmenu", ev => ev.preventDefault());
+
 cv.addEventListener("pointerdown", ev => {
   cv.setPointerCapture(ev.pointerId);
   const [x, y] = where(ev);
-  if (ev.button === 0 && !ev.shiftKey) { drag = [lonAt(x), latAt(y), lonAt(x), latAt(y)]; }
-  else { panning = [x, y]; cv.classList.add("pan"); }
+  const activeBox = getActiveBox();
+  const sBox = getScreenBox(activeBox);
+  const handles = getHandles(sBox);
+  const hitHandle = findHandle(handles, x, y, 10);
+
+  // Right-click or middle-click or spacebar always pans
+  if (ev.button === 2 || ev.button === 1 || spaceDown) {
+    panning = [x, y];
+    cv.classList.add("pan");
+    return;
+  }
+  if (ev.button !== 0) return;
+
+  // 1. Resize handle
+  if (hitHandle) {
+    resizing = {
+      handle: hitHandle.id,
+      tool: args.tool || "area",
+      startBox: [...activeBox],
+      cursor: hitHandle.cursor
+    };
+    cv.style.cursor = hitHandle.cursor;
+    return;
+  }
+
+  // 2. Move active box
+  if (isInsideBox(sBox, x, y) && (mode === "draw" || ev.ctrlKey || ev.metaKey)) {
+    moving = {
+      tool: args.tool || "area",
+      startBox: [...activeBox],
+      startLon: lonAt(x),
+      startLat: latAt(y)
+    };
+    cv.style.cursor = "move";
+    return;
+  }
+
+  // 3. Pan mode (default): left-drag pans
+  if (mode === "pan" && !ev.shiftKey) {
+    panning = [x, y];
+    cv.classList.add("pan");
+    return;
+  }
+
+  // 4. Draw mode (or Shift+drag in Pan mode)
+  drag = [lonAt(x), latAt(y), lonAt(x), latAt(y)];
+  cv.style.cursor = "crosshair";
 });
+
 cv.addEventListener("pointermove", ev => {
-  const [x, y] = where(ev); hover = [lonAt(x), latAt(y)];
-  if (drag) { drag[2] = hover[0]; drag[3] = hover[1]; }
-  if (panning) { view.cx -= (x - panning[0]) / S(); view.cy -= (y - panning[1]) / S(); panning = [x, y]; }
+  const [x, y] = where(ev);
+  hover = [lonAt(x), latAt(y)];
+
+  if (resizing) {
+    const b = [...resizing.startBox];
+    const curLon = lonAt(x), curLat = latAt(y);
+    const hid = resizing.handle;
+    if (hid.includes("w")) b[0] = curLon;
+    if (hid.includes("e")) b[2] = curLon;
+    if (hid.includes("s")) b[1] = curLat;
+    if (hid.includes("n")) b[3] = curLat;
+    setActiveBox([Math.min(b[0], b[2]), Math.min(b[1], b[3]), Math.max(b[0], b[2]), Math.max(b[1], b[3])]);
+    redraw();
+    return;
+  }
+
+  if (moving) {
+    const dLon = lonAt(x) - moving.startLon;
+    const dLat = latAt(y) - moving.startLat;
+    const b = moving.startBox;
+    setActiveBox([b[0] + dLon, b[1] + dLat, b[2] + dLon, b[3] + dLat]);
+    redraw();
+    return;
+  }
+
+  if (panning) {
+    view.cx -= (x - panning[0]) / S();
+    view.cy -= (y - panning[1]) / S();
+    panning = [x, y];
+    redraw();
+    return;
+  }
+
+  if (drag) {
+    drag[2] = hover[0];
+    drag[3] = hover[1];
+    redraw();
+    return;
+  }
+
+  // Idle hover: update cursor and readout
+  const activeBox = getActiveBox();
+  const sBox = getScreenBox(activeBox);
+  const handles = getHandles(sBox);
+  const hitHandle = findHandle(handles, x, y, 10);
+
+  if (hitHandle) {
+    cv.style.cursor = hitHandle.cursor;
+  } else if (isInsideBox(sBox, x, y) && mode === "draw") {
+    cv.style.cursor = "move";
+  } else {
+    cv.style.cursor = (mode === "pan" && !ev.shiftKey) ? "grab" : "crosshair";
+  }
   redraw();
 });
+
 cv.addEventListener("pointerup", ev => {
-  if (panning) { panning = null; cv.classList.remove("pan"); redraw(); return; }
-  if (!drag) return;
-  const b = ordered(drag); drag = null;
-  const tiny = (px(b[2]) - px(b[0])) < 6 || (py(b[1]) - py(b[3])) < 6;   // a click, not a rectangle
   const tool = args.tool || "area";
-  if (!tiny) { if (tool === "area") box = b; else zbox[tool] = b; counter += 1; send("streamlit:setComponentValue", {value: {target: tool, box: b, n: counter}, dataType: "json"}); }
+
+  if (resizing) {
+    resizing = null;
+    const activeBox = getActiveBox();
+    if (activeBox) {
+      counter += 1;
+      send("streamlit:setComponentValue", {value: {target: tool, box: activeBox, n: counter}, dataType: "json"});
+    }
+    cv.style.cursor = mode === "pan" ? "grab" : "crosshair";
+    redraw();
+    return;
+  }
+
+  if (moving) {
+    moving = null;
+    const activeBox = getActiveBox();
+    if (activeBox) {
+      counter += 1;
+      send("streamlit:setComponentValue", {value: {target: tool, box: activeBox, n: counter}, dataType: "json"});
+    }
+    cv.style.cursor = mode === "pan" ? "grab" : "crosshair";
+    redraw();
+    return;
+  }
+
+  if (panning) {
+    panning = null;
+    cv.classList.remove("pan");
+    cv.style.cursor = mode === "pan" ? "grab" : "crosshair";
+    redraw();
+    return;
+  }
+
+  if (!drag) return;
+  const b = ordered(drag);
+  drag = null;
+  const tiny = (px(b[2]) - px(b[0])) < 6 || (py(b[1]) - py(b[3])) < 6;
+  if (!tiny) {
+    if (tool === "area") box = b;
+    else zbox[tool] = b;
+    counter += 1;
+    send("streamlit:setComponentValue", {value: {target: tool, box: b, n: counter}, dataType: "json"});
+  }
+  cv.style.cursor = mode === "pan" ? "grab" : "crosshair";
   redraw();
 });
+
 cv.addEventListener("pointerleave", () => { hover = null; redraw(); });
+
 cv.addEventListener("wheel", ev => {
   ev.preventDefault();
   const [x, y] = where(ev), lon = lonAt(x), lat = latAt(y);
   view.z = Math.max(1, Math.min(18, view.z - ev.deltaY * 0.0018));
-  view.cx += mx(lon) - (view.cx + (x - W() / 2) / S()); view.cy += my(lat) - (view.cy + (y - H / 2) / S());   // keep the point under the cursor fixed
+  view.cx += mx(lon) - (view.cx + (x - W() / 2) / S());
+  view.cy += my(lat) - (view.cy + (y - H / 2) / S());
   redraw();
 }, {passive: false});
+
+window.addEventListener("keydown", ev => {
+  if (ev.code === "Space" && !ev.repeat) {
+    if (document.activeElement === cv || document.activeElement === document.body) ev.preventDefault();
+    spaceDown = true;
+    if (!resizing && !moving && !drag) cv.style.cursor = "grab";
+  }
+});
+window.addEventListener("keyup", ev => {
+  if (ev.code === "Space") {
+    spaceDown = false;
+    if (!panning && !resizing && !moving && !drag) cv.style.cursor = mode === "pan" ? "grab" : "crosshair";
+  }
+});
+
+document.getElementById("btn-pan").addEventListener("click", () => setMode("pan"));
+document.getElementById("btn-draw").addEventListener("click", () => setMode("draw"));
+document.getElementById("btn-zoom-in").addEventListener("click", () => zoomBy(0.5));
+document.getElementById("btn-zoom-out").addEventListener("click", () => zoomBy(-0.5));
+document.getElementById("btn-fit").addEventListener("click", () => { fit(); redraw(); });
 document.getElementById("fit").addEventListener("click", () => { fit(); redraw(); });
-document.getElementById("clear").addEventListener("click", () => {   // everything drawn goes: the main area and the zoom boxes (not the data's own coverage)
+document.getElementById("clear").addEventListener("click", () => {
   box = null; zbox = {}; counter += 1;
-  send("streamlit:setComponentValue", {value: {target: "all", box: null, n: counter}, dataType: "json"}); redraw();
+  send("streamlit:setComponentValue", {value: {target: "all", box: null, n: counter}, dataType: "json"});
+  redraw();
 });
 window.addEventListener("resize", () => redraw());
 
 window.addEventListener("message", ev => {
   if (!ev.data || ev.data.type !== "streamlit:render") return;
+  const prevTool = args.tool;
   args = Object.assign({footprints: [], overlap: null, box: null, zooms: {}, tool: "area", basemap: false, tile_url: OSM}, ev.data.args);
-  document.documentElement.dataset.theme = args.dark ? "dark" : "light";   // the app's own switch, not the system's
+  document.documentElement.dataset.theme = args.dark ? "dark" : "light";
   const key = JSON.stringify(args.footprints.map(f => [f.name, f.ring.length, f.ring[0]]));
-  if (key !== fitKey) { fitKey = key; fit(); }          // new products: show them all; otherwise keep the view you made
-  if (!drag) { box = args.box; zbox = Object.assign({}, args.zooms); }
+  if (key !== fitKey) { fitKey = key; fit(); }
+  if (!drag && !resizing && !moving) { box = args.box; zbox = Object.assign({}, args.zooms); }
+
+  const drawLabel = document.getElementById("draw-label");
+  if (drawLabel) {
+    drawLabel.textContent = args.tool === "area" ? "Draw Area" : "Draw Zoom " + args.tool;
+  }
+  if (prevTool !== args.tool && args.tool && args.tool !== "area") {
+    setMode("draw");
+  }
   redraw();
 });
+
 send("streamlit:componentReady", {apiVersion: 1});
 fit(); redraw();
 </script>

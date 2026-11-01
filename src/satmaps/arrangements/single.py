@@ -31,7 +31,7 @@ def _sticker(ax, t, text, xy, xytext, fc) -> None:
 
 
 def render(scene: Scene, products: dict, out_dir: Path, layout: dict, input: str = "S", recipe: str = "sar_fcc",
-           chip_slot: str = "b", theme: str = "neo_retro", stem: str | None = None,
+           chip_slot: str = "b", theme: str = "retro_80s", stem: str | None = None,
            extra_caveats: tuple[str, ...] = (), profile: Profile | None = None, furniture: Furniture = DEFAULT) -> list[Path]:
     """Wording comes from `layout`; facts come from the product. `chip_slot` ('a' or 'b') picks the theme's chip colour."""
     load_builtin()

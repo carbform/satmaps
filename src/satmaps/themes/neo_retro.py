@@ -1,10 +1,4 @@
-"""Neo-retro: warm paper, ink outlines, small hard shadows, one muted accent pair. See docs/design-language.md."""
-from satmaps.core import theme
-from satmaps.themes.base import Theme
+"""Backward-compatibility shim for neo_retro -> retro_80s."""
+from satmaps.themes.retro_80s import RETRO_80S
 
-NEO_RETRO = theme("neo_retro")(Theme(
-    name="neo_retro", tag="NeoRetro", paper="#ece4d3", card="#f7f2e7", ink="#23211f", muted="#6b655b",
-    accent="#c4673a", chip_a="#e0b872", chip_b="#8fbfb7", note="#f0dfb0",
-    title_font=("Gillius ADF", "DejaVu Sans"), body_font=("IBM Plex Mono", "DejaVu Sans Mono"),
-    shadow=(0.0028, -0.0022),
-))
+NEO_RETRO = RETRO_80S

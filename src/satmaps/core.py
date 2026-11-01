@@ -19,6 +19,7 @@ class Registry(dict):
         super().__init__()
         self.kind = kind
         self.factories: dict[str, Callable] = {}  # base name -> builds an entry from the text after the colon
+        self.aliases: dict[str, str] = {}
 
     def register(self, name: str) -> Callable:
         def deco(obj):
@@ -29,6 +30,10 @@ class Registry(dict):
 
         return deco
 
+    def alias(self, alias_name: str, target_name: str) -> None:
+        """Register an alias pointing to an existing canonical name."""
+        self.aliases[alias_name] = target_name
+
     def factory(self, name: str) -> Callable:
         """Register a builder for names like ``name:spec`` (e.g. ``sar_fcc:cross,co,ratio``): the entry is made from the spec."""
         def deco(fn):
@@ -38,12 +43,18 @@ class Registry(dict):
         return deco
 
     def get_or_raise(self, name: str):
-        if name in self:
+        if dict.__contains__(self, name):
             return dict.__getitem__(self, name)
+        if name in self.aliases and dict.__contains__(self, self.aliases[name]):
+            return dict.__getitem__(self, self.aliases[name])
         base, _, spec = name.partition(":")
         if spec and base in self.factories:
             return self.factories[base](spec)
         raise KeyError(f"unknown {self.kind} {name!r}; available: {', '.join(sorted(self)) or 'none'}")
+
+    def __contains__(self, name: object) -> bool:
+        has_alias = isinstance(name, str) and name in self.aliases and dict.__contains__(self, self.aliases[name])
+        return dict.__contains__(self, name) or has_alias
 
     def __missing__(self, name: str):
         return self.get_or_raise(name)

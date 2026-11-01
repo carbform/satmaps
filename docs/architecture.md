@@ -22,7 +22,7 @@ A product's `kind` (`"sar"` or `"optical"`) decides which template and recipe ma
 | **Recipe** | How do layers become an image, a legend and caveats? | `sar_fcc`, `true_colour`, `nir_fcc`, `swir_fcc`, `ndvi`, `ndwi`, band panels |
 | **Template** | What is the figure about, and how do its products relate? | `sar`, `optical`, `sar_optical` |
 | **Arrangement** | Where do the products sit on the page? | `single`, `compare`, `grid`, `bands` |
-| **Theme** | What does the chrome look like? | `minimal`, `neo_retro`, `neo_brutal`, `newspaper`, `xkcd` |
+| **Theme** | What does the chrome look like? | `minimal`, `retro_80s`, `newspaper`, `neo_brutal`, `xkcd` |
 
 Rule: **style the chrome, never the data.** Themes never touch data panels, and no theme can hide the caveat strip.
 
@@ -40,7 +40,7 @@ Rule: **style the chrome, never the data.** Themes never touch data panels, and 
   resolution_m, crs), `facts` (sensor-specific placeholders), `caveats` (what the sensor insists on printing), `kind`, and for
   optical products `bands` (`BandInfo`: id, wavelength, range, native resolution).
 - `Rendered`: `rgba`, `extent`, `legend`, `caveats`.
-- Registries with decorators: `@sensor("nisar")`, `@recipe("sar_fcc")`, `@theme("neo_retro")`, `@template("sar")`. A new sensor,
+- Registries with decorators: `@sensor("nisar")`, `@recipe("sar_fcc")`, `@theme("retro_80s")`, `@template("sar")`. A new sensor,
   recipe, theme or template is one module.
 
 ## Package layout
@@ -57,7 +57,7 @@ src/satmaps/
   relations.py       how the products of a figure relate (band, sensor, time gap, backscatter convention, reflectance level)
   radar.py           radar band and wavelength from a centre frequency
   arrangements/      single, compare, grid, bands; `draw` runs one
-  themes/            base (Theme tokens, chrome hooks, notice strip), neo_retro, minimal, neo_brutal, newspaper, xkcd
+  themes/            base (Theme tokens, chrome hooks, notice strip), retro_80s, minimal, neo_brutal, newspaper, xkcd
   area.py grid.py job.py run.py sources.py cog.py   area -> canvas, resampling, job file, runner, data paths, GeoTIFF windows
   config.py layout.py geo.py                        scene dataclasses, wording files and placeholders, projections
   presets/ layouts/                                 starter job files and built-in wording (shipped with the package)

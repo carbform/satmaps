@@ -90,3 +90,20 @@ def test_coarser_canvas_block_averages_linear_values():
     c = Canvas(32646, x[0] - 5, y[0] + 5, 20.0, 20, 20)
     out = to_canvas(a, x, y, 32646, c)
     assert out[2, 3] == pytest.approx(a[4:6, 6:8].mean())
+
+
+def test_overlap_share_detects_coverage_and_disjoint_rings():
+    from satmaps.autoarea import overlap_share
+
+    r1 = [(94.0, 27.0), (95.0, 27.0), (95.0, 28.0), (94.0, 28.0), (94.0, 27.0)]
+    # identical ring -> 100% overlap
+    assert overlap_share(r1, r1) == pytest.approx(1.0)
+    # partially overlapping ring
+    r2 = [(94.5, 27.0), (95.5, 27.0), (95.5, 28.0), (94.5, 28.0), (94.5, 27.0)]
+    assert 0.4 < overlap_share(r1, r2) < 0.6
+    # completely disjoint ring -> 0.0
+    r3 = [(75.0, 12.0), (76.0, 12.0), (76.0, 13.0), (75.0, 13.0), (75.0, 12.0)]
+    assert overlap_share(r1, r3) == 0.0
+    # None handling
+    assert overlap_share(r1, None) == 0.0
+    assert overlap_share(None, None) == 0.0

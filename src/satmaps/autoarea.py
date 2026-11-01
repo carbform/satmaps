@@ -108,6 +108,38 @@ def touches(ring: list[tuple[float, float]], box: tuple[float, float, float, flo
     return bool(w < e and s < n and Ring(np.asarray(ring, float)).intersects_bbox(Bbox.from_extents(w, s, e, n), filled=True))
 
 
+def overlap_share(ring1: list[tuple[float, float]] | None, ring2: list[tuple[float, float]] | None, n: int = 20) -> float:
+    """Estimated overlap share (0.0 to 1.0) of two footprint rings (lon, lat), relative to the smaller product."""
+    if not ring1 or not ring2:
+        return 0.0
+    r1 = np.asarray(ring1, float)
+    r2 = np.asarray(ring2, float)
+    w1, e1 = r1[:, 0].min(), r1[:, 0].max()
+    s1, n1 = r1[:, 1].min(), r1[:, 1].max()
+    w2, e2 = r2[:, 0].min(), r2[:, 0].max()
+    s2, n2 = r2[:, 1].min(), r2[:, 1].max()
+
+    w, e = max(w1, w2), min(e1, e2)
+    s, nn = max(s1, s2), min(n1, n2)
+    if not (w < e and s < nn):
+        return 0.0
+
+    lon, lat = np.meshgrid(np.linspace(w, e, n), np.linspace(s, nn, n))
+    pts = np.column_stack([lon.ravel(), lat.ravel()])
+    both = Ring(r1).contains_points(pts) & Ring(r2).contains_points(pts)
+    inter_area = (e - w) * (nn - s) * both.mean()
+    if inter_area <= 0:
+        return 0.0
+
+    lon1, lat1 = np.meshgrid(np.linspace(w1, e1, n), np.linspace(s1, n1, n))
+    area1 = (e1 - w1) * (n1 - s1) * Ring(r1).contains_points(np.column_stack([lon1.ravel(), lat1.ravel()])).mean()
+    lon2, lat2 = np.meshgrid(np.linspace(w2, e2, n), np.linspace(s2, n2, n))
+    area2 = (e2 - w2) * (n2 - s2) * Ring(r2).contains_points(np.column_stack([lon2.ravel(), lat2.ravel()])).mean()
+
+    denom = min(area1, area2)
+    return float(np.clip(inter_area / max(denom, 1e-9), 0.0, 1.0))
+
+
 def pick_resolution(area: Area, finest_native_m: float, target_px: int) -> float:
     """Pixel size for an auto area: fine enough for `target_px` along the longer side, never finer than the data, rounded up
     to a round number of metres."""

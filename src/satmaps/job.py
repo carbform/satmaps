@@ -31,7 +31,7 @@ class FigureSpec:
     template: str
     inputs: tuple[str, ...]
     recipes: dict = field(default_factory=dict)  # input id -> recipe name; "default" applies to the rest
-    themes: tuple[str, ...] = ("neo_retro",)
+    themes: tuple[str, ...] = ("retro_80s",)
     layout: str | None = None  # name or path of a layout file; default: the template's built-in one
     text: dict = field(default_factory=dict)  # wording overrides: title, subtitle, ... or dotted layout keys
     stretch: str | None = None  # compare: "per-band" or "pooled"
@@ -163,7 +163,7 @@ def _figure(path: Path, i: int, f: dict, inputs: dict) -> FigureSpec:
     ids = tuple(f.get("inputs") or inputs)
     if missing := [k for k in ids if k not in inputs]:
         raise JobError(f"{where}: unknown input(s) {missing}; the job defines {list(inputs)}")
-    themes = f.get("theme", "neo_retro")
+    themes = f.get("theme", "retro_80s")
     themes = (themes,) if isinstance(themes, str) else tuple(themes)
     if f.get("stretch") not in (None, "per-band", "pooled"):
         raise JobError(f"{where}: stretch must be \"per-band\" or \"pooled\"")

@@ -44,11 +44,17 @@ STRIP = 64  # output rows per strip when a read is decimated: bounds the memory 
 def _strips(ds, r0: int, r1: int, c0: int, c1: int, k: int, mean: bool) -> np.ndarray:
     """The window of `ds` reduced k x k, a strip of rows at a time: block mean over finite values (continuous layers) or
     the centre pixel of each block (masks and classes). Row and column counts are multiples of k."""
+    from satmaps.progress import get_progress
+
+    p = get_progress()
+    n_strips = max(1, (r1 - r0 + STRIP * k - 1) // (STRIP * k))
     out = []
-    for a in range(r0, r1, STRIP * k):
+    for i, a in enumerate(range(r0, r1, STRIP * k), 1):
         b = min(a + STRIP * k, r1)
         block = ds[a:b, c0:c1]
         out.append(_block_mean(block, k) if mean else block[k // 2::k, k // 2::k])
+        if p and (i % 2 == 0 or i == n_strips):
+            p.ticker(i, n_strips, "Decimating strips")
     return np.concatenate(out)
 
 

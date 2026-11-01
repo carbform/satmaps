@@ -9,7 +9,7 @@ from satmaps.sensors.sar.nisar.io import load_roi
 def test_builtins_registered():
     d = describe()
     assert d == {"sensors": ["eos04", "liss4", "nisar", "sentinel1", "sentinel2"],
-                 "recipes": ["ndvi", "ndwi", "nir_fcc", "sar_compact", "sar_fcc", "swir_fcc", "true_colour"], "themes": ["minimal", "neo_brutal", "neo_retro", "newspaper", "xkcd"],
+                 "recipes": ["ndvi", "ndwi", "nir_fcc", "sar_compact", "sar_fcc", "swir_fcc", "true_colour"], "themes": ["minimal", "neo_brutal", "newspaper", "retro_80s", "xkcd"],
                  "templates": ["optical", "sar", "sar_optical"]}
 
 
@@ -31,4 +31,4 @@ def test_nisar_product_and_recipe(scene):
     assert not to_product(load_roi(scene, "L")).caveats  # L fixture is calibrated
     r = RECIPES["sar_fcc"].render(p)
     assert not r.components and r.title.startswith("FCC") and r.lims and r.rgba.shape == p.valid.shape + (4,) and len(r.extent) == 4 and r.caveats[: len(p.caveats)] == p.caveats
-    assert THEMES["neo_retro"].paper.startswith("#")
+    assert THEMES["retro_80s"].paper.startswith("#") and THEMES["neo_retro"].paper.startswith("#")

@@ -187,3 +187,34 @@ def test_the_familiar_composites_keep_their_own_recipe_and_a_bad_spec_is_refused
     assert RECIPES.get_or_raise("fcc:nir,red,green") is RECIPES["nir_fcc"]
     with pytest.raises(KeyError, match="three band names"):
         RECIPES.get_or_raise("fcc:red,green")
+
+
+def test_optical_presets_explain_actual_image_colors():
+    from satmaps.core import RECIPES
+
+    p = product()
+    p.layers["swir16"] = p.layers["B02"]
+
+    # True colour
+    r_tc = RECIPES["true_colour"].render(p)
+    texts_tc = [i.text for i in r_tc.legend]
+    assert any("GREEN = VEGETATION & CROPS" in t for t in texts_tc)
+    assert any("DARK BLUE = WATER BODIES" in t for t in texts_tc)
+
+    # Color Infrared (CIR)
+    r_cir = RECIPES["nir_fcc"].render(p)
+    texts_cir = [i.text for i in r_cir.legend]
+    assert any("BRIGHT RED = HEALTHY VEGETATION" in t for t in texts_cir)
+    assert any("CYAN = URBAN, ROADS, BARE SOIL" in t for t in texts_cir)
+
+    # Agriculture
+    r_ag = RECIPES.get_or_raise("fcc:swir16,nir,blue").render(p)
+    texts_ag = [i.text for i in r_ag.legend]
+    assert any("BRIGHT GREEN = HEALTHY CROPS" in t for t in texts_ag)
+    assert any("MAGENTA/PINK = BARE SOIL / FALLOW" in t for t in texts_ag)
+
+    # Shortwave / Moisture
+    r_swir = RECIPES["swir_fcc"].render(p)
+    texts_swir = [i.text for i in r_swir.legend]
+    assert any("GREEN = DENSE VEGETATION" in t for t in texts_swir)
+    assert any("ORANGE/BROWN = SOIL & BURN SCARS" in t for t in texts_swir)

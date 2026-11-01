@@ -355,3 +355,46 @@ def test_a_saved_job_has_plain_numbers_even_for_numpy_values():
     from satmaps.api import _value
 
     assert _value([np.float64(1.5), np.float32(2.0), np.int64(3), 4, 0.25, True]) == "[1.5, 2.0, 3, 4, 0.25, true]"
+
+
+def test_preset_recipes_and_aliases_resolve_properly(scene):
+    import pytest
+
+    from satmaps.api import (
+        build_job,
+        channel_recipes,
+        resolve_channels,
+    )
+
+    # SAR presets and aliases
+    assert resolve_channels("sar", "standard") == ("co", "cross", "ratio")
+    assert resolve_channels("sar", "vegetation") == ("cross", "co", "ratio")
+    assert resolve_channels("sar", ("canopy",)) == ("cross", "co", "ratio")
+    assert resolve_channels("sar", "urban") == ("co", "ratio", "cross")
+    assert resolve_channels("sar", "water") == ("ratio", "co", "cross")
+    assert resolve_channels("sar", ("cross", "co", "ratio")) == ("cross", "co", "ratio")
+
+    # Optical presets and aliases
+    assert resolve_channels("optical", "natural") == ("red", "green", "blue")
+    assert resolve_channels("optical", "cir") == ("nir", "red", "green")
+    assert resolve_channels("optical", "vegetation") == ("nir", "red", "green")
+    assert resolve_channels("optical", "agriculture") == ("swir16", "nir", "blue")
+    assert resolve_channels("optical", "moisture") == ("swir22", "nir", "red")
+    assert resolve_channels("optical", "urban") == ("swir22", "swir16", "red")
+    assert resolve_channels("optical", "geology") == ("swir22", "nir", "blue")
+
+    # Channel recipes with presets
+    assert channel_recipes({"sar": "standard"}, {"L": "sar"}) == {}
+    assert channel_recipes({"sar": "vegetation", "optical": "cir"},
+                           {"L": "sar", "S2": "optical"}) == {"L": "sar_fcc:cross,co,ratio", "S2": "fcc:nir,red,green"}
+    assert channel_recipes({"sar": "urban"}, {"L": "sar"}) == {"L": "sar_fcc:co,ratio,cross"}
+
+    # Build job with preset alias
+    job, raw = build_job([scene.data_dir / "L.h5"], data_dir=scene.data_dir, channels={"sar": "vegetation"})
+    assert raw["figures"][0]["recipes"] == {"L": "sar_fcc:cross,co,ratio"}
+
+    # Unknown preset errors
+    with pytest.raises(ValueError, match="unknown SAR preset"):
+        resolve_channels("sar", "nonexistent")
+    with pytest.raises(ValueError, match="unknown optical preset"):
+        resolve_channels("optical", "nonexistent")

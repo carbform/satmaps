@@ -17,9 +17,15 @@ git clone https://github.com/carbform/satmaps && cd satmaps
 pip install -e ".[rasters,app]"
 ```
 
+Verify your environment and data folder anytime:
+
+```bash
+satmaps check
+```
+
 ## Use
 
-Unzip your products into `data/` (or set `SATMAPS_DATA_DIR`, or pass `--data-dir`). Then either open the app:
+Unzip your products into `data/` (or set `SATMAPS_DATA_DIR`, or pass `--data-dir`). Then either open the web app:
 
 ```bash
 satmaps app                                 # http://localhost:8501
@@ -30,8 +36,8 @@ or make a figure from the command line:
 ```bash
 satmaps quick a.h5 b.SAFE                   # a small PNG of the area the two products share
 satmaps quick a.h5 b.SAFE --quality publication --theme newspaper
-satmaps quick a.h5 --sar-fcc cross,co,ratio # false colour composite: which channel goes on R, G, B
-satmaps quick b.SAFE --optical-fcc nir,red,green
+satmaps quick a.h5 --sar-fcc vegetation     # presets: standard, vegetation, urban, water_surface (or cross,co,ratio)
+satmaps quick b.SAFE --optical-fcc cir      # presets: natural, cir, agriculture, moisture, urban, geology (or nir,red,green)
 satmaps quick a.h5 --zoom "27.5,94.1,6=Hill edge" --zoom 27.6,94.3,6   # zoom side panels for one product: LAT,LON,KM[=NAME]
 satmaps quick a.h5 b.SAFE --save-job fig.toml   # also save the job file; edit it, then `satmaps run fig.toml`
 ```
@@ -41,7 +47,18 @@ import satmaps
 satmaps.render(["a.h5", "b.SAFE"], theme="newspaper", quality="publication", title="Two radars")
 ```
 
-`satmaps --help` lists the other commands (`inspect`, `run`, `init`, `list`). Job files and the wording files that change what a figure says are in [jobs/](jobs/).
+`satmaps --help` lists the other commands (`check`, `inspect`, `run`, `init`, `list`). Job files and the wording files that change what a figure says are in [jobs/](jobs/).
+
+## Features
+
+- **Interactive Web App**: Dark mode, product footprint & overlap intelligence, single-product hero figures or side-by-side comparisons, one-click false-colour composite presets, high-res full-bleed lightbox inspection, and map furniture (scale bar, true north arrow, lat/lon grid).
+- **Five Print Themes**:
+  - `minimal`: Clean, modern publication layout with hairline rules and neutral framing.
+  - `retro_80s`: 1980s synthwave & arcade aesthetic with neon pink drop shadows, terminal monospace, and cyan/pink chips (`neo_retro` supported as alias).
+  - `newspaper`: Authentic broadsheet on crisp white paper with classic serif typography and ruled columns.
+  - `neo_brutal`: High-impact style with bold black borders, electric hues, and heavy drop shadows.
+  - `xkcd`: Playful hand-drawn comic look with sketched outlines and informal lettering.
+- **Strictly Scientific**: Chrome is styled; the data pixels and measurements are never altered, filtered, or recoloured.
 
 ## Gallery
 
@@ -51,7 +68,7 @@ The Brahmaputra near Dibrugarh, Assam, seen by all five sensors. Every figure ca
 
 <table>
   <tr>
-    <td align="center" width="20%"><img src="docs/img/theme_neo_retro.jpg" alt="neo_retro"><br><sub>neo_retro</sub></td>
+    <td align="center" width="20%"><img src="docs/img/theme_retro_80s.jpg" alt="retro_80s"><br><sub>retro_80s</sub></td>
     <td align="center" width="20%"><img src="docs/img/theme_minimal.jpg" alt="minimal"><br><sub>minimal</sub></td>
     <td align="center" width="20%"><img src="docs/img/theme_neo_brutal.jpg" alt="neo_brutal"><br><sub>neo_brutal</sub></td>
     <td align="center" width="20%"><img src="docs/img/theme_newspaper.jpg" alt="newspaper"><br><sub>newspaper</sub></td>
